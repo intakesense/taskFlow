@@ -14,15 +14,18 @@ export function QueryProvider({ children }: QueryProviderProps) {
             new QueryClient({
                 defaultOptions: {
                     queries: {
-                        staleTime: 5 * 60 * 1000, // 5 minutes - longer stale time prevents unnecessary refetches
-                        gcTime: 10 * 60 * 1000, // 10 minutes - garbage collection time (formerly cacheTime)
+                        staleTime: 60 * 1000, // 1 minute - shorter to allow fresh data on hard refresh
+                        gcTime: 5 * 60 * 1000, // 5 minutes - garbage collection time (formerly cacheTime)
                         refetchOnWindowFocus: false, // Prevent refetch on window focus
-                        refetchOnMount: false, // Use cached data on mount if available
+                        refetchOnMount: true, // Always refetch on mount to get fresh data
+                        refetchOnReconnect: true, // Refetch when reconnecting
                         retry: 1, // Only retry once to prevent stuck loading states
                         retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000), // Exponential backoff with 3s max
+                        networkMode: 'offlineFirst', // Try cached data first, but handle online/offline properly
                     },
                     mutations: {
                         retry: 0, // Don't retry mutations automatically
+                        networkMode: 'online', // Mutations require network
                     },
                 },
             })

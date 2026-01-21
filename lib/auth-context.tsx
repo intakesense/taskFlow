@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, resetClient } from '@/lib/supabase/client'
 import { User } from '@/lib/types'
 
 interface AuthContextType {
@@ -51,27 +51,98 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     useEffect(() => {
+        let mounted = true
+
         const initAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession()
-            setUser(session?.user ?? null)
+            try {
+                // Add timeout to prevent infinite loading state
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Auth timeout')), 10000)
+                )
 
-            if (session?.user) {
-                const profileData = await fetchProfile(session.user.id)
-                setProfile(profileData)
+                // Get session - this will use cached data but also trigger refresh if needed
+                const authPromise = supabase.auth.getSession()
+
+                const { data: { session }, error } = await Promise.race([
+                    authPromise,
+                    timeoutPromise
+                ]) as any
+
+                if (!mounted) return
+
+                // If there's an error or no session, clear state
+                if (error || !session) {
+                    console.error('Session error:', error)
+                    setUser(null)
+                    setProfile(null)
+                } else {
+                    // Validate the session by getting the user (this calls the API)
+                    const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser()
+
+                    if (!mounted) return
+
+                    if (userError || !validatedUser) {
+                        // Session is invalid, clear everything
+                        console.error('User validation error:', userError)
+                        setUser(null)
+                        setProfile(null)
+                        // Reset client to clear stale data
+                        resetClient()
+                    } else {
+                        // Session is valid
+                        setUser(validatedUser)
+                        const profileData = await fetchProfile(validatedUser.id)
+                        if (mounted) {
+                            setProfile(profileData)
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Auth initialization error:', error)
+                // Even on error, set loading to false to prevent infinite spinner
+                if (mounted) {
+                    setUser(null)
+                    setProfile(null)
+                }
+            } finally {
+                if (mounted) {
+                    setLoading(false)
+                }
             }
-
-            setLoading(false)
         }
 
         initAuth()
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
+                if (!mounted) return
+
+                // Handle sign out events
+                if (event === 'SIGNED_OUT') {
+                    setUser(null)
+                    setProfile(null)
+                    setMaskedAsUser(null)
+                    resetClient()
+                    return
+                }
+
+                // Handle token refresh failures
+                if (event === 'TOKEN_REFRESHED' && !session) {
+                    console.error('Token refresh failed')
+                    setUser(null)
+                    setProfile(null)
+                    setMaskedAsUser(null)
+                    resetClient()
+                    return
+                }
+
                 setUser(session?.user ?? null)
 
                 if (session?.user) {
                     const profileData = await fetchProfile(session.user.id)
-                    setProfile(profileData)
+                    if (mounted) {
+                        setProfile(profileData)
+                    }
                 } else {
                     setProfile(null)
                     setMaskedAsUser(null)
@@ -79,7 +150,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         )
 
-        return () => subscription.unsubscribe()
+        return () => {
+            mounted = false
+            subscription.unsubscribe()
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
@@ -102,6 +176,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signOut = async () => {
         setMaskedAsUser(null)
         await supabase.auth.signOut()
+        // Reset the singleton client to force fresh initialization on next login
+        resetClient()
     }
 
     const maskAs = async (userId: string | null) => {
