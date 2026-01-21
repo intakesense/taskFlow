@@ -6,7 +6,6 @@ import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers, MessageWithSender, UserBasic } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useUpdatingTimestamp } from '@/hooks/use-updating-timestamp'
-import { useOnlinePresence } from '@/hooks/use-online-presence'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +36,7 @@ interface ChatViewProps {
     conversation: ConversationWithMembers
     messages: MessageWithSender[]
     typingUsers: UserBasic[]
+    isUserOnline: (userId: string) => boolean
     onSendMessage: (content: string) => void
     onSendFile?: (file: File) => void
     onBack?: () => void
@@ -49,6 +49,7 @@ export function ChatView({
     conversation,
     messages,
     typingUsers,
+    isUserOnline,
     onSendMessage,
     onSendFile,
     onBack,
@@ -61,9 +62,6 @@ export function ChatView({
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
-
-    // Track online presence for conversation members
-    const { isUserOnline } = useOnlinePresence(conversation.id, profile?.id)
 
     // Scroll to bottom on new messages
     useEffect(() => {

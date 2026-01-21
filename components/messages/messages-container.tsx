@@ -42,8 +42,8 @@ export function MessagesContainer() {
 
   const { data: messages = [], isLoading: loadingMessages } = useChatMessages(selectedConversation?.id)
 
-  // CONSOLIDATED: Single hook for messages + typing realtime
-  const { typingUsers } = useConversationRealtime(selectedConversation?.id, profile?.id)
+  // CONSOLIDATED: Single hook for messages + typing + online status
+  const { typingUsers, isUserOnline } = useConversationRealtime(selectedConversation?.id, profile?.id)
 
   const sendMessage = useSendChatMessage()
   const createDM = useCreateDM()
@@ -52,15 +52,15 @@ export function MessagesContainer() {
   const { setTyping, clearTyping } = useSetTyping()
 
   // Mark as read when opening a conversation
-  const markAsReadMutate = markAsRead.mutate
   useEffect(() => {
     if (selectedConversation?.id && profile?.id) {
-      markAsReadMutate({
+      markAsRead.mutate({
         conversationId: selectedConversation.id,
         userId: profile.id,
       })
     }
-  }, [selectedConversation?.id, profile?.id, markAsReadMutate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversation?.id, profile?.id])
 
   // Handlers
   const handleSelectConversation = (conv: ConversationWithMembers) => {
@@ -82,7 +82,8 @@ export function MessagesContainer() {
       },
     })
 
-    clearTyping(selectedConversation.id)
+    // Clear typing indicator (preserves online status)
+    clearTyping(selectedConversation.id, profile.id)
   }
 
   const handleTyping = () => {
@@ -193,6 +194,7 @@ export function MessagesContainer() {
         selectedConversation={selectedConversation}
         messages={messages}
         typingUsers={typingUsers}
+        isUserOnline={isUserOnline}
         isMobileView={isMobileView}
         showNewChat={showNewChat}
         loadingConversations={loadingConversations}

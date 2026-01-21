@@ -16,16 +16,13 @@ export const messageKeys = {
   search: (query: string) => [...messageKeys.all, 'search', query] as const,
 }
 
-// Fetch messages for a conversation with read receipts
+// Fetch messages for a conversation
 async function fetchMessages(conversationId: string): Promise<MessageWithSender[]> {
   const { data, error } = await supabase
     .from('messages')
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level),
-      message_reads(
-        user:users(id, name, email, level)
-      )
+      sender:users!messages_sender_id_fkey(id, name, email, level)
     `)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
@@ -39,15 +36,10 @@ async function fetchMessages(conversationId: string): Promise<MessageWithSender[
       .order('created_at', { ascending: true })
 
     if (fallbackError) throw fallbackError
-    return (messagesOnly || []).map((m) => ({ ...m, sender: null, readBy: [] })) as MessageWithSender[]
+    return (messagesOnly || []).map((m) => ({ ...m, sender: null })) as MessageWithSender[]
   }
 
-  // Transform the data to include readBy array
-  return (data || []).map((msg: any) => ({
-    ...msg,
-    readBy: msg.message_reads?.map((read: any) => read.user).filter(Boolean) || [],
-    message_reads: undefined, // Remove the raw join data
-  })) as MessageWithSender[]
+  return data as MessageWithSender[]
 }
 
 // Send a message
@@ -85,10 +77,7 @@ async function sendMessage(input: SendMessageInput): Promise<MessageWithSender> 
     })
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level),
-      message_reads(
-        user:users(id, name, email, level)
-      )
+      sender:users!messages_sender_id_fkey(id, name, email, level)
     `)
     .single()
 
@@ -98,14 +87,7 @@ async function sendMessage(input: SendMessageInput): Promise<MessageWithSender> 
   }
 
   console.log('✅ Message sent successfully:', data.id);
-
-  // Transform the data to include readBy array
-  const messageWithReads: MessageWithSender = {
-    ...data,
-    readBy: (data as any).message_reads?.map((read: any) => read.user).filter(Boolean) || [],
-  }
-
-  return messageWithReads
+  return data as MessageWithSender
 }
 
 // Search messages
@@ -114,23 +96,14 @@ async function searchMessages(query: string): Promise<MessageWithSender[]> {
     .from('messages')
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level),
-      message_reads(
-        user:users(id, name, email, level)
-      )
+      sender:users!messages_sender_id_fkey(id, name, email, level)
     `)
     .textSearch('search_vector', query)
     .order('created_at', { ascending: false })
     .limit(50)
 
   if (error) throw error
-
-  // Transform the data to include readBy array
-  return (data || []).map((msg: any) => ({
-    ...msg,
-    readBy: msg.message_reads?.map((read: any) => read.user).filter(Boolean) || [],
-    message_reads: undefined, // Remove the raw join data
-  })) as MessageWithSender[]
+  return data as MessageWithSender[]
 }
 
 // Mark messages as read
@@ -197,7 +170,6 @@ export function useSendMessage() {
         created_at: new Date().toISOString(),
         search_vector: null,
         sender: null, // Will be populated by realtime
-        readBy: [], // New messages have no reads
       }
 
       queryClient.setQueryData<MessageWithSender[]>(
@@ -273,17 +245,19 @@ export function useDeleteMessage() {
 
 /**
  * CONSOLIDATED REALTIME HOOK
- * Combines messages + typing in a SINGLE channel to prevent leaks
- * Uses Supabase Presence for typing (ephemeral, no DB writes)
+ * Combines messages + typing + online status in a SINGLE channel to prevent leaks
+ * Uses Supabase Presence for typing and online status (ephemeral, no DB writes)
  */
 export function useConversationRealtime(conversationId: string | undefined, currentUserId: string | undefined) {
   const queryClient = useQueryClient()
   const [typingUsers, setTypingUsers] = useState<UserBasic[]>([])
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!conversationId || !currentUserId) {
-      // Clear typing users when no conversation selected
+      // Clear state when no conversation selected
       setTypingUsers([])
+      setOnlineUserIds(new Set())
       return
     }
 
@@ -329,7 +303,6 @@ export function useConversationRealtime(conversationId: string | undefined, curr
       const messageWithSender: MessageWithSender = {
         ...newMessage,
         sender,
-        readBy: [], // New messages have no reads yet
       }
 
       // Add to cache without refetching
@@ -346,21 +319,38 @@ export function useConversationRealtime(conversationId: string | undefined, curr
       queryClient.invalidateQueries({ queryKey: conversationKeys.list() })
     }
 
-    // Handler for presence sync
+    // Handler for presence sync - extracts BOTH typing and online status
     const handlePresenceSync = () => {
       const state = channel.presenceState()
       const typing: UserBasic[] = []
+      const online = new Set<string>()
 
       Object.values(state).forEach((presences: any) => {
         presences.forEach((presence: any) => {
-          if (presence.user_id !== currentUserId && presence.typing) {
+          // Skip current user
+          if (presence.user_id === currentUserId) return
+
+          // Track online users (anyone with recent online_at)
+          if (presence.online_at) {
+            const onlineAt = new Date(presence.online_at).getTime()
+            const now = Date.now()
+            const fiveMinutesAgo = now - 5 * 60 * 1000
+
+            if (onlineAt > fiveMinutesAgo) {
+              online.add(presence.user_id)
+            }
+          }
+
+          // Track typing users (must have typing flag AND user object)
+          if (presence.typing && presence.user) {
             typing.push(presence.user as UserBasic)
           }
         })
       })
 
-      console.log(`👥 Typing users updated for ${conversationId}:`, typing.length)
+      console.log(`👥 Presence updated for ${conversationId}: ${typing.length} typing, ${online.size} online`)
       setTypingUsers(typing)
+      setOnlineUserIds(online)
     }
 
     // Only configure channel once (first component to mount)
@@ -398,26 +388,27 @@ export function useConversationRealtime(conversationId: string | undefined, curr
     } else {
       console.log(`♻️ Reusing existing channel for conversation: ${conversationId}`)
 
-      // Sync presence state for this conversation when reusing channel
-      const state = channel.presenceState()
-      const typing: UserBasic[] = []
-      Object.values(state).forEach((presences: any) => {
-        presences.forEach((presence: any) => {
-          if (presence.user_id !== currentUserId && presence.typing) {
-            typing.push(presence.user as UserBasic)
-          }
-        })
-      })
-      setTypingUsers(typing)
+      // Sync presence state immediately when reusing channel
+      handlePresenceSync()
     }
+
+    // Track own presence when opening conversation (for online status)
+    channel.track({
+      user_id: currentUserId,
+      online_at: new Date().toISOString(),
+      // Note: typing flag will be added by useSetTyping when user types
+    }).catch((err) => {
+      console.warn('Error tracking presence:', err)
+    })
 
     return () => {
       console.log(`🔌 Cleaning up conversation: ${conversationId}`)
 
-      // Clear typing users for this conversation
+      // Clear state
       setTypingUsers([])
+      setOnlineUserIds(new Set())
 
-      // Clear any typing presence for current user
+      // Clear presence for current user
       channel.untrack().catch((err) => {
         console.warn('Error untracking presence:', err)
       })
@@ -427,18 +418,32 @@ export function useConversationRealtime(conversationId: string | undefined, curr
     }
   }, [conversationId, currentUserId, queryClient])
 
-  return { typingUsers }
+  // Helper function to check if a user is online
+  const isUserOnline = useCallback(
+    (userId: string): boolean => {
+      return onlineUserIds.has(userId)
+    },
+    [onlineUserIds]
+  )
+
+  return {
+    typingUsers,
+    onlineUserIds,
+    isUserOnline,
+    onlineCount: onlineUserIds.size,
+  }
 }
 
 /**
  * TYPING INDICATOR using Supabase Presence (no DB writes!)
+ * IMPORTANT: This updates presence state without removing online status
  */
 export function useSetTyping() {
   const setTyping = useCallback(
     async (conversationId: string, userId: string, user: UserBasic) => {
       const channel = realtimeManager.getOrCreateChannel(conversationId)
 
-      // Track presence with typing state
+      // Track presence with typing state AND online status
       await channel.track({
         user_id: userId,
         user,
@@ -449,10 +454,16 @@ export function useSetTyping() {
     []
   )
 
-  const clearTyping = useCallback(async (conversationId: string) => {
-    // Get the channel and untrack presence
+  const clearTyping = useCallback(async (conversationId: string, userId: string) => {
     const channel = realtimeManager.getOrCreateChannel(conversationId)
-    await channel.untrack()
+
+    // DON'T untrack completely! Just update presence to remove typing flag
+    // This preserves online status while clearing typing indicator
+    await channel.track({
+      user_id: userId,
+      online_at: new Date().toISOString(),
+      // Note: typing flag omitted = user not typing anymore
+    })
   }, [])
 
   return { setTyping, clearTyping }

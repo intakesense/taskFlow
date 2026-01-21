@@ -10,6 +10,7 @@ interface MessagesViewProps {
   selectedConversation: ConversationWithMembers | null
   messages: MessageWithSender[]
   typingUsers: UserBasic[]
+  isUserOnline: (userId: string) => boolean
   isMobileView: boolean
   showNewChat: boolean
   loadingConversations: boolean
@@ -32,6 +33,7 @@ export function MessagesView({
   selectedConversation,
   messages,
   typingUsers,
+  isUserOnline,
   isMobileView,
   showNewChat,
   loadingConversations,
@@ -77,6 +79,7 @@ export function MessagesView({
             conversation={selectedConversation}
             messages={messages}
             typingUsers={typingUsers}
+            isUserOnline={isUserOnline}
             onSendMessage={onSendMessage}
             onSendFile={onSendFile}
             onBack={isMobileView ? onBackToList : undefined}
