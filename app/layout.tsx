@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider, QueryProvider } from "@/components/providers";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { RealtimeHealthMonitor } from "@/components/realtime-health-monitor";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -37,6 +38,7 @@ export default function RootLayout({
               <AuthProvider>
                 {children}
                 <Toaster />
+                <RealtimeHealthMonitor />
               </AuthProvider>
             </ThemeProvider>
           </QueryProvider>

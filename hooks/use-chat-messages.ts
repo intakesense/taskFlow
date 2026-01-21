@@ -131,6 +131,8 @@ export function useSendMessage() {
     mutationFn: sendMessage,
     // OPTIMIZED: Use optimistic updates instead of invalidations
     onMutate: async (variables) => {
+      console.log('📤 Sending message to conversation:', variables.conversationId)
+
       // Cancel outgoing refetches
       await queryClient.cancelQueries({
         queryKey: messageKeys.conversation(variables.conversationId),
@@ -166,6 +168,8 @@ export function useSendMessage() {
       return { previousMessages }
     },
     onError: (err, variables, context) => {
+      console.error('❌ Failed to send message:', err)
+
       // Rollback on error
       if (context?.previousMessages) {
         queryClient.setQueryData(
@@ -175,6 +179,8 @@ export function useSendMessage() {
       }
     },
     onSuccess: (newMessage, variables) => {
+      console.log('✅ Message sent successfully:', newMessage.id)
+
       // Replace optimistic message with real one
       queryClient.setQueryData<MessageWithSender[]>(
         messageKeys.conversation(variables.conversationId),
@@ -235,14 +241,28 @@ export function useConversationRealtime(conversationId: string | undefined, curr
   const [typingUsers, setTypingUsers] = useState<UserBasic[]>([])
 
   useEffect(() => {
-    if (!conversationId || !currentUserId) return
+    if (!conversationId || !currentUserId) {
+      // Clear typing users when no conversation selected
+      setTypingUsers([])
+      return
+    }
+
+    console.log(`🔄 Setting up realtime for conversation: ${conversationId}`)
 
     // Get or create a single channel for this conversation
     const channel = realtimeManager.getOrCreateChannel(conversationId)
 
-    // Handler for new messages
+    // Handler for new messages - NOTE: Uses conversationId from closure
     const handleNewMessage = async (payload: any) => {
       const newMessage = payload.new as Message
+
+      console.log(`📨 New message received for conversation: ${newMessage.conversation_id}`)
+
+      // IMPORTANT: Only process messages for THIS conversation
+      if (newMessage.conversation_id !== conversationId) {
+        console.warn(`⚠️ Ignoring message for different conversation: ${newMessage.conversation_id}`)
+        return
+      }
 
       // OPTIMIZED: Try to get sender from cache first
       const conversationsData = queryClient.getQueryData<any>(conversationKeys.list())
@@ -298,6 +318,7 @@ export function useConversationRealtime(conversationId: string | undefined, curr
         })
       })
 
+      console.log(`👥 Typing users updated for ${conversationId}:`, typing.length)
       setTypingUsers(typing)
     }
 
@@ -326,6 +347,8 @@ export function useConversationRealtime(conversationId: string | undefined, curr
           console.log(`✅ Subscribed to conversation: ${conversationId}`)
         } else if (status === 'CHANNEL_ERROR') {
           console.error(`❌ Channel error for conversation: ${conversationId}`)
+        } else if (status === 'TIMED_OUT') {
+          console.error(`⏱️ Channel timed out for conversation: ${conversationId}`)
         }
       })
 
@@ -333,10 +356,31 @@ export function useConversationRealtime(conversationId: string | undefined, curr
       realtimeManager.markAsConfigured(conversationId)
     } else {
       console.log(`♻️ Reusing existing channel for conversation: ${conversationId}`)
+
+      // Sync presence state for this conversation when reusing channel
+      const state = channel.presenceState()
+      const typing: UserBasic[] = []
+      Object.values(state).forEach((presences: any) => {
+        presences.forEach((presence: any) => {
+          if (presence.user_id !== currentUserId && presence.typing) {
+            typing.push(presence.user as UserBasic)
+          }
+        })
+      })
+      setTypingUsers(typing)
     }
 
     return () => {
       console.log(`🔌 Cleaning up conversation: ${conversationId}`)
+
+      // Clear typing users for this conversation
+      setTypingUsers([])
+
+      // Clear any typing presence for current user
+      channel.untrack().catch((err) => {
+        console.warn('Error untracking presence:', err)
+      })
+
       // Release channel (will only remove when ref count reaches 0)
       realtimeManager.releaseChannel(conversationId)
     }
