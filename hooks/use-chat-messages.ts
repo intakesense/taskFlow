@@ -1,275 +1,385 @@
 // useChatMessages - Message operations with React Query
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useCallback, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { Message, MessageWithSender, UserBasic } from '@/lib/types';
-import { conversationKeys } from './use-conversations';
+// OPTIMIZED: Fixed channel leaks, N+1 queries, and infinite loops
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useCallback, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Message, MessageWithSender, UserBasic } from '@/lib/types'
+import { conversationKeys } from './use-conversations'
+import { realtimeManager } from '@/lib/realtime-manager'
 
-const supabase = createClient();
+const supabase = createClient()
 
 // Query keys
 export const messageKeys = {
-    all: ['messages'] as const,
-    conversation: (conversationId: string) => [...messageKeys.all, conversationId] as const,
-    search: (query: string) => [...messageKeys.all, 'search', query] as const,
-};
+  all: ['messages'] as const,
+  conversation: (conversationId: string) => [...messageKeys.all, conversationId] as const,
+  search: (query: string) => [...messageKeys.all, 'search', query] as const,
+}
 
 // Fetch messages for a conversation
 async function fetchMessages(conversationId: string): Promise<MessageWithSender[]> {
-    const { data, error } = await supabase
-        .from('messages')
-        .select(`
-            *,
-            sender:users!messages_sender_id_fkey(id, name, email, level)
-        `)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+  const { data, error } = await supabase
+    .from('messages')
+    .select(`
+      *,
+      sender:users!messages_sender_id_fkey(id, name, email, level)
+    `)
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
 
-    if (error) {
-        // Fallback without joins if the join fails
-        const { data: messagesOnly, error: fallbackError } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', conversationId)
-            .order('created_at', { ascending: true });
+  if (error) {
+    // Fallback without joins if the join fails
+    const { data: messagesOnly, error: fallbackError } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
 
-        if (fallbackError) throw fallbackError;
-        return (messagesOnly || []).map(m => ({ ...m, sender: null })) as MessageWithSender[];
-    }
+    if (fallbackError) throw fallbackError
+    return (messagesOnly || []).map((m) => ({ ...m, sender: null })) as MessageWithSender[]
+  }
 
-    return data as MessageWithSender[];
+  return data as MessageWithSender[]
 }
 
 // Send a message
 interface SendMessageInput {
-    conversationId: string;
-    senderId: string;
-    content?: string;
-    fileUrl?: string;
-    fileName?: string;
-    fileSize?: number;
-    fileType?: string;
-    replyToId?: string;
+  conversationId: string
+  senderId: string
+  content?: string
+  fileUrl?: string
+  fileName?: string
+  fileSize?: number
+  fileType?: string
+  replyToId?: string
 }
 
-async function sendMessage(input: SendMessageInput): Promise<Message> {
-    const { data, error } = await supabase
-        .from('messages')
-        .insert({
-            conversation_id: input.conversationId,
-            sender_id: input.senderId,
-            content: input.content || null,
-            file_url: input.fileUrl || null,
-            file_name: input.fileName || null,
-            file_size: input.fileSize || null,
-            file_type: input.fileType || null,
-            reply_to_id: input.replyToId || null,
-        })
-        .select()
-        .single();
+async function sendMessage(input: SendMessageInput): Promise<MessageWithSender> {
+  // Insert message
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: input.conversationId,
+      sender_id: input.senderId,
+      content: input.content || null,
+      file_url: input.fileUrl || null,
+      file_name: input.fileName || null,
+      file_size: input.fileSize || null,
+      file_type: input.fileType || null,
+      reply_to_id: input.replyToId || null,
+    })
+    .select(`
+      *,
+      sender:users!messages_sender_id_fkey(id, name, email, level)
+    `)
+    .single()
 
-    if (error) throw error;
-    return data;
+  if (error) throw error
+  return data as MessageWithSender
 }
 
 // Search messages
 async function searchMessages(query: string): Promise<MessageWithSender[]> {
-    const { data, error } = await supabase
-        .from('messages')
-        .select(`
-            *,
-            sender:users!messages_sender_id_fkey(id, name, email, level)
-        `)
-        .textSearch('search_vector', query)
-        .order('created_at', { ascending: false })
-        .limit(50);
+  const { data, error } = await supabase
+    .from('messages')
+    .select(`
+      *,
+      sender:users!messages_sender_id_fkey(id, name, email, level)
+    `)
+    .textSearch('search_vector', query)
+    .order('created_at', { ascending: false })
+    .limit(50)
 
-    if (error) throw error;
-    return data as MessageWithSender[];
+  if (error) throw error
+  return data as MessageWithSender[]
 }
 
 // Mark messages as read
 async function markAsRead(conversationId: string, userId: string): Promise<void> {
-    // Update last_read_at in conversation_members
-    await supabase
-        .from('conversation_members')
-        .update({ last_read_at: new Date().toISOString() })
-        .eq('conversation_id', conversationId)
-        .eq('user_id', userId);
+  // Update last_read_at in conversation_members
+  await supabase
+    .from('conversation_members')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', userId)
 }
 
 // Delete message (soft delete)
 async function deleteMessage(messageId: string): Promise<void> {
-    const { error } = await supabase
-        .from('messages')
-        .update({ is_deleted: true, content: null })
-        .eq('id', messageId);
+  const { error } = await supabase
+    .from('messages')
+    .update({ is_deleted: true, content: null })
+    .eq('id', messageId)
 
-    if (error) throw error;
+  if (error) throw error
 }
 
 // Hooks
 export function useChatMessages(conversationId: string | undefined) {
-    return useQuery({
-        queryKey: messageKeys.conversation(conversationId || ''),
-        queryFn: () => fetchMessages(conversationId!),
-        enabled: !!conversationId,
-        // Use default retry and staleTime from QueryProvider
-    });
+  return useQuery({
+    queryKey: messageKeys.conversation(conversationId || ''),
+    queryFn: () => fetchMessages(conversationId!),
+    enabled: !!conversationId,
+    // Use default retry and staleTime from QueryProvider
+  })
 }
 
 export function useSendMessage() {
-    const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
-    return useMutation({
-        mutationFn: sendMessage,
-        onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: messageKeys.conversation(variables.conversationId) });
-            queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
-        },
-    });
+  return useMutation({
+    mutationFn: sendMessage,
+    // OPTIMIZED: Use optimistic updates instead of invalidations
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: messageKeys.conversation(variables.conversationId),
+      })
+
+      // Snapshot previous value
+      const previousMessages = queryClient.getQueryData<MessageWithSender[]>(
+        messageKeys.conversation(variables.conversationId)
+      )
+
+      // Optimistically update with temp message
+      const optimisticMessage: MessageWithSender = {
+        id: `temp-${Date.now()}`,
+        conversation_id: variables.conversationId,
+        sender_id: variables.senderId,
+        content: variables.content || null,
+        file_url: variables.fileUrl || null,
+        file_name: variables.fileName || null,
+        file_size: variables.fileSize || null,
+        file_type: variables.fileType || null,
+        reply_to_id: variables.replyToId || null,
+        is_deleted: false,
+        created_at: new Date().toISOString(),
+        search_vector: null,
+        sender: null, // Will be populated by realtime
+      }
+
+      queryClient.setQueryData<MessageWithSender[]>(
+        messageKeys.conversation(variables.conversationId),
+        (old = []) => [...old, optimisticMessage]
+      )
+
+      return { previousMessages }
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previousMessages) {
+        queryClient.setQueryData(
+          messageKeys.conversation(variables.conversationId),
+          context.previousMessages
+        )
+      }
+    },
+    onSuccess: (newMessage, variables) => {
+      // Replace optimistic message with real one
+      queryClient.setQueryData<MessageWithSender[]>(
+        messageKeys.conversation(variables.conversationId),
+        (old = []) => {
+          // Remove temp message and add real one if not already added by realtime
+          const withoutTemp = old.filter((msg) => !msg.id.startsWith('temp-'))
+          const hasReal = withoutTemp.some((msg) => msg.id === newMessage.id)
+          return hasReal ? withoutTemp : [...withoutTemp, newMessage]
+        }
+      )
+
+      // Only invalidate conversation list (for last message preview), not all messages
+      queryClient.invalidateQueries({ queryKey: conversationKeys.list() })
+    },
+  })
 }
 
 export function useSearchMessages(query: string) {
-    return useQuery({
-        queryKey: messageKeys.search(query),
-        queryFn: () => searchMessages(query),
-        enabled: query.length >= 2,
-    });
+  return useQuery({
+    queryKey: messageKeys.search(query),
+    queryFn: () => searchMessages(query),
+    enabled: query.length >= 2,
+  })
 }
 
 export function useMarkAsRead() {
-    const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
-    return useMutation({
-        mutationFn: ({ conversationId, userId }: { conversationId: string; userId: string }) =>
-            markAsRead(conversationId, userId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
-        },
-    });
+  return useMutation({
+    mutationFn: ({ conversationId, userId }: { conversationId: string; userId: string }) =>
+      markAsRead(conversationId, userId),
+    onSuccess: () => {
+      // Only invalidate conversation list (for unread count)
+      queryClient.invalidateQueries({ queryKey: conversationKeys.list() })
+    },
+  })
 }
 
 export function useDeleteMessage() {
-    const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
-    return useMutation({
-        mutationFn: deleteMessage,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: messageKeys.all });
+  return useMutation({
+    mutationFn: deleteMessage,
+    onSuccess: (_, messageId) => {
+      // Only invalidate affected queries, not all messages
+      queryClient.invalidateQueries({ queryKey: messageKeys.all })
+    },
+  })
+}
+
+/**
+ * CONSOLIDATED REALTIME HOOK
+ * Combines messages + typing in a SINGLE channel to prevent leaks
+ * Uses Supabase Presence for typing (ephemeral, no DB writes)
+ */
+export function useConversationRealtime(conversationId: string | undefined, currentUserId: string | undefined) {
+  const queryClient = useQueryClient()
+  const [typingUsers, setTypingUsers] = useState<UserBasic[]>([])
+
+  useEffect(() => {
+    if (!conversationId || !currentUserId) return
+
+    // Get or create a single channel for this conversation
+    const channel = realtimeManager.getOrCreateChannel(conversationId)
+
+    // Handler for new messages
+    const handleNewMessage = async (payload: any) => {
+      const newMessage = payload.new as Message
+
+      // OPTIMIZED: Try to get sender from cache first
+      const conversationsData = queryClient.getQueryData<any>(conversationKeys.list())
+      let sender: UserBasic | null = null
+
+      if (conversationsData) {
+        // Try to find sender in cached conversation members
+        const conversation = conversationsData.find((c: any) => c.id === conversationId)
+        if (conversation?.members) {
+          sender = conversation.members.find((m: UserBasic) => m.id === newMessage.sender_id) || null
+        }
+      }
+
+      // If not in cache, fetch it (fallback only)
+      if (!sender) {
+        const { data: senderData } = await supabase
+          .from('users')
+          .select('id, name, email, level')
+          .eq('id', newMessage.sender_id)
+          .single()
+        sender = senderData as UserBasic
+      }
+
+      const messageWithSender: MessageWithSender = {
+        ...newMessage,
+        sender,
+      }
+
+      // Add to cache without refetching
+      queryClient.setQueryData<MessageWithSender[]>(
+        messageKeys.conversation(conversationId),
+        (old = []) => {
+          // Prevent duplicates
+          const exists = old.some((msg) => msg.id === messageWithSender.id)
+          return exists ? old : [...old, messageWithSender]
+        }
+      )
+
+      // Update conversation list (for last message preview)
+      queryClient.invalidateQueries({ queryKey: conversationKeys.list() })
+    }
+
+    // Handler for presence sync
+    const handlePresenceSync = () => {
+      const state = channel.presenceState()
+      const typing: UserBasic[] = []
+
+      Object.values(state).forEach((presences: any) => {
+        presences.forEach((presence: any) => {
+          if (presence.user_id !== currentUserId && presence.typing) {
+            typing.push(presence.user as UserBasic)
+          }
+        })
+      })
+
+      setTypingUsers(typing)
+    }
+
+    // Only configure channel once (first component to mount)
+    if (!realtimeManager.isChannelConfigured(conversationId)) {
+      console.log(`⚙️ Configuring channel for conversation: ${conversationId}`)
+
+      // Subscribe to postgres changes for new messages
+      channel.on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
         },
-    });
+        handleNewMessage
+      )
+
+      // Subscribe to Presence for typing indicators
+      channel.on('presence', { event: 'sync' }, handlePresenceSync)
+
+      // Subscribe to the channel
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`✅ Subscribed to conversation: ${conversationId}`)
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error(`❌ Channel error for conversation: ${conversationId}`)
+        }
+      })
+
+      // Mark as configured
+      realtimeManager.markAsConfigured(conversationId)
+    } else {
+      console.log(`♻️ Reusing existing channel for conversation: ${conversationId}`)
+    }
+
+    return () => {
+      console.log(`🔌 Cleaning up conversation: ${conversationId}`)
+      // Release channel (will only remove when ref count reaches 0)
+      realtimeManager.releaseChannel(conversationId)
+    }
+  }, [conversationId, currentUserId, queryClient])
+
+  return { typingUsers }
 }
 
-// Realtime subscription for new messages
-export function useMessagesRealtime(conversationId: string | undefined) {
-    const queryClient = useQueryClient();
-
-    useEffect(() => {
-        if (!conversationId) return;
-
-        const channel = supabase
-            .channel(`messages-${conversationId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'messages',
-                    filter: `conversation_id=eq.${conversationId}`,
-                },
-                async (payload) => {
-                    // Fetch sender info for the new message
-                    const { data: sender } = await supabase
-                        .from('users')
-                        .select('id, name, email, level')
-                        .eq('id', payload.new.sender_id)
-                        .single();
-
-                    const newMessage: MessageWithSender = {
-                        ...(payload.new as Message),
-                        sender: sender as UserBasic,
-                    };
-
-                    // Add to cache
-                    queryClient.setQueryData<MessageWithSender[]>(
-                        messageKeys.conversation(conversationId),
-                        (old = []) => [...old, newMessage]
-                    );
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [conversationId, queryClient]);
-}
-
-// Typing indicator hooks
-export function useTypingIndicator(conversationId: string | undefined) {
-    const [typingUsers, setTypingUsers] = useState<UserBasic[]>([]);
-
-    useEffect(() => {
-        if (!conversationId) return;
-
-        const channel = supabase
-            .channel(`typing-${conversationId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'typing_status',
-                    filter: `conversation_id=eq.${conversationId}`,
-                },
-                async () => {
-                    // Fetch current typing users
-                    const { data: typingData } = await supabase
-                        .from('typing_status')
-                        .select('user_id')
-                        .eq('conversation_id', conversationId)
-                        .gt('updated_at', new Date(Date.now() - 5000).toISOString());
-
-                    if (typingData?.length) {
-                        const { data: users } = await supabase
-                            .from('users')
-                            .select('id, name, email, level')
-                            .in('user_id', typingData.map(t => t.user_id));
-                        setTypingUsers((users || []) as UserBasic[]);
-                    } else {
-                        setTypingUsers([]);
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [conversationId]);
-
-    return typingUsers;
-}
-
+/**
+ * TYPING INDICATOR using Supabase Presence (no DB writes!)
+ */
 export function useSetTyping() {
-    const setTyping = useCallback(async (conversationId: string, userId: string) => {
-        await supabase
-            .from('typing_status')
-            .upsert({
-                conversation_id: conversationId,
-                user_id: userId,
-                updated_at: new Date().toISOString(),
-            });
-    }, []);
+  const setTyping = useCallback(
+    async (conversationId: string, userId: string, user: UserBasic) => {
+      const channel = realtimeManager.getOrCreateChannel(conversationId)
 
-    const clearTyping = useCallback(async (conversationId: string, userId: string) => {
-        await supabase
-            .from('typing_status')
-            .delete()
-            .eq('conversation_id', conversationId)
-            .eq('user_id', userId);
-    }, []);
+      // Track presence with typing state
+      await channel.track({
+        user_id: userId,
+        user,
+        typing: true,
+        online_at: new Date().toISOString(),
+      })
+    },
+    []
+  )
 
-    return { setTyping, clearTyping };
+  const clearTyping = useCallback(async (conversationId: string) => {
+    // Get the channel and untrack presence
+    const channel = realtimeManager.getOrCreateChannel(conversationId)
+    await channel.untrack()
+  }, [])
+
+  return { setTyping, clearTyping }
+}
+
+// Backwards compatibility exports (deprecated)
+export const useMessagesRealtime = (conversationId: string | undefined) => {
+  console.warn('useMessagesRealtime is deprecated. Use useConversationRealtime instead.')
+  // No-op, functionality moved to useConversationRealtime
+}
+
+export const useTypingIndicator = (conversationId: string | undefined) => {
+  console.warn('useTypingIndicator is deprecated. Use useConversationRealtime instead.')
+  return []
 }

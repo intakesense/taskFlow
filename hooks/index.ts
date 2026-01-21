@@ -17,7 +17,7 @@ export { useNotes, useCreateNote, useUpdateNote, useDeleteNote, getVisibilityLab
 
 // Messaging
 export { useConversations, useCreateDM, useCreateGroup, useConversationsRealtime, conversationKeys } from './use-conversations';
-export { useChatMessages, useSendMessage as useSendChatMessage, useSearchMessages, useMarkAsRead, useDeleteMessage, useMessagesRealtime, useTypingIndicator, useSetTyping, messageKeys as chatMessageKeys } from './use-chat-messages';
+export { useChatMessages, useSendMessage as useSendChatMessage, useSearchMessages, useMarkAsRead, useDeleteMessage, useConversationRealtime, useSetTyping, messageKeys as chatMessageKeys } from './use-chat-messages';
 
 // Common utilities
 export { useDialog, useDialogs } from './use-dialog';

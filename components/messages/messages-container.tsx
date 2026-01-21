@@ -8,11 +8,10 @@ import {
   useConversations,
   useConversationsRealtime,
   useChatMessages,
-  useMessagesRealtime,
+  useConversationRealtime,
   useSendChatMessage,
   useCreateDM,
   useCreateGroup,
-  useTypingIndicator,
   useSetTyping,
   useMarkAsRead,
   useMobile,
@@ -42,24 +41,26 @@ export function MessagesContainer() {
   useConversationsRealtime(profile?.id)
 
   const { data: messages = [], isLoading: loadingMessages } = useChatMessages(selectedConversation?.id)
-  useMessagesRealtime(selectedConversation?.id)
+
+  // CONSOLIDATED: Single hook for messages + typing realtime
+  const { typingUsers } = useConversationRealtime(selectedConversation?.id, profile?.id)
 
   const sendMessage = useSendChatMessage()
   const createDM = useCreateDM()
   const createGroup = useCreateGroup()
   const markAsRead = useMarkAsRead()
-  const typingUsers = useTypingIndicator(selectedConversation?.id)
   const { setTyping, clearTyping } = useSetTyping()
 
   // Mark as read when opening a conversation
+  const markAsReadMutate = markAsRead.mutate
   useEffect(() => {
-    if (selectedConversation && profile?.id) {
-      markAsRead.mutate({
+    if (selectedConversation?.id && profile?.id) {
+      markAsReadMutate({
         conversationId: selectedConversation.id,
         userId: profile.id,
       })
     }
-  }, [selectedConversation?.id, profile?.id, markAsRead])
+  }, [selectedConversation?.id, profile?.id, markAsReadMutate])
 
   // Handlers
   const handleSelectConversation = (conv: ConversationWithMembers) => {
@@ -75,12 +76,18 @@ export function MessagesContainer() {
       content,
     })
 
-    clearTyping(selectedConversation.id, profile.id)
+    clearTyping(selectedConversation.id)
   }
 
   const handleTyping = () => {
-    if (!selectedConversation || !profile?.id) return
-    setTyping(selectedConversation.id, profile.id)
+    if (!selectedConversation || !profile?.id || !profile) return
+    // Pass full user object for Presence
+    setTyping(selectedConversation.id, profile.id, {
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      level: profile.level,
+    })
   }
 
   const handleSendFile = async (file: File) => {

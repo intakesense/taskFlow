@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useDropzone } from 'react-dropzone'
 import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers, MessageWithSender, UserBasic } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { FileAttachment } from './file-attachment'
+import { FilePreview } from '@/components/ui/file-upload'
 import {
     ArrowLeft,
     Send,
@@ -19,6 +21,7 @@ import {
     CheckCheck,
     Users,
     Loader2,
+    X,
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -53,6 +56,7 @@ export function ChatView({
 }: ChatViewProps) {
     const { profile } = useAuth()
     const [input, setInput] = useState('')
+    const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -62,9 +66,17 @@ export function ChatView({
     }, [messages])
 
     const handleSend = () => {
-        if (!input.trim()) return
-        onSendMessage(input.trim())
-        setInput('')
+        if (!input.trim() && !selectedFile) return
+
+        if (selectedFile && onSendFile) {
+            onSendFile(selectedFile)
+            setSelectedFile(null)
+        }
+
+        if (input.trim()) {
+            onSendMessage(input.trim())
+            setInput('')
+        }
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -81,11 +93,25 @@ export function ChatView({
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
-        if (file && onSendFile) {
-            onSendFile(file)
+        if (file) {
+            setSelectedFile(file)
         }
         e.target.value = ''
     }
+
+    const onDrop = useCallback((acceptedFiles: File[]) => {
+        if (acceptedFiles.length > 0) {
+            setSelectedFile(acceptedFiles[0])
+        }
+    }, [])
+
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        onDrop,
+        maxSize: 10 * 1024 * 1024, // 10MB
+        multiple: false,
+        noClick: true,
+        noKeyboard: true,
+    })
 
     const otherUser = conversation.members.find(m => m.id !== profile?.id)
     const displayName = conversation.is_group ? conversation.name : otherUser?.name || 'Unknown'
@@ -146,7 +172,23 @@ export function ChatView({
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div
+                {...getRootProps()}
+                className={cn(
+                    'flex-1 overflow-y-auto p-4 space-y-4 relative',
+                    isDragActive && 'bg-primary/5'
+                )}
+            >
+                <input {...getInputProps()} />
+                {isDragActive && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary z-10 pointer-events-none">
+                        <div className="text-center">
+                            <Paperclip className="h-12 w-12 mx-auto mb-2 text-primary" />
+                            <p className="text-lg font-medium text-primary">Drop file to upload</p>
+                            <p className="text-sm text-muted-foreground">Max 10MB</p>
+                        </div>
+                    </div>
+                )}
                 {isLoading ? (
                     <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -174,6 +216,16 @@ export function ChatView({
 
             {/* Input */}
             <div className="p-4 border-t border-border bg-card">
+                {/* File Preview */}
+                {selectedFile && (
+                    <div className="mb-3">
+                        <FilePreview
+                            file={selectedFile}
+                            onRemove={() => setSelectedFile(null)}
+                        />
+                    </div>
+                )}
+
                 <div className="flex items-center gap-2">
                     <input
                         type="file"
@@ -185,11 +237,12 @@ export function ChatView({
                         variant="ghost"
                         size="icon"
                         onClick={() => fileInputRef.current?.click()}
+                        title="Attach file"
                     >
                         <Paperclip className="h-5 w-5" />
                     </Button>
                     <Input
-                        placeholder="Type a message..."
+                        placeholder={selectedFile ? "Add a message (optional)..." : "Type a message..."}
                         value={input}
                         onChange={handleInputChange}
                         onKeyDown={handleKeyDown}
@@ -197,8 +250,9 @@ export function ChatView({
                     />
                     <Button
                         onClick={handleSend}
-                        disabled={!input.trim() || isSending}
+                        disabled={(!input.trim() && !selectedFile) || isSending}
                         size="icon"
+                        title="Send"
                     >
                         {isSending ? (
                             <Loader2 className="h-5 w-5 animate-spin" />
