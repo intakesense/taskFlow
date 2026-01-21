@@ -55,6 +55,13 @@ interface SendMessageInput {
 }
 
 async function sendMessage(input: SendMessageInput): Promise<MessageWithSender> {
+  console.log('📤 Attempting to send message:', {
+    conversationId: input.conversationId,
+    senderId: input.senderId,
+    hasContent: !!input.content,
+    hasFile: !!input.fileUrl,
+  });
+
   // Insert message
   const { data, error } = await supabase
     .from('messages')
@@ -74,7 +81,12 @@ async function sendMessage(input: SendMessageInput): Promise<MessageWithSender> 
     `)
     .single()
 
-  if (error) throw error
+  if (error) {
+    console.error('❌ Failed to send message:', error);
+    throw new Error(`Failed to send message: ${error.message} (${error.code})`);
+  }
+
+  console.log('✅ Message sent successfully:', data.id);
   return data as MessageWithSender
 }
 

@@ -74,6 +74,12 @@ export function MessagesContainer() {
       conversationId: selectedConversation.id,
       senderId: profile.id,
       content,
+    }, {
+      onError: (error) => {
+        console.error('Failed to send message:', error)
+        const message = error instanceof Error ? error.message : 'Failed to send message'
+        toast.error(message)
+      },
     })
 
     clearTyping(selectedConversation.id)
@@ -131,7 +137,9 @@ export function MessagesContainer() {
         }
       }, 100)
     } catch (error) {
-      toast.error('Failed to create conversation')
+      console.error('DM creation error:', error)
+      const message = error instanceof Error ? error.message : 'Failed to create conversation'
+      toast.error(`Failed to create conversation: ${message}`)
     }
   }
 
@@ -153,7 +161,9 @@ export function MessagesContainer() {
         }
       }, 100)
     } catch (error) {
-      toast.error('Failed to create group')
+      console.error('Group creation error:', error)
+      const message = error instanceof Error ? error.message : 'Failed to create group'
+      toast.error(`Failed to create group: ${message}`)
     }
   }
 

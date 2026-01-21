@@ -122,34 +122,54 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
 
 // Create a DM conversation
 async function createDMConversation(userId: string, otherUserId: string): Promise<Conversation> {
+    console.log('🔍 Creating DM between', userId, 'and', otherUserId);
+
     // Check if DM already exists
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
         .from('conversation_members')
         .select('conversation_id')
         .eq('user_id', userId);
 
+    if (existingError) {
+        console.error('❌ Error checking existing DMs:', existingError);
+        throw new Error(`Failed to check existing conversations: ${existingError.message}`);
+    }
+
     if (existing?.length) {
+        console.log('📋 Found', existing.length, 'existing conversations to check');
         for (const conv of existing) {
-            const { data: members } = await supabase
+            const { data: members, error: membersError } = await supabase
                 .from('conversation_members')
                 .select('user_id')
                 .eq('conversation_id', conv.conversation_id);
 
+            if (membersError) {
+                console.error('❌ Error fetching members:', membersError);
+                continue;
+            }
+
             if (members?.length === 2) {
                 const memberIds = members.map(m => m.user_id);
                 if (memberIds.includes(otherUserId)) {
-                    const { data: convData } = await supabase
+                    console.log('✅ Found existing DM:', conv.conversation_id);
+                    const { data: convData, error: convError } = await supabase
                         .from('conversations')
                         .select('*')
                         .eq('id', conv.conversation_id)
                         .eq('is_group', false)
                         .single();
+
+                    if (convError) {
+                        console.error('❌ Error fetching conversation:', convError);
+                        continue;
+                    }
                     if (convData) return convData;
                 }
             }
         }
     }
 
+    console.log('➕ Creating new DM conversation');
     // Create new DM
     const { data: newConv, error: convError } = await supabase
         .from('conversations')
@@ -157,9 +177,15 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
         .select()
         .single();
 
-    if (convError) throw convError;
+    if (convError) {
+        console.error('❌ Error creating conversation:', convError);
+        throw new Error(`Failed to create conversation: ${convError.message} (${convError.code})`);
+    }
+
+    console.log('✅ Created conversation:', newConv.id);
 
     // Add both members
+    console.log('➕ Adding members to conversation');
     const { error: memberError } = await supabase
         .from('conversation_members')
         .insert([
@@ -167,8 +193,14 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
             { conversation_id: newConv.id, user_id: otherUserId },
         ]);
 
-    if (memberError) throw memberError;
+    if (memberError) {
+        console.error('❌ Error adding members:', memberError);
+        // Try to clean up the orphaned conversation
+        await supabase.from('conversations').delete().eq('id', newConv.id);
+        throw new Error(`Failed to add members: ${memberError.message} (${memberError.code})`);
+    }
 
+    console.log('✅ Successfully created DM with both members');
     return newConv;
 }
 
@@ -179,6 +211,8 @@ interface CreateGroupInput {
 }
 
 async function createGroupConversation(userId: string, input: CreateGroupInput): Promise<Conversation> {
+    console.log('🔍 Creating group:', input.name, 'with members:', input.memberIds);
+
     const { data: newConv, error: convError } = await supabase
         .from('conversations')
         .insert({
@@ -189,15 +223,28 @@ async function createGroupConversation(userId: string, input: CreateGroupInput):
         .select()
         .single();
 
-    if (convError) throw convError;
+    if (convError) {
+        console.error('❌ Error creating group conversation:', convError);
+        throw new Error(`Failed to create group: ${convError.message} (${convError.code})`);
+    }
+
+    console.log('✅ Created group conversation:', newConv.id);
 
     const allMembers = [...new Set([userId, ...input.memberIds])];
+    console.log('➕ Adding', allMembers.length, 'members to group');
+
     const { error: memberError } = await supabase
         .from('conversation_members')
         .insert(allMembers.map(id => ({ conversation_id: newConv.id, user_id: id })));
 
-    if (memberError) throw memberError;
+    if (memberError) {
+        console.error('❌ Error adding members to group:', memberError);
+        // Try to clean up the orphaned conversation
+        await supabase.from('conversations').delete().eq('id', newConv.id);
+        throw new Error(`Failed to add members to group: ${memberError.message} (${memberError.code})`);
+    }
 
+    console.log('✅ Successfully created group with all members');
     return newConv;
 }
 
