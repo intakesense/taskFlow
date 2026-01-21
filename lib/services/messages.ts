@@ -1,0 +1,58 @@
+import { createClient } from '@/lib/supabase/client'
+import { TaskMessage, TaskMessageWithSender } from '@/lib/types'
+import { RealtimeChannel } from '@supabase/supabase-js'
+
+function getSupabase() { return createClient() }
+
+export async function getTaskMessages(taskId: string): Promise<TaskMessageWithSender[]> {
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+        .from('task_messages')
+        .select(`
+            *,
+            sender:users!task_messages_sender_id_fkey(*)
+        `)
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: true })
+
+    if (error) throw error
+    return data as TaskMessageWithSender[]
+}
+
+export async function sendMessage(taskId: string, senderId: string, message: string): Promise<TaskMessage> {
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+        .from('task_messages')
+        .insert({
+            task_id: taskId,
+            sender_id: senderId,
+            message
+        })
+        .select()
+        .single()
+
+    if (error) throw error
+    return data as TaskMessage
+}
+
+export function subscribeToMessages(taskId: string, callback: (payload: any) => void): RealtimeChannel {
+    const supabase = getSupabase()
+    return supabase
+        .channel(`task-messages:${taskId}`)
+        .on(
+            'postgres_changes',
+            {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'task_messages',
+                filter: `task_id=eq.${taskId}`
+            },
+            callback
+        )
+        .subscribe()
+}
+
+export function unsubscribeFromMessages(channel: RealtimeChannel) {
+    const supabase = getSupabase()
+    supabase.removeChannel(channel)
+}

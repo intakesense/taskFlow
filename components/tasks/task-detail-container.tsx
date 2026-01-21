@@ -1,0 +1,184 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth-context'
+import { toast } from 'sonner'
+import {
+  useTask,
+  useTaskMessages,
+  useTaskMessagesRealtime,
+  useTaskNotes,
+  useSendTaskMessage,
+  useAddTaskNote,
+  useUpdateTask,
+  useDeleteTask,
+  useDialog,
+} from '@/hooks'
+import { TaskDetailView } from './task-detail-view'
+import { DashboardLayout } from '@/components/layout'
+import { Loader2 } from 'lucide-react'
+import type { Visibility } from '@/lib/types'
+
+interface TaskDetailContainerProps {
+  taskId: string
+}
+
+export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
+  const router = useRouter()
+  const { effectiveUser, profile } = useAuth()
+
+  // Queries
+  const { data: task, isLoading: loadingTask } = useTask(taskId)
+  const { data: messages = [], isLoading: loadingMessages } = useTaskMessages(taskId)
+  const { data: notes = [], isLoading: loadingNotes } = useTaskNotes(taskId)
+
+  // Realtime
+  useTaskMessagesRealtime(taskId)
+
+  // Mutations
+  const sendMessage = useSendTaskMessage()
+  const addNote = useAddTaskNote()
+  const updateTask = useUpdateTask()
+  const deleteTask = useDeleteTask()
+
+  // Local state
+  const [newMessage, setNewMessage] = useState('')
+  const [newNote, setNewNote] = useState('')
+  const [noteVisibility, setNoteVisibility] = useState<Visibility>('private')
+  const [onHoldReason, setOnHoldReason] = useState('')
+
+  // Dialogs
+  const deleteDialog = useDialog()
+  const onHoldDialog = useDialog()
+
+  // Permissions
+  const isAssigner = task?.assigned_by === effectiveUser?.id || false
+  const isAssignee = task?.assigned_to === effectiveUser?.id || false
+  const isParticipant = isAssigner || isAssignee || (profile?.is_admin ?? false)
+
+  // Handlers
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !effectiveUser) return
+
+    await sendMessage.mutateAsync({
+      taskId,
+      senderId: effectiveUser.id,
+      message: newMessage.trim(),
+    })
+
+    setNewMessage('')
+  }
+
+  const handleAddNote = async () => {
+    if (!newNote.trim() || !effectiveUser) return
+
+    await addNote.mutateAsync({
+      taskId,
+      addedBy: effectiveUser.id,
+      content: newNote.trim(),
+      visibility: noteVisibility,
+    })
+
+    setNewNote('')
+    setNoteVisibility('private')
+  }
+
+  const handleStatusChange = async (status: string) => {
+    if (status === 'on_hold') {
+      onHoldDialog.openDialog()
+      return
+    }
+
+    await updateTask.mutateAsync({
+      id: taskId,
+      input: { status: status as any },
+    })
+
+    toast.success('Status updated')
+  }
+
+  const handleOnHoldConfirm = async () => {
+    await updateTask.mutateAsync({
+      id: taskId,
+      input: {
+        status: 'on_hold',
+        on_hold_reason: onHoldReason || undefined,
+      },
+    })
+
+    toast.success('Task put on hold')
+    setOnHoldReason('')
+    onHoldDialog.closeDialog()
+  }
+
+  const handleDelete = async () => {
+    await deleteTask.mutateAsync(taskId)
+    toast.success('Task deleted')
+    router.push('/tasks')
+  }
+
+  const handleArchive = async () => {
+    await updateTask.mutateAsync({
+      id: taskId,
+      input: { status: 'archived' },
+    })
+    toast.success('Task archived')
+  }
+
+  // Loading state
+  const loading = loadingTask || loadingMessages || loadingNotes
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (!task) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <p className="text-muted-foreground">Task not found</p>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  return (
+    <DashboardLayout>
+      <TaskDetailView
+        task={task}
+        messages={messages}
+        notes={notes}
+        isAssigner={isAssigner}
+        isAssignee={isAssignee}
+        isParticipant={isParticipant}
+        newMessage={newMessage}
+        setNewMessage={setNewMessage}
+        newNote={newNote}
+        setNewNote={setNewNote}
+        noteVisibility={noteVisibility}
+        setNoteVisibility={setNoteVisibility}
+        onHoldReason={onHoldReason}
+        setOnHoldReason={setOnHoldReason}
+        deleteDialog={deleteDialog}
+        onHoldDialog={onHoldDialog}
+        sendingMessage={sendMessage.isPending}
+        addingNote={addNote.isPending}
+        updatingStatus={updateTask.isPending}
+        deleting={deleteTask.isPending}
+        onSendMessage={handleSendMessage}
+        onAddNote={handleAddNote}
+        onStatusChange={handleStatusChange}
+        onOnHoldConfirm={handleOnHoldConfirm}
+        onDelete={handleDelete}
+        onArchive={handleArchive}
+      />
+    </DashboardLayout>
+  )
+}
