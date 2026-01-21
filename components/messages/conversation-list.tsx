@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { formatMessageTime } from '@/lib/utils/date'
+import { useUpdatingTimestamp } from '@/hooks/use-updating-timestamp'
+import { useOnlinePresence } from '@/hooks/use-online-presence'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { OnlineStatusBadge } from './online-status-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +32,9 @@ export function ConversationList({
 }: ConversationListProps) {
     const { profile } = useAuth()
     const [search, setSearch] = useState('')
+
+    // Track online presence for selected conversation
+    const { isUserOnline } = useOnlinePresence(selectedId, profile?.id, !!selectedId)
 
     // Filter conversations by search
     const filteredConversations = conversations.filter((conv) => {
@@ -84,6 +89,7 @@ export function ConversationList({
                             currentUserId={profile?.id}
                             isSelected={selectedId === conv.id}
                             onClick={() => onSelect(conv)}
+                            isUserOnline={isUserOnline}
                         />
                     ))
                 )}
@@ -97,13 +103,23 @@ interface ConversationItemProps {
     currentUserId?: string
     isSelected: boolean
     onClick: () => void
+    isUserOnline: (userId: string) => boolean
 }
 
-function ConversationItem({ conversation, currentUserId, isSelected, onClick }: ConversationItemProps) {
+function ConversationItem({ conversation, currentUserId, isSelected, onClick, isUserOnline }: ConversationItemProps) {
     const name = getConversationName(conversation, currentUserId)
     const avatar = getConversationAvatar(conversation, currentUserId)
     const lastMessage = conversation.lastMessage
     const unread = conversation.unreadCount || 0
+
+    // Use reactive timestamp that updates automatically
+    const timestamp = useUpdatingTimestamp(lastMessage?.created_at, 'message')
+
+    // Get the other user for DM conversations (to show online status)
+    const otherUser = !conversation.is_group
+      ? conversation.members.find((m) => m.id !== currentUserId)
+      : null
+    const showOnlineStatus = otherUser && isUserOnline(otherUser.id)
 
     return (
         <button
@@ -116,15 +132,25 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
                     : 'border-l-transparent'
             )}
         >
-            <Avatar className="h-12 w-12 flex-shrink-0">
-                <AvatarFallback className={cn(
-                    isSelected
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
-                )}>
-                    {avatar}
-                </AvatarFallback>
-            </Avatar>
+            <div className="relative">
+                <Avatar className="h-12 w-12 flex-shrink-0">
+                    <AvatarFallback className={cn(
+                        isSelected
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground'
+                    )}>
+                        {avatar}
+                    </AvatarFallback>
+                </Avatar>
+                {/* Show online status badge for DM conversations */}
+                {showOnlineStatus && (
+                    <OnlineStatusBadge
+                        isOnline={true}
+                        size="md"
+                        className="absolute bottom-0 right-0"
+                    />
+                )}
+            </div>
 
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
@@ -139,7 +165,7 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
                             'text-xs flex-shrink-0 ml-2',
                             isSelected ? 'text-primary' : 'text-muted-foreground'
                         )}>
-                            {formatMessageTime(lastMessage.created_at)}
+                            {timestamp}
                         </span>
                     )}
                 </div>

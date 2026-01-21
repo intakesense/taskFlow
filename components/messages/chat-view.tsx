@@ -5,20 +5,22 @@ import { useDropzone } from 'react-dropzone'
 import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers, MessageWithSender, UserBasic } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { formatMessageTime } from '@/lib/utils/date'
+import { useUpdatingTimestamp } from '@/hooks/use-updating-timestamp'
+import { useOnlinePresence } from '@/hooks/use-online-presence'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { FileAttachment } from './file-attachment'
 import { FilePreview } from '@/components/ui/file-upload'
+import { TypingBubble } from './typing-bubble'
+import { MessageStatus } from './message-status'
+import { OnlineStatusBadge, OnlineStatusDot } from './online-status-badge'
 import {
     ArrowLeft,
     Send,
     Paperclip,
     MoreVertical,
-    Check,
-    CheckCheck,
     Users,
     Loader2,
     X,
@@ -59,6 +61,9 @@ export function ChatView({
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // Track online presence for conversation members
+    const { isUserOnline } = useOnlinePresence(conversation.id, profile?.id)
 
     // Scroll to bottom on new messages
     useEffect(() => {
@@ -125,11 +130,21 @@ export function ChatView({
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                 )}
-                <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-primary text-primary-foreground">
-                        {displayName?.charAt(0).toUpperCase() || '?'}
-                    </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                    <Avatar className="h-10 w-10">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                            {displayName?.charAt(0).toUpperCase() || '?'}
+                        </AvatarFallback>
+                    </Avatar>
+                    {/* Show online status for DM conversations */}
+                    {!conversation.is_group && otherUser && isUserOnline(otherUser.id) && (
+                        <OnlineStatusBadge
+                            isOnline={true}
+                            size="md"
+                            className="absolute bottom-0 right-0"
+                        />
+                    )}
+                </div>
                 <div className="flex-1">
                     <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-foreground">{displayName}</h3>
@@ -146,6 +161,11 @@ export function ChatView({
                     ) : conversation.is_group ? (
                         <p className="text-xs text-muted-foreground">
                             {conversation.members.length} members
+                        </p>
+                    ) : otherUser && isUserOnline(otherUser.id) ? (
+                        <p className="text-xs text-green-600 dark:text-green-500 flex items-center gap-1.5">
+                            <OnlineStatusDot isOnline={true} size="sm" />
+                            Active now
                         </p>
                     ) : otherUser?.email ? (
                         <p className="text-xs text-muted-foreground">{otherUser.email}</p>
@@ -198,18 +218,24 @@ export function ChatView({
                         <p>No messages yet. Say hi!</p>
                     </div>
                 ) : (
-                    messages.map((message, index) => (
-                        <MessageBubble
-                            key={message.id}
-                            message={message}
-                            isOwn={message.sender_id === profile?.id}
-                            showAvatar={
-                                conversation.is_group &&
-                                message.sender_id !== profile?.id &&
-                                (index === 0 || messages[index - 1].sender_id !== message.sender_id)
-                            }
-                        />
-                    ))
+                    <>
+                        {messages.map((message, index) => (
+                            <MessageBubble
+                                key={message.id}
+                                message={message}
+                                conversation={conversation}
+                                currentUserId={profile?.id || ''}
+                                isOwn={message.sender_id === profile?.id}
+                                showAvatar={
+                                    conversation.is_group &&
+                                    message.sender_id !== profile?.id &&
+                                    (index === 0 || messages[index - 1].sender_id !== message.sender_id)
+                                }
+                            />
+                        ))}
+                        {/* Typing indicator in message thread */}
+                        <TypingBubble typingUsers={typingUsers} />
+                    </>
                 )}
                 <div ref={messagesEndRef} />
             </div>
@@ -268,11 +294,16 @@ export function ChatView({
 
 interface MessageBubbleProps {
     message: MessageWithSender
+    conversation: ConversationWithMembers
+    currentUserId: string
     isOwn: boolean
     showAvatar?: boolean
 }
 
-function MessageBubble({ message, isOwn, showAvatar }: MessageBubbleProps) {
+function MessageBubble({ message, conversation, currentUserId, isOwn, showAvatar }: MessageBubbleProps) {
+    // Use reactive timestamp that updates automatically
+    const timestamp = useUpdatingTimestamp(message.created_at, 'message')
+
     if (message.is_deleted) {
         return (
             <div className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}>
@@ -335,11 +366,13 @@ function MessageBubble({ message, isOwn, showAvatar }: MessageBubbleProps) {
 
                 <div className={cn('flex items-center gap-1 mt-1', isOwn && 'justify-end')}>
                     <span className="text-xs text-muted-foreground">
-                        {formatMessageTime(message.created_at)}
+                        {timestamp}
                     </span>
-                    {isOwn && (
-                        <CheckCheck className="h-3 w-3 text-primary" />
-                    )}
+                    <MessageStatus
+                        message={message}
+                        conversation={conversation}
+                        currentUserId={currentUserId}
+                    />
                 </div>
             </div>
         </div>

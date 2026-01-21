@@ -16,13 +16,16 @@ export const messageKeys = {
   search: (query: string) => [...messageKeys.all, 'search', query] as const,
 }
 
-// Fetch messages for a conversation
+// Fetch messages for a conversation with read receipts
 async function fetchMessages(conversationId: string): Promise<MessageWithSender[]> {
   const { data, error } = await supabase
     .from('messages')
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level)
+      sender:users!messages_sender_id_fkey(id, name, email, level),
+      message_reads(
+        user:users(id, name, email, level)
+      )
     `)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
@@ -36,10 +39,15 @@ async function fetchMessages(conversationId: string): Promise<MessageWithSender[
       .order('created_at', { ascending: true })
 
     if (fallbackError) throw fallbackError
-    return (messagesOnly || []).map((m) => ({ ...m, sender: null })) as MessageWithSender[]
+    return (messagesOnly || []).map((m) => ({ ...m, sender: null, readBy: [] })) as MessageWithSender[]
   }
 
-  return data as MessageWithSender[]
+  // Transform the data to include readBy array
+  return (data || []).map((msg: any) => ({
+    ...msg,
+    readBy: msg.message_reads?.map((read: any) => read.user).filter(Boolean) || [],
+    message_reads: undefined, // Remove the raw join data
+  })) as MessageWithSender[]
 }
 
 // Send a message
@@ -77,7 +85,10 @@ async function sendMessage(input: SendMessageInput): Promise<MessageWithSender> 
     })
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level)
+      sender:users!messages_sender_id_fkey(id, name, email, level),
+      message_reads(
+        user:users(id, name, email, level)
+      )
     `)
     .single()
 
@@ -87,7 +98,14 @@ async function sendMessage(input: SendMessageInput): Promise<MessageWithSender> 
   }
 
   console.log('✅ Message sent successfully:', data.id);
-  return data as MessageWithSender
+
+  // Transform the data to include readBy array
+  const messageWithReads: MessageWithSender = {
+    ...data,
+    readBy: (data as any).message_reads?.map((read: any) => read.user).filter(Boolean) || [],
+  }
+
+  return messageWithReads
 }
 
 // Search messages
@@ -96,14 +114,23 @@ async function searchMessages(query: string): Promise<MessageWithSender[]> {
     .from('messages')
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level)
+      sender:users!messages_sender_id_fkey(id, name, email, level),
+      message_reads(
+        user:users(id, name, email, level)
+      )
     `)
     .textSearch('search_vector', query)
     .order('created_at', { ascending: false })
     .limit(50)
 
   if (error) throw error
-  return data as MessageWithSender[]
+
+  // Transform the data to include readBy array
+  return (data || []).map((msg: any) => ({
+    ...msg,
+    readBy: msg.message_reads?.map((read: any) => read.user).filter(Boolean) || [],
+    message_reads: undefined, // Remove the raw join data
+  })) as MessageWithSender[]
 }
 
 // Mark messages as read
@@ -170,6 +197,7 @@ export function useSendMessage() {
         created_at: new Date().toISOString(),
         search_vector: null,
         sender: null, // Will be populated by realtime
+        readBy: [], // New messages have no reads
       }
 
       queryClient.setQueryData<MessageWithSender[]>(
@@ -301,6 +329,7 @@ export function useConversationRealtime(conversationId: string | undefined, curr
       const messageWithSender: MessageWithSender = {
         ...newMessage,
         sender,
+        readBy: [], // New messages have no reads yet
       }
 
       // Add to cache without refetching
