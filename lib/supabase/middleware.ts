@@ -51,11 +51,11 @@ export const updateSession = async (request: NextRequest) => {
     // Check if this is a prefetch request (Next.js Link hover prefetching)
     // Prefetch requests happen before auth cookies are fully processed, so we skip auth checks
     const isPrefetch = request.headers.get('x-middleware-prefetch') === '1' ||
-                       request.headers.get('purpose') === 'prefetch' ||
-                       request.headers.get('x-nextjs-data') !== null
+        request.headers.get('purpose') === 'prefetch' ||
+        request.headers.get('x-nextjs-data') !== null
 
     // Public routes that don't require authentication
-    const publicRoutes = ['/login', '/']
+    const publicRoutes = ['/login']
     const isPublicRoute = publicRoutes.some(route =>
         request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith('/api/auth')
     )

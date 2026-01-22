@@ -67,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         error.message?.includes('Invalid Refresh Token')) {
                         // Silent cleanup for stale tokens
                         await supabase.auth.signOut({ scope: 'local' }) // Local only - don't hit API
+                    } else if (error.name === 'AuthSessionMissingError') {
+                        // Expected when not logged in - no need to log
                     } else {
                         // Other errors
                         console.error('Auth error:', error)

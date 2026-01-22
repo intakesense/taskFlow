@@ -3,6 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { MessagesContainer } from '@/components/messages/messages-container'
 import { redirect } from 'next/navigation'
 
+export const metadata = {
+  title: 'Messages',
+}
+
 export default async function MessagesPage() {
   // Server-side auth check and data fetch
   const supabase = createClient(await cookies())

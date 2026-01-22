@@ -3,6 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { TasksContainerSocial } from '@/components/tasks/tasks-container-social'
 import { redirect } from 'next/navigation'
 
+export const metadata = {
+    title: 'Tasks',
+}
+
 export default async function TasksPage() {
     // Server-side auth check
     const supabase = createClient(await cookies())
