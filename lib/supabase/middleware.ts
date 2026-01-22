@@ -34,10 +34,25 @@ export const updateSession = async (request: NextRequest) => {
         },
     );
 
-    // Refresh session if expired
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+    // Validate JWT and refresh session if needed
+    // getClaims() validates the JWT signature against the project's JWKS endpoint
+    // This is faster than getUser() as it doesn't require a network request for each call
+    // (when using asymmetric JWT signing keys)
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
+
+    // Extract user from claims - the 'sub' claim contains the user ID
+    const user = claimsData?.claims?.sub ? { id: claimsData.claims.sub as string } : null
+
+    // If there's an error (e.g., no session), user will be null
+    if (claimsError) {
+        // Session expired or invalid - user will be redirected to login for protected routes
+    }
+
+    // Check if this is a prefetch request (Next.js Link hover prefetching)
+    // Prefetch requests happen before auth cookies are fully processed, so we skip auth checks
+    const isPrefetch = request.headers.get('x-middleware-prefetch') === '1' ||
+                       request.headers.get('purpose') === 'prefetch' ||
+                       request.headers.get('x-nextjs-data') !== null
 
     // Public routes that don't require authentication
     const publicRoutes = ['/login', '/']
@@ -46,7 +61,8 @@ export const updateSession = async (request: NextRequest) => {
     )
 
     // Redirect to login if not authenticated and trying to access protected route
-    if (!user && !isPublicRoute) {
+    // Skip redirect for prefetch requests to avoid false redirects
+    if (!user && !isPublicRoute && !isPrefetch) {
         const url = request.nextUrl.clone()
         url.pathname = '/login'
         return NextResponse.redirect(url)

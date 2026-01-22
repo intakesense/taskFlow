@@ -42,7 +42,7 @@ interface ChatViewProps {
     typingUsers: UserBasic[]
     isUserOnline: (userId: string) => boolean
     onSendMessage: (content: string) => void
-    onSendFile?: (file: File) => void
+    onSendFile?: (file: File) => void | Promise<void>
     onBack?: () => void
     onTyping?: () => void
     isLoading?: boolean
@@ -115,17 +115,16 @@ export function ChatView({
             setIsSendingVoice(true)
             toast.loading('Uploading voice message...', { id: 'voice-upload' })
 
-            // Upload audio to storage
-            const uploadedAudio = await uploadAudioBlob(audioBlob, profile.id)
+            // Create File object from Blob (needed for onSendFile)
+            const audioFile = new File([audioBlob], 'Voice Message.webm', {
+                type: audioBlob.type || 'audio/webm'
+            })
 
-            // Send message with audio attachment
+            // Use the existing onSendFile handler which:
+            // 1. Uploads to storage
+            // 2. Sends message with file URL
             if (onSendFile) {
-                // Create a File object for the existing onSendFile handler
-                const audioFile = new File([audioBlob], 'Voice Message.webm', { type: audioBlob.type })
-                onSendFile(audioFile)
-            } else {
-                // Fallback: send as message with file URL (if onSendMessage accepts it)
-                onSendMessage('🎤 Voice message')
+                await onSendFile(audioFile)
             }
 
             toast.success('Voice message sent', { id: 'voice-upload' })
