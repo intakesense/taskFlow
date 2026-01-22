@@ -24,7 +24,7 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
     if (memberError) throw memberError;
     if (!memberOf?.length) return [];
 
-    const conversationIds = memberOf.map(m => m.conversation_id);
+    const conversationIds = memberOf.map((m: { conversation_id: string; last_read_at: string | null }) => m.conversation_id);
 
     // Step 2: Fetch ALL data in parallel (4 queries instead of N queries)
     const [conversationsResult, membersResult, messagesResult, unreadMessagesResult] = await Promise.all([
@@ -104,7 +104,7 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
 
     // Calculate unread counts
     if (unreadMessagesResult.data) {
-        const membershipMap = new Map(memberOf.map(m => [m.conversation_id, m.last_read_at]));
+        const membershipMap = new Map(memberOf.map((m: { conversation_id: string; last_read_at: string | null }) => [m.conversation_id, m.last_read_at]));
 
         unreadMessagesResult.data.forEach((msg: any) => {
             const lastReadAt = membershipMap.get(msg.conversation_id);
@@ -119,7 +119,7 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
     }
 
     // Step 4: Combine everything efficiently
-    const enriched: ConversationWithMembers[] = conversations.map((conv) => ({
+    const enriched: ConversationWithMembers[] = conversations.map((conv: Conversation) => ({
         ...conv,
         members: membersByConv.get(conv.id) || [],
         membersWithStatus: membersWithStatusByConv.get(conv.id) || [],
@@ -159,7 +159,7 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
             }
 
             if (members?.length === 2) {
-                const memberIds = members.map(m => m.user_id);
+                const memberIds = members.map((m: { user_id: string }) => m.user_id);
                 if (memberIds.includes(otherUserId)) {
                     console.log('✅ Found existing DM:', conv.conversation_id);
                     const { data: convData, error: convError } = await supabase

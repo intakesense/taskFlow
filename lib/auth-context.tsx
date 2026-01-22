@@ -54,46 +54,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let mounted = true
 
-        const clearAuthState = async () => {
-            // Clear all Supabase auth data from localStorage
-            const keys = Object.keys(localStorage)
-            keys.forEach(key => {
-                if (key.startsWith('sb-') && key.includes('-auth-token')) {
-                    localStorage.removeItem(key)
-                }
-            })
-            // Also sign out to ensure clean state
-            await supabase.auth.signOut()
-        }
-
         const initAuth = async () => {
             try {
                 // Get user directly - this validates the token against the API
-                // No need for getSession() -> getUser() double-check or timeout race
                 const { data: { user: currentUser }, error } = await supabase.auth.getUser()
 
                 if (!mounted) return
 
                 if (error) {
-                    // Check if it's a refresh token error (stale/invalid token)
+                    // Auth error - check if it's a stale token issue
                     if (error.message?.includes('refresh_token_not_found') ||
                         error.message?.includes('Invalid Refresh Token')) {
-                        // Silent cleanup - this is expected after code changes
-                        await clearAuthState()
-                        setUser(null)
-                        setProfile(null)
+                        // Silent cleanup for stale tokens
+                        await supabase.auth.signOut({ scope: 'local' }) // Local only - don't hit API
                     } else {
-                        // Other auth errors - could be network issues
+                        // Other errors
                         console.error('Auth error:', error)
-                        setUser(null)
-                        setProfile(null)
                     }
+                    setUser(null)
+                    setProfile(null)
                 } else if (!currentUser) {
-                    // No user - normal unauthenticated state
+                    // No session - normal unauthenticated state
                     setUser(null)
                     setProfile(null)
                 } else {
-                    // Valid session found
+                    // Valid session - fetch profile
                     setUser(currentUser)
                     const profileData = await fetchProfile(currentUser.id)
                     if (mounted) {
@@ -102,25 +87,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
             } catch (error: any) {
                 console.error('Auth initialization error:', error)
-
-                // If it's an auth error with invalid tokens, clean up silently
-                if (error?.__isAuthError &&
-                    (error.code === 'refresh_token_not_found' ||
-                     error.message?.includes('Invalid Refresh Token'))) {
-                    await clearAuthState()
-                    if (mounted) {
-                        setUser(null)
-                        setProfile(null)
-                    }
-                } else {
-                    // Unexpected error - show toast
-                    if (mounted) {
-                        setUser(null)
-                        setProfile(null)
+                if (mounted) {
+                    setUser(null)
+                    setProfile(null)
+                    // Only show toast for non-auth errors
+                    if (!error?.__isAuthError) {
                         toast.error('Failed to initialize authentication')
                     }
                 }
             } finally {
+                // ALWAYS set loading to false, even if there was an error
                 if (mounted) {
                     setLoading(false)
                 }
@@ -130,8 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         initAuth()
 
         // Listen for auth state changes (login, logout, token refresh)
+        // CRITICAL: Do NOT use async/await in this callback - it causes deadlocks!
+        // See: https://github.com/supabase/supabase/issues/35754
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
+            (event: string, session: any) => {
                 if (!mounted) return
 
                 // Handle sign out events
@@ -156,10 +134,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(session?.user ?? null)
 
                 if (session?.user) {
-                    const profileData = await fetchProfile(session.user.id)
-                    if (mounted) {
-                        setProfile(profileData)
-                    }
+                    // Use .then() instead of await to avoid deadlock
+                    fetchProfile(session.user.id).then((profileData) => {
+                        if (mounted) {
+                            setProfile(profileData)
+                        }
+                    })
                 } else {
                     setProfile(null)
                     setMaskedAsUser(null)

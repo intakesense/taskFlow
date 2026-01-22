@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers, MessageWithSender, UserBasic } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useUpdatingTimestamp } from '@/hooks/use-updating-timestamp'
+import { uploadAudioBlob } from '@/lib/services/file-upload'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,8 @@ import { FilePreview } from '@/components/ui/file-upload'
 import { TypingBubble } from './typing-bubble'
 import { MessageStatus } from './message-status'
 import { OnlineStatusBadge, OnlineStatusDot } from './online-status-badge'
+import { VoiceRecorder, AudioMessagePlayer } from './voice-recorder'
+import { toast } from 'sonner'
 import {
     ArrowLeft,
     Send,
@@ -23,6 +26,7 @@ import {
     Users,
     Loader2,
     X,
+    Mic,
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -60,6 +64,8 @@ export function ChatView({
     const { profile } = useAuth()
     const [input, setInput] = useState('')
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
+    const [showVoiceRecorder, setShowVoiceRecorder] = useState(false)
+    const [isSendingVoice, setIsSendingVoice] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -102,6 +108,36 @@ export function ChatView({
         e.target.value = ''
     }
 
+    const handleSendVoiceMessage = async (audioBlob: Blob) => {
+        if (!profile?.id || !conversation?.id) return
+
+        try {
+            setIsSendingVoice(true)
+            toast.loading('Uploading voice message...', { id: 'voice-upload' })
+
+            // Upload audio to storage
+            const uploadedAudio = await uploadAudioBlob(audioBlob, profile.id)
+
+            // Send message with audio attachment
+            if (onSendFile) {
+                // Create a File object for the existing onSendFile handler
+                const audioFile = new File([audioBlob], 'Voice Message.webm', { type: audioBlob.type })
+                onSendFile(audioFile)
+            } else {
+                // Fallback: send as message with file URL (if onSendMessage accepts it)
+                onSendMessage('🎤 Voice message')
+            }
+
+            toast.success('Voice message sent', { id: 'voice-upload' })
+            setShowVoiceRecorder(false)
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to send voice message'
+            toast.error(message, { id: 'voice-upload' })
+        } finally {
+            setIsSendingVoice(false)
+        }
+    }
+
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
             setSelectedFile(acceptedFiles[0])
@@ -118,6 +154,10 @@ export function ChatView({
 
     const otherUser = conversation.members.find(m => m.id !== profile?.id)
     const displayName = conversation.is_group ? conversation.name : otherUser?.name || 'Unknown'
+
+    // WhatsApp-style: Show send button only when there's text or file
+    const hasContent = input.trim().length > 0 || selectedFile !== null
+    const showSendButton = hasContent || showVoiceRecorder
 
     return (
         <div className="flex flex-col h-full bg-background">
@@ -238,54 +278,78 @@ export function ChatView({
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
-            <div className="p-4 border-t border-border bg-card">
-                {/* File Preview */}
-                {selectedFile && (
-                    <div className="mb-3">
-                        <FilePreview
-                            file={selectedFile}
-                            onRemove={() => setSelectedFile(null)}
-                        />
-                    </div>
-                )}
+            {/* Input - WhatsApp Style */}
+            {showVoiceRecorder ? (
+                <VoiceRecorder
+                    onSend={handleSendVoiceMessage}
+                    onCancel={() => setShowVoiceRecorder(false)}
+                    maxDuration={300}
+                />
+            ) : (
+                <div className="p-4 border-t border-border bg-card">
+                    {/* File Preview */}
+                    {selectedFile && (
+                        <div className="mb-3">
+                            <FilePreview
+                                file={selectedFile}
+                                onRemove={() => setSelectedFile(null)}
+                            />
+                        </div>
+                    )}
 
-                <div className="flex items-center gap-2">
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileSelect}
-                        className="hidden"
-                    />
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => fileInputRef.current?.click()}
-                        title="Attach file"
-                    >
-                        <Paperclip className="h-5 w-5" />
-                    </Button>
-                    <Input
-                        placeholder={selectedFile ? "Add a message (optional)..." : "Type a message..."}
-                        value={input}
-                        onChange={handleInputChange}
-                        onKeyDown={handleKeyDown}
-                        className="flex-1"
-                    />
-                    <Button
-                        onClick={handleSend}
-                        disabled={(!input.trim() && !selectedFile) || isSending}
-                        size="icon"
-                        title="Send"
-                    >
-                        {isSending ? (
-                            <Loader2 className="h-5 w-5 animate-spin" />
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileSelect}
+                            className="hidden"
+                        />
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => fileInputRef.current?.click()}
+                            title="Attach file"
+                            disabled={isSending || isSendingVoice}
+                        >
+                            <Paperclip className="h-5 w-5" />
+                        </Button>
+                        <Input
+                            placeholder={selectedFile ? "Add a message (optional)..." : "Type a message..."}
+                            value={input}
+                            onChange={handleInputChange}
+                            onKeyDown={handleKeyDown}
+                            className="flex-1"
+                            disabled={isSendingVoice}
+                        />
+
+                        {/* WhatsApp-style: Show send button when typing, mic button when empty */}
+                        {showSendButton ? (
+                            <Button
+                                onClick={handleSend}
+                                disabled={(!input.trim() && !selectedFile) || isSending || isSendingVoice}
+                                size="icon"
+                                title="Send"
+                            >
+                                {isSending || isSendingVoice ? (
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                ) : (
+                                    <Send className="h-5 w-5" />
+                                )}
+                            </Button>
                         ) : (
-                            <Send className="h-5 w-5" />
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setShowVoiceRecorder(true)}
+                                title="Record voice message"
+                                disabled={isSending || isSendingVoice}
+                            >
+                                <Mic className="h-5 w-5" />
+                            </Button>
                         )}
-                    </Button>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     )
 }
@@ -301,6 +365,9 @@ interface MessageBubbleProps {
 function MessageBubble({ message, conversation, currentUserId, isOwn, showAvatar }: MessageBubbleProps) {
     // Use reactive timestamp that updates automatically
     const timestamp = useUpdatingTimestamp(message.created_at, 'message')
+
+    // Check if message is a voice message (audio file)
+    const isVoiceMessage = message.file_type?.startsWith('audio/')
 
     if (message.is_deleted) {
         return (
@@ -330,13 +397,27 @@ function MessageBubble({ message, conversation, currentUserId, isOwn, showAvatar
 
                 {message.file_url ? (
                     <div className="space-y-2">
-                        <FileAttachment
-                            fileUrl={message.file_url}
-                            fileName={message.file_name || 'File'}
-                            fileType={message.file_type || 'application/octet-stream'}
-                            fileSize={message.file_size || undefined}
-                        />
-                        {message.content && (
+                        {/* Voice Message Player */}
+                        {isVoiceMessage ? (
+                            <AudioMessagePlayer
+                                audioUrl={message.file_url}
+                                className={cn(
+                                    isOwn
+                                        ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                        : 'bg-muted text-foreground rounded-bl-sm'
+                                )}
+                            />
+                        ) : (
+                            /* Regular File Attachment */
+                            <FileAttachment
+                                fileUrl={message.file_url}
+                                fileName={message.file_name || 'File'}
+                                fileType={message.file_type || 'application/octet-stream'}
+                                fileSize={message.file_size || undefined}
+                            />
+                        )}
+                        {/* Optional text content with file */}
+                        {message.content && !isVoiceMessage && (
                             <div
                                 className={cn(
                                     'rounded-2xl px-4 py-2 inline-block',
@@ -350,6 +431,7 @@ function MessageBubble({ message, conversation, currentUserId, isOwn, showAvatar
                         )}
                     </div>
                 ) : (
+                    /* Text-only message */
                     <div
                         className={cn(
                             'rounded-2xl px-4 py-2 inline-block',

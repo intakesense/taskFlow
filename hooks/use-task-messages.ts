@@ -87,7 +87,7 @@ export function useTaskMessagesRealtime(taskId: string | undefined) {
           table: 'task_messages',
           filter: `task_id=eq.${taskId}`
         },
-        async (payload) => {
+        async (payload: { new: TaskMessage }) => {
           // Fetch sender info for the new message
           const { data: sender } = await supabase
             .from('users')

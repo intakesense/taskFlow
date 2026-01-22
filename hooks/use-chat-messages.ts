@@ -36,7 +36,7 @@ async function fetchMessages(conversationId: string): Promise<MessageWithSender[
       .order('created_at', { ascending: true })
 
     if (fallbackError) throw fallbackError
-    return (messagesOnly || []).map((m) => ({ ...m, sender: null })) as MessageWithSender[]
+    return (messagesOnly || []).map((m: Message) => ({ ...m, sender: null })) as MessageWithSender[]
   }
 
   return data as MessageWithSender[]

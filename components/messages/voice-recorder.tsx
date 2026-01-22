@@ -60,6 +60,14 @@ export function VoiceRecorder({
     maxDuration,
   })
 
+  // Auto-start recording when component mounts (WhatsApp behavior)
+  useEffect(() => {
+    if (recordingState === 'idle') {
+      startRecording()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount
+
   // Show warning if max duration is approaching
   useEffect(() => {
     if (recordingTime === maxDuration - 10) {
@@ -214,17 +222,14 @@ export function VoiceRecorder({
     )
   }
 
-  // Initial state - record button
+  // Initial state - show loading while starting (should be brief)
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={handleStartRecording}
-      title="Record voice message"
-      className={className}
-    >
-      <Mic className="h-5 w-5" />
-    </Button>
+    <div className={cn('flex items-center gap-3 p-4 bg-card border-t border-border', className)}>
+      <div className="flex items-center gap-3 flex-1 justify-center">
+        <Mic className="h-5 w-5 text-muted-foreground animate-pulse" />
+        <span className="text-sm text-muted-foreground">Starting recorder...</span>
+      </div>
+    </div>
   )
 }
 
