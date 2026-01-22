@@ -1,6 +1,7 @@
 'use client'
 
-import { Sidebar, MobileNav } from '@/components/layout/sidebar'
+import { Sidebar } from '@/components/layout/sidebar'
+import { BottomNav } from '@/components/layout/bottom-nav'
 import { useAuth } from '@/lib/auth-context'
 import { Loader2 } from 'lucide-react'
 
@@ -24,23 +25,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     return (
         <div className="min-h-screen bg-background">
+            {/* Desktop Sidebar */}
             <Sidebar />
-
-            {/* Mobile header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 z-40 px-4 py-3 bg-card/95 backdrop-blur-xl border-b border-border">
-                <div className="flex items-center justify-between">
-                    <MobileNav />
-                    <h1 className="text-lg font-bold text-foreground">TaskFlow</h1>
-                    <div className="w-10" /> {/* Spacer for centering */}
-                </div>
-            </div>
 
             {/* Main content */}
             <main className="lg:pl-64">
-                <div className="min-h-screen pt-16 lg:pt-0">
+                {/* Add padding-bottom for mobile bottom nav */}
+                <div className="min-h-screen pb-16 lg:pb-0">
                     {children}
                 </div>
             </main>
+
+            {/* Mobile Bottom Navigation */}
+            <BottomNav />
         </div>
     )
 }

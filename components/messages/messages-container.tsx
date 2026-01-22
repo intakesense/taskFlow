@@ -15,6 +15,7 @@ import {
   useSetTyping,
   useMarkAsRead,
   useMobile,
+  useBackNavigation,
 } from '@/hooks'
 import { ConversationWithMembers } from '@/lib/types'
 import { uploadFile } from '@/lib/services/file-upload'
@@ -28,6 +29,17 @@ export function MessagesContainer() {
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithMembers | null>(null)
   const [showNewChat, setShowNewChat] = useState(false)
   const isMobileView = useMobile()
+
+  // Handle browser back button - returns to conversation list instead of leaving app
+  const handleBackToList = useCallback(() => {
+    setSelectedConversation(null)
+  }, [])
+
+  useBackNavigation(
+    !!selectedConversation && isMobileView,
+    handleBackToList,
+    isMobileView
+  )
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -211,10 +223,6 @@ export function MessagesContainer() {
       const message = error instanceof Error ? error.message : 'Failed to create group'
       toast.error(`Failed to create group: ${message}`)
     }
-  }
-
-  const handleBackToList = () => {
-    setSelectedConversation(null)
   }
 
   // Loading state

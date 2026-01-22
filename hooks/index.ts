@@ -25,3 +25,4 @@ export { useAsync } from './use-async';
 export { useMobile, useBreakpoints } from './use-mobile';
 export { useUpdatingTimestamp, useUpdatingRelativeTime } from './use-updating-timestamp';
 export { useAudioRecorder, formatRecordingTime } from './use-audio-recorder';
+export { useBackNavigation } from './use-back-navigation';
