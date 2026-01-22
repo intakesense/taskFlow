@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
-import { createClient, resetClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { User } from '@/lib/types'
+import { toast } from 'sonner'
 
 interface AuthContextType {
     user: SupabaseUser | null
@@ -53,56 +54,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let mounted = true
 
+        const clearAuthState = async () => {
+            // Clear all Supabase auth data from localStorage
+            const keys = Object.keys(localStorage)
+            keys.forEach(key => {
+                if (key.startsWith('sb-') && key.includes('-auth-token')) {
+                    localStorage.removeItem(key)
+                }
+            })
+            // Also sign out to ensure clean state
+            await supabase.auth.signOut()
+        }
+
         const initAuth = async () => {
             try {
-                // Add timeout to prevent infinite loading state
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Auth timeout')), 10000)
-                )
-
-                // Get session - this will use cached data but also trigger refresh if needed
-                const authPromise = supabase.auth.getSession()
-
-                const { data: { session }, error } = await Promise.race([
-                    authPromise,
-                    timeoutPromise
-                ]) as any
+                // Get user directly - this validates the token against the API
+                // No need for getSession() -> getUser() double-check or timeout race
+                const { data: { user: currentUser }, error } = await supabase.auth.getUser()
 
                 if (!mounted) return
 
-                // If there's an error or no session, clear state
-                if (error || !session) {
-                    console.error('Session error:', error)
+                if (error) {
+                    // Check if it's a refresh token error (stale/invalid token)
+                    if (error.message?.includes('refresh_token_not_found') ||
+                        error.message?.includes('Invalid Refresh Token')) {
+                        // Silent cleanup - this is expected after code changes
+                        await clearAuthState()
+                        setUser(null)
+                        setProfile(null)
+                    } else {
+                        // Other auth errors - could be network issues
+                        console.error('Auth error:', error)
+                        setUser(null)
+                        setProfile(null)
+                    }
+                } else if (!currentUser) {
+                    // No user - normal unauthenticated state
                     setUser(null)
                     setProfile(null)
                 } else {
-                    // Validate the session by getting the user (this calls the API)
-                    const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser()
-
-                    if (!mounted) return
-
-                    if (userError || !validatedUser) {
-                        // Session is invalid, clear everything
-                        console.error('User validation error:', userError)
-                        setUser(null)
-                        setProfile(null)
-                        // Reset client to clear stale data
-                        resetClient()
-                    } else {
-                        // Session is valid
-                        setUser(validatedUser)
-                        const profileData = await fetchProfile(validatedUser.id)
-                        if (mounted) {
-                            setProfile(profileData)
-                        }
+                    // Valid session found
+                    setUser(currentUser)
+                    const profileData = await fetchProfile(currentUser.id)
+                    if (mounted) {
+                        setProfile(profileData)
                     }
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Auth initialization error:', error)
-                // Even on error, set loading to false to prevent infinite spinner
-                if (mounted) {
-                    setUser(null)
-                    setProfile(null)
+
+                // If it's an auth error with invalid tokens, clean up silently
+                if (error?.__isAuthError &&
+                    (error.code === 'refresh_token_not_found' ||
+                     error.message?.includes('Invalid Refresh Token'))) {
+                    await clearAuthState()
+                    if (mounted) {
+                        setUser(null)
+                        setProfile(null)
+                    }
+                } else {
+                    // Unexpected error - show toast
+                    if (mounted) {
+                        setUser(null)
+                        setProfile(null)
+                        toast.error('Failed to initialize authentication')
+                    }
                 }
             } finally {
                 if (mounted) {
@@ -113,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         initAuth()
 
+        // Listen for auth state changes (login, logout, token refresh)
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
                 if (!mounted) return
@@ -122,7 +139,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setUser(null)
                     setProfile(null)
                     setMaskedAsUser(null)
-                    resetClient()
                     return
                 }
 
@@ -132,10 +148,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setUser(null)
                     setProfile(null)
                     setMaskedAsUser(null)
-                    resetClient()
+                    toast.error('Session expired. Please login again.')
                     return
                 }
 
+                // Update user state
                 setUser(session?.user ?? null)
 
                 if (session?.user) {
@@ -150,9 +167,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         )
 
+        // Listen for cross-tab auth changes (login/logout in another tab)
+        const handleStorageChange = (e: StorageEvent) => {
+            // Supabase stores auth tokens in localStorage with this prefix
+            if (e.key?.startsWith('sb-') && e.key?.includes('-auth-token')) {
+                // Auth state changed in another tab, reinitialize
+                initAuth()
+            }
+        }
+
+        window.addEventListener('storage', handleStorageChange)
+
         return () => {
             mounted = false
             subscription.unsubscribe()
+            window.removeEventListener('storage', handleStorageChange)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -176,8 +205,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signOut = async () => {
         setMaskedAsUser(null)
         await supabase.auth.signOut()
-        // Reset the singleton client to force fresh initialization on next login
-        resetClient()
     }
 
     const maskAs = async (userId: string | null) => {

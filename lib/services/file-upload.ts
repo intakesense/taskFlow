@@ -103,3 +103,19 @@ export async function getFileMetadata(filePath: string) {
 
   return data[0]
 }
+
+/**
+ * Upload an audio blob (voice message) to Supabase Storage
+ * Automatically generates a filename with .webm extension
+ */
+export async function uploadAudioBlob(
+  audioBlob: Blob,
+  userId: string
+): Promise<UploadedFile> {
+  // Convert Blob to File with proper name
+  const timestamp = Date.now()
+  const fileName = `voice-${timestamp}.webm`
+  const audioFile = new File([audioBlob], fileName, { type: audioBlob.type })
+
+  return uploadFile(audioFile, userId)
+}

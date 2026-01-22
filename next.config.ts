@@ -7,20 +7,40 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Apply to all routes
-        source: '/:path*',
+        // HTML pages - allow browser cache but always revalidate with server
+        // This provides performance benefits while ensuring auth state is fresh
+        source: '/:path((?!_next|api|.*\\.).*)',
         headers: [
           {
             key: 'Cache-Control',
-            // No caching for HTML pages - always revalidate
-            // This prevents stale auth state on hard refresh
-            value: 'no-cache, no-store, must-revalidate, max-age=0',
+            // Allow private browser cache, but must revalidate on every request
+            value: 'private, max-age=0, must-revalidate',
           },
         ],
       },
       {
-        // Allow caching for static assets
-        source: '/(.*)\\.(ico|png|jpg|jpeg|svg|gif|webp|js|css|woff|woff2|ttf|eot)',
+        // Next.js static files (_next/static/*) - long-term cache with immutable flag
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // Public static assets - long-term cache
+        source: '/(.*)\\.(ico|png|jpg|jpeg|svg|gif|webp|woff|woff2|ttf|eot)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // JavaScript and CSS bundles - shorter cache with revalidation
+        source: '/(.*)\\.(js|css)',
         headers: [
           {
             key: 'Cache-Control',

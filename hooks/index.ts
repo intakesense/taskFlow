@@ -24,3 +24,4 @@ export { useDialog, useDialogs } from './use-dialog';
 export { useAsync } from './use-async';
 export { useMobile, useBreakpoints } from './use-mobile';
 export { useUpdatingTimestamp, useUpdatingRelativeTime } from './use-updating-timestamp';
+export { useAudioRecorder, formatRecordingTime } from './use-audio-recorder';
