@@ -195,7 +195,8 @@ export function TaskCardSocial({
                   View Details
                 </Link>
               </DropdownMenuItem>
-              {onStatusChange && task.status !== 'archived' && (
+              {/* Status changes - only assignee can start/pause/complete */}
+              {onStatusChange && isAssignedToMe && task.status !== 'archived' && (
                 <>
                   <DropdownMenuSeparator />
                   {task.status === 'pending' && (
@@ -228,7 +229,8 @@ export function TaskCardSocial({
                   )}
                 </>
               )}
-              {onDelete && (
+              {/* Delete - only assigner can delete */}
+              {onDelete && isCreatedByMe && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

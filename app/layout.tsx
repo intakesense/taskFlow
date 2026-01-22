@@ -5,6 +5,7 @@ import { ThemeProvider, QueryProvider } from "@/components/providers";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { RealtimeHealthMonitor } from "@/components/realtime-health-monitor";
 import { ServiceWorkerRegister } from "@/components/pwa";
+import { OneSignalInit } from "@/components/pwa/onesignal-init";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -61,6 +62,7 @@ export default function RootLayout({
                 <Toaster />
                 <RealtimeHealthMonitor />
                 <ServiceWorkerRegister />
+                <OneSignalInit />
               </AuthProvider>
             </ThemeProvider>
           </QueryProvider>

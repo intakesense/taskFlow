@@ -117,6 +117,45 @@ export type Database = {
           },
         ]
       }
+      message_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_reads: {
         Row: {
           message_id: string
@@ -402,6 +441,7 @@ export type Database = {
           is_admin: boolean
           level: number
           name: string
+          onesignal_player_id: string | null
           reports_to: string | null
         }
         Insert: {
@@ -411,6 +451,7 @@ export type Database = {
           is_admin?: boolean
           level?: number
           name: string
+          onesignal_player_id?: string | null
           reports_to?: string | null
         }
         Update: {
@@ -420,6 +461,7 @@ export type Database = {
           is_admin?: boolean
           level?: number
           name?: string
+          onesignal_player_id?: string | null
           reports_to?: string | null
         }
         Relationships: [

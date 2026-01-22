@@ -110,51 +110,57 @@ export function TaskDetailView({
           </div>
 
           {/* Actions */}
-          {isAssigner && task.status !== 'archived' && (
-            <div className="flex items-center gap-2">
-              {task.status === 'pending' && (
-                <Button onClick={() => onStatusChange('in_progress')} disabled={updatingStatus}>
-                  <Play className="h-4 w-4 mr-2" />
-                  Start
-                </Button>
-              )}
-              {task.status === 'in_progress' && (
-                <>
-                  <Dialog open={onHoldDialog.open} onOpenChange={onHoldDialog.toggleDialog}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline">
-                        <PauseCircle className="h-4 w-4 mr-2" />
-                        On Hold
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Put Task On Hold</DialogTitle>
-                        <DialogDescription>Optionally provide a reason</DialogDescription>
-                      </DialogHeader>
-                      <Textarea
-                        placeholder="Reason for holding..."
-                        value={onHoldReason}
-                        onChange={(e) => setOnHoldReason(e.target.value)}
-                      />
-                      <DialogFooter>
-                        <Button variant="outline" onClick={onHoldDialog.closeDialog}>Cancel</Button>
-                        <Button onClick={onOnHoldConfirm}>Confirm</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                  <Button onClick={onArchive} disabled={updatingStatus}>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Complete
+          <div className="flex items-center gap-2">
+            {/* Status changes - only assignee can start/pause/complete */}
+            {isAssignee && task.status !== 'archived' && (
+              <>
+                {task.status === 'pending' && (
+                  <Button onClick={() => onStatusChange('in_progress')} disabled={updatingStatus}>
+                    <Play className="h-4 w-4 mr-2" />
+                    Start
                   </Button>
-                </>
-              )}
-              {task.status === 'on_hold' && (
-                <Button onClick={() => onStatusChange('in_progress')} disabled={updatingStatus}>
-                  <Play className="h-4 w-4 mr-2" />
-                  Resume
-                </Button>
-              )}
+                )}
+                {task.status === 'in_progress' && (
+                  <>
+                    <Dialog open={onHoldDialog.open} onOpenChange={onHoldDialog.toggleDialog}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline">
+                          <PauseCircle className="h-4 w-4 mr-2" />
+                          On Hold
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Put Task On Hold</DialogTitle>
+                          <DialogDescription>Optionally provide a reason</DialogDescription>
+                        </DialogHeader>
+                        <Textarea
+                          placeholder="Reason for holding..."
+                          value={onHoldReason}
+                          onChange={(e) => setOnHoldReason(e.target.value)}
+                        />
+                        <DialogFooter>
+                          <Button variant="outline" onClick={onHoldDialog.closeDialog}>Cancel</Button>
+                          <Button onClick={onOnHoldConfirm}>Confirm</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    <Button onClick={onArchive} disabled={updatingStatus}>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Complete
+                    </Button>
+                  </>
+                )}
+                {task.status === 'on_hold' && (
+                  <Button onClick={() => onStatusChange('in_progress')} disabled={updatingStatus}>
+                    <Play className="h-4 w-4 mr-2" />
+                    Resume
+                  </Button>
+                )}
+              </>
+            )}
+            {/* Delete - only assigner can delete */}
+            {isAssigner && task.status !== 'archived' && (
               <Dialog open={deleteDialog.open} onOpenChange={deleteDialog.toggleDialog}>
                 <DialogTrigger asChild>
                   <Button variant="destructive">
@@ -173,8 +179,8 @@ export function TaskDetailView({
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

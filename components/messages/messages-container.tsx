@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth-context'
@@ -42,18 +42,63 @@ export function MessagesContainer() {
 
   const { data: messages = [], isLoading: loadingMessages } = useChatMessages(selectedConversation?.id)
 
-  // CONSOLIDATED: Single hook for messages + typing + online status
-  const { typingUsers, isUserOnline } = useConversationRealtime(selectedConversation?.id, profile?.id)
-
   const sendMessage = useSendChatMessage()
   const createDM = useCreateDM()
   const createGroup = useCreateGroup()
   const markAsRead = useMarkAsRead()
   const { setTyping, clearTyping } = useSetTyping()
 
-  // Mark as read when opening a conversation
+  // Debounced mark as read - prevents rapid-fire DB writes when multiple messages arrive
+  const markAsReadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastMarkedConversationRef = useRef<string | null>(null)
+
+  const debouncedMarkAsRead = useCallback((conversationId: string, userId: string) => {
+    // Clear any pending timeout
+    if (markAsReadTimeoutRef.current) {
+      clearTimeout(markAsReadTimeoutRef.current)
+    }
+
+    // Debounce: wait 300ms before actually marking as read
+    // This batches multiple rapid messages into a single DB write
+    markAsReadTimeoutRef.current = setTimeout(() => {
+      markAsRead.mutate({ conversationId, userId })
+      lastMarkedConversationRef.current = conversationId
+      markAsReadTimeoutRef.current = null
+    }, 300)
+  }, [markAsRead])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (markAsReadTimeoutRef.current) {
+        clearTimeout(markAsReadTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Callback when new messages arrive while chat is open
+  const handleNewMessageArrived = useCallback((message: { sender_id: string }) => {
+    // Only mark as read if message is from someone else
+    if (selectedConversation?.id && profile?.id && message.sender_id !== profile.id) {
+      debouncedMarkAsRead(selectedConversation.id, profile.id)
+    }
+  }, [selectedConversation?.id, profile?.id, debouncedMarkAsRead])
+
+  // CONSOLIDATED: Single hook for messages + typing + online status
+  const { typingUsers, isUserOnline } = useConversationRealtime(
+    selectedConversation?.id,
+    profile?.id,
+    handleNewMessageArrived
+  )
+
+  // Mark as read when opening a conversation (immediate, not debounced)
   useEffect(() => {
     if (selectedConversation?.id && profile?.id) {
+      // Skip if we just marked this conversation as read via the debounced handler
+      if (lastMarkedConversationRef.current === selectedConversation.id) {
+        lastMarkedConversationRef.current = null
+        return
+      }
       markAsRead.mutate({
         conversationId: selectedConversation.id,
         userId: profile.id,

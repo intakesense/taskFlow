@@ -1,7 +1,7 @@
 // useChatMessages - Message operations with React Query
 // OPTIMIZED: Fixed channel leaks, N+1 queries, and infinite loops
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Message, MessageWithSender, UserBasic } from '@/lib/types'
 import { conversationKeys } from './use-conversations'
@@ -247,11 +247,23 @@ export function useDeleteMessage() {
  * CONSOLIDATED REALTIME HOOK
  * Combines messages + typing + online status in a SINGLE channel to prevent leaks
  * Uses Supabase Presence for typing and online status (ephemeral, no DB writes)
+ *
+ * @param onNewMessage - Optional callback when a new message arrives (used to mark as read)
  */
-export function useConversationRealtime(conversationId: string | undefined, currentUserId: string | undefined) {
+export function useConversationRealtime(
+  conversationId: string | undefined,
+  currentUserId: string | undefined,
+  onNewMessage?: (message: Message) => void
+) {
   const queryClient = useQueryClient()
   const [typingUsers, setTypingUsers] = useState<UserBasic[]>([])
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set())
+
+  // Use ref for callback to avoid recreating realtime subscription when callback changes
+  const onNewMessageRef = useRef(onNewMessage)
+  useEffect(() => {
+    onNewMessageRef.current = onNewMessage
+  })
 
   useEffect(() => {
     if (!conversationId || !currentUserId) {
@@ -317,6 +329,9 @@ export function useConversationRealtime(conversationId: string | undefined, curr
 
       // Update conversation list (for last message preview)
       queryClient.invalidateQueries({ queryKey: conversationKeys.list() })
+
+      // Notify parent component about new message (for marking as read)
+      onNewMessageRef.current?.(newMessage)
     }
 
     // Handler for presence sync - extracts BOTH typing and online status
@@ -416,7 +431,7 @@ export function useConversationRealtime(conversationId: string | undefined, curr
       // Release channel (will only remove when ref count reaches 0)
       realtimeManager.releaseChannel(conversationId)
     }
-  }, [conversationId, currentUserId, queryClient])
+  }, [conversationId, currentUserId, queryClient]) // onNewMessage accessed via ref
 
   // Helper function to check if a user is online
   const isUserOnline = useCallback(

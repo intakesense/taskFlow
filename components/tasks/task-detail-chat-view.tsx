@@ -170,7 +170,9 @@ export function TaskDetailChatView({
 
   const statusInfo = getStatusInfo(task.status)
   const isAssignedToMe = currentUserId === task.assigned_to
+  const isAssignedByMe = currentUserId === task.assigned_by
   const canChangeStatus = isAssignedToMe
+  const canDelete = isAssignedByMe
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -237,10 +239,12 @@ export function TaskDetailChatView({
                   <DropdownMenuSeparator />
                 </>
               )}
-              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Task
-              </DropdownMenuItem>
+              {canDelete && (
+                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Task
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

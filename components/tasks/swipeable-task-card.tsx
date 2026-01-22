@@ -25,8 +25,10 @@ export function SwipeableTaskCard({
   const currentX = useRef(0)
 
   const isAssignedToMe = currentUserId === task.assigned_to
+  const isAssignedByMe = currentUserId === task.assigned_by
   const canComplete = isAssignedToMe && task.status !== 'archived'
-  const canDelete = onDelete !== undefined
+  // Only the person who assigned the task can delete it
+  const canDelete = onDelete !== undefined && isAssignedByMe
 
   // Thresholds
   const SWIPE_THRESHOLD = 100
