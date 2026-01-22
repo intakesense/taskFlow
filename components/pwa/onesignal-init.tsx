@@ -72,7 +72,26 @@ export function OneSignalInit() {
             await OneSignal.init({
               appId: "${ONESIGNAL_APP_ID}",
               notifyButton: {
-                enable: true,
+                enable: false,
+              },
+              promptOptions: {
+                slidedown: {
+                  prompts: [
+                    {
+                      type: "push",
+                      autoPrompt: true,
+                      text: {
+                        actionMessage: "Get notified about task updates and messages",
+                        acceptButton: "Allow",
+                        cancelButton: "No Thanks",
+                      },
+                      delay: {
+                        pageViews: 1,
+                        timeDelay: 3,
+                      },
+                    },
+                  ],
+                },
               },
             });
           });

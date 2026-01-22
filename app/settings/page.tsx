@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout'
 import { useAuth } from '@/lib/auth-context'
 import { useThemeContext } from '@/components/providers/theme-provider'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
     Select,
     SelectContent,
@@ -14,8 +15,24 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { Settings, Moon, Sun, Monitor, Palette, User, Loader2 } from 'lucide-react'
+import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff } from 'lucide-react'
 import { ThemeMode, ThemePreset } from '@/lib/theme/types'
+
+// OneSignal SDK types for notification settings
+interface OneSignalInstance {
+    Notifications: {
+        permission: boolean
+        permissionNative: 'default' | 'granted' | 'denied'
+        requestPermission: () => Promise<void>
+    }
+    User: {
+        PushSubscription: {
+            optIn: () => Promise<void>
+            optOut: () => Promise<void>
+            optedIn: boolean
+        }
+    }
+}
 
 export default function SettingsPage() {
     const { profile } = useAuth()
@@ -40,6 +57,52 @@ export default function SettingsPage() {
 
 function SettingsContent({ profile }: { profile: { name?: string; email?: string } | null }) {
     const { mode, preset, setMode, setPreset } = useThemeContext()
+    const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+    const [notificationStatus, setNotificationStatus] = useState<'loading' | 'granted' | 'denied' | 'default'>('loading')
+    const [isOneSignalAvailable, setIsOneSignalAvailable] = useState(false)
+
+    // Check notification status on mount
+    useEffect(() => {
+        const checkNotificationStatus = async () => {
+            // Check if we're on production and OneSignal is available
+            if (typeof window !== 'undefined' && 'Notification' in window) {
+                const permission = Notification.permission
+                setNotificationStatus(permission as 'granted' | 'denied' | 'default')
+                setNotificationsEnabled(permission === 'granted')
+
+                // Check if OneSignal is available (production only)
+                if (window.OneSignalDeferred) {
+                    setIsOneSignalAvailable(true)
+                }
+            } else {
+                setNotificationStatus('denied')
+            }
+        }
+        checkNotificationStatus()
+    }, [])
+
+    const handleNotificationToggle = useCallback(async () => {
+        if (notificationStatus === 'denied') {
+            // Can't programmatically enable - need to guide user to browser settings
+            alert('Notifications are blocked. Please enable them in your browser settings.')
+            return
+        }
+
+        if (!notificationsEnabled) {
+            // Request permission
+            try {
+                const permission = await Notification.requestPermission()
+                setNotificationStatus(permission as 'granted' | 'denied' | 'default')
+                setNotificationsEnabled(permission === 'granted')
+            } catch (error) {
+                console.error('Failed to request notification permission:', error)
+            }
+        } else {
+            // Can't programmatically disable browser notifications
+            // Guide user to browser settings
+            alert('To disable notifications, please update your browser settings for this site.')
+        }
+    }, [notificationsEnabled, notificationStatus])
 
     return (
         <DashboardLayout>
@@ -141,6 +204,56 @@ function SettingsContent({ profile }: { profile: { name?: string; email?: string
                                         Choose a visual style that suits your preference
                                     </p>
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Notifications Card */}
+                        <Card data-slot="card">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    {notificationsEnabled ? (
+                                        <Bell className="h-5 w-5" />
+                                    ) : (
+                                        <BellOff className="h-5 w-5" />
+                                    )}
+                                    Notifications
+                                </CardTitle>
+                                <CardDescription>Manage push notification preferences</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label>Push Notifications</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            {notificationStatus === 'loading' && 'Checking status...'}
+                                            {notificationStatus === 'granted' && 'You will receive task updates and messages'}
+                                            {notificationStatus === 'denied' && 'Notifications are blocked in browser settings'}
+                                            {notificationStatus === 'default' && 'Enable to receive task updates'}
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={notificationsEnabled}
+                                        onCheckedChange={handleNotificationToggle}
+                                        disabled={notificationStatus === 'loading'}
+                                    />
+                                </div>
+                                {notificationStatus === 'denied' && (
+                                    <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                                        <p className="text-sm text-destructive">
+                                            Notifications are blocked. To enable them:
+                                        </p>
+                                        <ol className="text-xs text-muted-foreground mt-2 list-decimal list-inside space-y-1">
+                                            <li>Click the lock/info icon in your browser&apos;s address bar</li>
+                                            <li>Find &quot;Notifications&quot; and change to &quot;Allow&quot;</li>
+                                            <li>Refresh this page</li>
+                                        </ol>
+                                    </div>
+                                )}
+                                {!isOneSignalAvailable && notificationStatus !== 'denied' && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Note: Push notifications are only available on the production site.
+                                    </p>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

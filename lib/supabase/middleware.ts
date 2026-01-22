@@ -75,12 +75,5 @@ export const updateSession = async (request: NextRequest) => {
         return NextResponse.redirect(url)
     }
 
-    // Redirect old /dashboard to /tasks
-    if (request.nextUrl.pathname === '/dashboard') {
-        const url = request.nextUrl.clone()
-        url.pathname = '/tasks'
-        return NextResponse.redirect(url)
-    }
-
     return supabaseResponse
 };

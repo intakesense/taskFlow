@@ -31,7 +31,7 @@ export default function LoginPage() {
             toast.error(error.message || 'Failed to sign in')
         } else {
             toast.success('Welcome back!')
-            router.push('/dashboard')
+            router.push('/')
         }
     }
 
