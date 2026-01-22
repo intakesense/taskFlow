@@ -2,7 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Conversation, ConversationWithMembers, UserBasic, MessageWithSender } from '@/lib/types';
+import { Conversation, ConversationWithMembers, UserBasic, MessageWithSender, ConversationMemberWithUser } from '@/lib/types';
 
 const supabase = createClient();
 
@@ -35,11 +35,13 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
             .in('id', conversationIds)
             .order('updated_at', { ascending: false }),
 
-        // Query 2: Get ALL members for ALL conversations with user details
+        // Query 2: Get ALL members for ALL conversations with user details and read status
         supabase
             .from('conversation_members')
             .select(`
                 conversation_id,
+                last_read_at,
+                joined_at,
                 user:users!conversation_members_user_id_fkey(id, name, email, level)
             `)
             .in('conversation_id', conversationIds),
@@ -66,6 +68,7 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
 
     // Step 3: Build lookup maps for O(1) access (instead of nested loops)
     const membersByConv = new Map<string, UserBasic[]>();
+    const membersWithStatusByConv = new Map<string, ConversationMemberWithUser[]>();
     const lastMessageByConv = new Map<string, MessageWithSender>();
     const unreadCountByConv = new Map<string, number>();
 
@@ -76,9 +79,15 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
             const user = item.user as UserBasic;
             if (!membersByConv.has(convId)) {
                 membersByConv.set(convId, []);
+                membersWithStatusByConv.set(convId, []);
             }
             if (user) {
                 membersByConv.get(convId)!.push(user);
+                membersWithStatusByConv.get(convId)!.push({
+                    user,
+                    last_read_at: item.last_read_at,
+                    joined_at: item.joined_at,
+                });
             }
         });
     }
@@ -113,6 +122,7 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
     const enriched: ConversationWithMembers[] = conversations.map((conv) => ({
         ...conv,
         members: membersByConv.get(conv.id) || [],
+        membersWithStatus: membersWithStatusByConv.get(conv.id) || [],
         lastMessage: lastMessageByConv.get(conv.id) || null,
         unreadCount: unreadCountByConv.get(conv.id) || 0,
     }));

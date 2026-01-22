@@ -15,8 +15,6 @@ interface MessageStatusProps {
  * Shows delivery and read status based on last_read_at timestamps:
  * - Double gray check: Delivered (message sent successfully)
  * - Double blue check: Read (recipient's last_read_at is after message created_at)
- *
- * Simpler implementation using timestamp comparison instead of complex joins.
  */
 export function MessageStatus({ message, conversation, currentUserId }: MessageStatusProps) {
   // Only show status for own messages
@@ -25,20 +23,19 @@ export function MessageStatus({ message, conversation, currentUserId }: MessageS
   // Don't show status for deleted messages
   if (message.is_deleted) return null
 
-  // Find the other member(s) in the conversation
-  const otherMembers = conversation.members.filter((m) => m.id !== currentUserId)
+  // Get members with read status from conversation
+  const membersWithStatus = conversation.membersWithStatus || []
 
-  // For DM (1:1) conversations, check if the other person has read the message
-  const isRead = otherMembers.some((member) => {
-    // Find this member's conversation_member record to get their last_read_at
-    // Since we don't have that data here, we'll use a simpler approach:
-    // Message is considered read if created more than 1 second ago
-    // (Real read status would require fetching conversation_members data)
-    const messageTime = new Date(message.created_at).getTime()
-    const now = Date.now()
-    // For now, just show all sent messages as delivered (gray checks)
-    // To show real read status, we'd need to pass last_read_at from conversation members
-    return false
+  // Find the other member(s) in the conversation (exclude current user)
+  const otherMembersWithStatus = membersWithStatus.filter((m) => m.user.id !== currentUserId)
+
+  // Check if any other member has read the message
+  // For group chats: message is "read" if at least one other person has read it
+  // For DMs: message is "read" if the other person has read it
+  const isRead = otherMembersWithStatus.some((member) => {
+    // Compare timestamps: message is read if last_read_at is after message created_at
+    if (!member.last_read_at) return false
+    return new Date(member.last_read_at).getTime() >= new Date(message.created_at).getTime()
   })
 
   return (

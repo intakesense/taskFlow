@@ -29,6 +29,13 @@ export interface UserBasic {
     level: UserLevel;
 }
 
+// Conversation member with read status
+export interface ConversationMemberWithUser {
+    user: UserBasic;
+    last_read_at: string;
+    joined_at: string;
+}
+
 export interface TaskWithUsers extends Task {
     assigner: UserBasic | null;
     assignee: UserBasic | null;
@@ -44,7 +51,8 @@ export interface TaskNoteWithAuthor extends TaskNote {
 
 // Extended types with relations (not in database, computed from joins)
 export interface ConversationWithMembers extends Conversation {
-    members: UserBasic[];
+    members: UserBasic[]; // For backward compatibility
+    membersWithStatus?: ConversationMemberWithUser[]; // Includes last_read_at
     lastMessage?: MessageWithSender | null;
     unreadCount?: number;
 }

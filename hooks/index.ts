@@ -23,3 +23,4 @@ export { useChatMessages, useSendMessage as useSendChatMessage, useSearchMessage
 export { useDialog, useDialogs } from './use-dialog';
 export { useAsync } from './use-async';
 export { useMobile, useBreakpoints } from './use-mobile';
+export { useUpdatingTimestamp, useUpdatingRelativeTime } from './use-updating-timestamp';
