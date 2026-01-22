@@ -387,7 +387,8 @@ function MessageBubble({ message, conversation, currentUserId, isOwn, showAvatar
                     </AvatarFallback>
                 </Avatar>
             )}
-            {!isOwn && !showAvatar && <div className="w-8" />}
+            {/* Spacer for alignment - only in group chats where avatars are shown */}
+            {!isOwn && !showAvatar && conversation.is_group && <div className="w-8" />}
 
             <div className={cn('max-w-[70%]', isOwn && 'text-right')}>
                 {!isOwn && showAvatar && (

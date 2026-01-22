@@ -68,7 +68,7 @@ export function TasksViewSocial({
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* Header - Mobile First */}
-      <div className="flex-shrink-0 px-4 py-3 border-b bg-card sticky top-16 lg:top-0 z-10">
+      <div className="flex-shrink-0 px-4 py-3 border-b bg-card sticky top-0 z-10">
         <div className="flex items-center gap-3 mb-3">
           <h1 className="text-xl font-bold flex-1">Tasks</h1>
 
@@ -261,17 +261,6 @@ export function TasksViewSocial({
             />
           ))
         )}
-      </div>
-
-      {/* Floating Action Button - Alternative */}
-      <div className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-20">
-        <Button
-          size="lg"
-          onClick={() => setShowCreateDrawer(true)}
-          className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all"
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
       </div>
 
       {/* Create Task Drawer */}

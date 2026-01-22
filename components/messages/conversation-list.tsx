@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Plus, Users, MessageSquare } from 'lucide-react'
+import { Search, Plus, Users, MessageSquare, ListTodo } from 'lucide-react'
 
 interface ConversationListProps {
     conversations: ConversationWithMembers[]
@@ -43,7 +43,21 @@ export function ConversationList({
             {/* Header */}
             <div className="p-4 border-b border-border">
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                    {/* Mobile: TaskFlow branding, Desktop: Messages heading */}
+                    <div className="flex items-center gap-3">
+                        {/* Logo - mobile only */}
+                        <div className="lg:hidden w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                            <ListTodo className="w-5 h-5 text-primary-foreground" />
+                        </div>
+                        <div>
+                            {/* TaskFlow - mobile only */}
+                            <h1 className="lg:hidden text-lg font-bold text-foreground">TaskFlow</h1>
+                            {/* Messages - desktop only */}
+                            <h2 className="hidden lg:block text-xl font-bold text-foreground">Messages</h2>
+                            {/* Subtitle - mobile only */}
+                            <p className="lg:hidden text-xs text-muted-foreground">Messages</p>
+                        </div>
+                    </div>
                     <Button size="icon" variant="ghost" onClick={onNewChat}>
                         <Plus className="h-5 w-5" />
                     </Button>

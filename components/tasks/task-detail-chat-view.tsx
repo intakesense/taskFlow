@@ -177,7 +177,7 @@ export function TaskDetailChatView({
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* Header - WhatsApp Style */}
-      <div className="flex-shrink-0 px-4 py-3 border-b bg-card sticky top-16 lg:top-0 z-10">
+      <div className="flex-shrink-0 px-4 py-3 border-b bg-card sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"

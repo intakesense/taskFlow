@@ -56,7 +56,7 @@ export function MessagesView({
   const showChat = !isMobileView || selectedConversation
 
   return (
-    <div className="h-[calc(100vh-4rem)] lg:h-screen flex">
+    <div className="h-screen flex">
       {/* Conversation List */}
       {showList && (
         <div className={`${isMobileView ? 'w-full' : 'w-80 border-r border-border'}`}>
