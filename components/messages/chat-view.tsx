@@ -31,7 +31,6 @@ import {
     X,
     Mic,
     Reply,
-    CornerUpLeft,
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -610,12 +609,9 @@ function MessageBubble({
                                 setShowMobileActions(false)
                                 setShowReactions(true)
                             }}
-                            onReply={() => {
-                                haptics.light()
-                                onReply(message)
-                                setShowMobileActions(false)
-                            }}
+                            onCopy={() => setShowMobileActions(false)}
                             onClose={() => setShowMobileActions(false)}
+                            messageContent={message.content || undefined}
                         />
                     </div>
                 )}

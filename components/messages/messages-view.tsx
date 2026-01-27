@@ -1,9 +1,11 @@
 // Messages View - Pure presentational component
+import { useEffect } from 'react'
 import { ConversationWithMembers, MessageWithSender, UserBasic } from '@/lib/types'
 import { ConversationList } from './conversation-list'
 import { ChatView } from './chat-view'
 import { NewChatDialog } from './new-chat-dialog'
 import { MessageCircle } from 'lucide-react'
+import { useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
 
 interface MessagesViewProps {
   conversations: ConversationWithMembers[]
@@ -56,6 +58,17 @@ export function MessagesView({
   // Mobile: Show list OR chat based on selection
   const showList = !isMobileView || !selectedConversation
   const showChat = !isMobileView || selectedConversation
+
+  // Hide bottom nav when in chat on mobile
+  const { setVisible } = useBottomNavVisibility()
+  useEffect(() => {
+    if (isMobileView && selectedConversation) {
+      setVisible(false)
+    } else {
+      setVisible(true)
+    }
+    return () => setVisible(true)
+  }, [isMobileView, selectedConversation, setVisible])
 
   return (
     <div className="h-screen flex">

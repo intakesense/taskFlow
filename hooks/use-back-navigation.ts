@@ -6,7 +6,7 @@ import { useEffect, useCallback, useRef } from 'react'
  * Hook to handle browser back button navigation in chat views.
  * When entering a chat, pushes a history state. When back is pressed,
  * it calls the onBack callback instead of navigating away from the app.
- * 
+ *
  * @param isInChat - Whether the user is currently viewing a chat
  * @param onBack - Callback to execute when back button is pressed
  * @param enabled - Whether to enable back navigation handling (default: true)
@@ -18,20 +18,31 @@ export function useBackNavigation(
 ) {
     const hasSetupRef = useRef(false)
     const isInChatRef = useRef(isInChat)
+    const onBackRef = useRef(onBack)
 
-    // Keep ref in sync with prop
+    // Keep refs in sync with props
     useEffect(() => {
         isInChatRef.current = isInChat
     }, [isInChat])
 
+    useEffect(() => {
+        onBackRef.current = onBack
+    }, [onBack])
+
     // Handle popstate (back button)
     const handlePopState = useCallback((event: PopStateEvent) => {
-        // Only handle if we're in a chat and this was our pushed state
-        if (isInChatRef.current && event.state?.chatView) {
-            // Prevent the default back navigation
-            onBack()
+        // Only handle if we're in a chat
+        if (isInChatRef.current) {
+            // Call the back handler
+            onBackRef.current()
+
+            // If there's no chatView state, we need to push one again
+            // to prevent further backs from leaving the app
+            if (!event.state?.chatView) {
+                window.history.pushState({ chatView: true }, '', window.location.href)
+            }
         }
-    }, [onBack])
+    }, [])
 
     useEffect(() => {
         if (!enabled) return
@@ -43,7 +54,8 @@ export function useBackNavigation(
             hasSetupRef.current = true
         }
 
-        // When leaving chat, reset the flag
+        // When leaving chat, reset the flag but don't pop the state
+        // (the state will be naturally replaced when user navigates elsewhere)
         if (!isInChat && hasSetupRef.current) {
             hasSetupRef.current = false
         }

@@ -2,6 +2,7 @@
 
 import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
+import { BottomNavProvider, useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
 import { useAuth } from '@/lib/auth-context'
 import { Loader2 } from 'lucide-react'
 
@@ -9,8 +10,9 @@ interface DashboardLayoutProps {
     children: React.ReactNode
 }
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+function DashboardLayoutContent({ children }: DashboardLayoutProps) {
     const { loading } = useAuth()
+    const { visible: bottomNavVisible } = useBottomNavVisibility()
 
     if (loading) {
         return (
@@ -30,14 +32,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
             {/* Main content */}
             <main className="lg:pl-64">
-                {/* Add padding-bottom for mobile bottom nav */}
-                <div className="min-h-screen pb-16 lg:pb-0">
+                {/* Add padding-bottom for mobile bottom nav only when visible */}
+                <div className={`min-h-screen ${bottomNavVisible ? 'pb-16' : 'pb-0'} lg:pb-0`}>
                     {children}
                 </div>
             </main>
 
-            {/* Mobile Bottom Navigation */}
-            <BottomNav />
+            {/* Mobile Bottom Navigation - hidden when in chat */}
+            {bottomNavVisible && <BottomNav />}
         </div>
+    )
+}
+
+export function DashboardLayout({ children }: DashboardLayoutProps) {
+    return (
+        <BottomNavProvider>
+            <DashboardLayoutContent>{children}</DashboardLayoutContent>
+        </BottomNavProvider>
     )
 }
