@@ -21,6 +21,7 @@ import { useSetReaction, groupReactions, getUserReaction } from '@/hooks/use-rea
 import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
 import { toast } from 'sonner'
 import { haptics } from '@/lib/haptics'
+import { EmojiPicker } from '@/components/ui/emoji-picker'
 import {
     ArrowLeft,
     Send,
@@ -129,6 +130,12 @@ export function ChatView({
             setSelectedFile(file)
         }
         e.target.value = ''
+    }
+
+    const handleEmojiSelect = (emoji: string) => {
+        setInput(prev => prev + emoji)
+        inputRef.current?.focus()
+        onTyping?.()
     }
 
     const handleSendVoiceMessage = async (audioBlob: Blob) => {
@@ -358,6 +365,11 @@ export function ChatView({
                             onChange={handleFileSelect}
                             className="hidden"
                         />
+                        <EmojiPicker
+                            onEmojiSelect={handleEmojiSelect}
+                            disabled={isSending || isSendingVoice}
+                            position="top"
+                        />
                         <Button
                             variant="ghost"
                             size="icon"
@@ -445,6 +457,29 @@ function MessageBubble({
     const isVoiceMessage = message.file_type?.startsWith('audio/')
     const groupedReactions = groupReactions(message.reactions, currentUserId)
     const userCurrentEmoji = getUserReaction(message.reactions, currentUserId)
+
+    // Check if message is emoji-only (for larger display like WhatsApp/Instagram)
+    const isEmojiOnly = (() => {
+        if (!message.content || message.file_url) return false
+        const trimmed = message.content.trim()
+        if (!trimmed) return false
+
+        // Remove all emoji characters and check if anything remains
+        // This regex matches most common emoji patterns
+        const withoutEmojis = trimmed
+            .replace(/\p{Extended_Pictographic}/gu, '')
+            .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, '') // Skin tone modifiers
+            .replace(/\u{FE0F}/gu, '') // Variation selector
+            .replace(/\u{200D}/gu, '') // ZWJ
+            .trim()
+
+        // If there's any text left after removing emojis, it's not emoji-only
+        if (withoutEmojis.length > 0) return false
+
+        // Count grapheme clusters (each emoji, even compound ones, count as 1)
+        const segments = [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(trimmed)]
+        return segments.length <= 3
+    })()
 
     // Find the replied-to message
     const replyToMessage = message.reply_to_id
@@ -719,6 +754,22 @@ function MessageBubble({
                                 />
                             </div>
                         )}
+                    </div>
+                ) : isEmojiOnly && !replyToMessage ? (
+                    // Emoji-only message - large display without bubble (WhatsApp/Instagram style)
+                    <div className="active:opacity-90 transition-opacity">
+                        <p className="text-5xl leading-tight">{message.content}</p>
+                        <div className={cn(
+                            'flex items-center gap-1 mt-1',
+                            isOwn ? 'justify-end' : 'justify-start'
+                        )}>
+                            <span className="text-[10px] text-muted-foreground">{timestamp}</span>
+                            <MessageStatus
+                                message={message}
+                                conversation={conversation}
+                                currentUserId={currentUserId}
+                            />
+                        </div>
                     </div>
                 ) : (
                     <div
