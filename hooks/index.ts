@@ -28,3 +28,4 @@ export { useUpdatingTimestamp, useUpdatingRelativeTime } from './use-updating-ti
 export { useFormattedTimestamp, useFormattedRelativeTime, useGlobalTime } from '@/lib/global-clock';
 export { useAudioRecorder, formatRecordingTime } from './use-audio-recorder';
 export { useBackNavigation } from './use-back-navigation';
+export { useSwipeGesture } from './use-swipe-gesture';

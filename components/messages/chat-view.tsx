@@ -16,8 +16,9 @@ import { TypingBubble } from './typing-bubble'
 import { MessageStatus } from './message-status'
 import { OnlineStatusBadge, OnlineStatusDot } from './online-status-badge'
 import { VoiceRecorder, AudioMessagePlayer } from './voice-recorder'
-import { ReactionBadges, QuickReactionsBar } from './message-reactions'
+import { ReactionBadges, QuickReactionsBar, MobileMessageActions } from './message-reactions'
 import { useSetReaction, groupReactions, getUserReaction } from '@/hooks/use-reactions'
+import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
 import { toast } from 'sonner'
 import { haptics } from '@/lib/haptics'
 import {
@@ -30,6 +31,7 @@ import {
     X,
     Mic,
     Reply,
+    CornerUpLeft,
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -304,23 +306,26 @@ export function ChatView({
 
             {/* Reply Preview */}
             {replyingTo && (
-                <div className="px-4 py-2 border-t border-border bg-muted/50 flex items-center gap-3">
-                    <div className="w-1 h-10 bg-primary rounded-full" />
+                <div className="px-4 py-3 border-t border-border bg-muted/50 flex items-center gap-3">
+                    <div className="w-1 h-12 bg-primary rounded-full flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-primary">
+                        <p className="text-sm font-medium text-primary">
                             Replying to {replyingTo.sender?.name || 'Unknown'}
                         </p>
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="text-sm text-muted-foreground truncate">
                             {replyingTo.content || (replyingTo.file_name ? `File: ${replyingTo.file_name}` : 'Message')}
                         </p>
                     </div>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setReplyingTo(null)}
+                        className="h-10 w-10 rounded-full touch-manipulation flex-shrink-0"
+                        onClick={() => {
+                            haptics.light()
+                            setReplyingTo(null)
+                        }}
                     >
-                        <X className="h-4 w-4" />
+                        <X className="h-5 w-5" />
                     </Button>
                 </div>
             )}
@@ -333,7 +338,7 @@ export function ChatView({
                     maxDuration={300}
                 />
             ) : (
-                <div className="p-4 border-t border-border bg-card">
+                <div className="p-3 sm:p-4 border-t border-border bg-card">
                     {selectedFile && (
                         <div className="mb-3">
                             <FilePreview
@@ -353,9 +358,13 @@ export function ChatView({
                         <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={() => {
+                                haptics.light()
+                                fileInputRef.current?.click()
+                            }}
                             title="Attach file"
                             disabled={isSending || isSendingVoice}
+                            className="h-11 w-11 rounded-full touch-manipulation flex-shrink-0"
                         >
                             <Paperclip className="h-5 w-5" />
                         </Button>
@@ -365,7 +374,7 @@ export function ChatView({
                             value={input}
                             onChange={handleInputChange}
                             onKeyDown={handleKeyDown}
-                            className="flex-1"
+                            className="flex-1 h-11 rounded-full px-4 text-[16px]"
                             disabled={isSendingVoice}
                         />
 
@@ -375,6 +384,7 @@ export function ChatView({
                                 disabled={(!input.trim() && !selectedFile) || isSending || isSendingVoice}
                                 size="icon"
                                 title="Send"
+                                className="h-11 w-11 rounded-full touch-manipulation flex-shrink-0"
                             >
                                 {isSending || isSendingVoice ? (
                                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -386,9 +396,13 @@ export function ChatView({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => setShowVoiceRecorder(true)}
+                                onClick={() => {
+                                    haptics.light()
+                                    setShowVoiceRecorder(true)
+                                }}
                                 title="Record voice message"
                                 disabled={isSending || isSendingVoice}
+                                className="h-11 w-11 rounded-full touch-manipulation flex-shrink-0"
                             >
                                 <Mic className="h-5 w-5" />
                             </Button>
@@ -420,8 +434,10 @@ function MessageBubble({
     onReply,
 }: MessageBubbleProps) {
     const [showReactions, setShowReactions] = useState(false)
+    const [showMobileActions, setShowMobileActions] = useState(false)
     const longPressTimer = useRef<NodeJS.Timeout | null>(null)
     const setReaction = useSetReaction()
+    const bubbleRef = useRef<HTMLDivElement>(null)
 
     const isVoiceMessage = message.file_type?.startsWith('audio/')
     const groupedReactions = groupReactions(message.reactions, currentUserId)
@@ -434,6 +450,17 @@ function MessageBubble({
 
     // Format timestamp for each message
     const timestamp = formatMessageTime(message.created_at)
+
+    // Swipe to reply gesture
+    const handleSwipeReply = useCallback(() => {
+        haptics.medium()
+        onReply(message)
+    }, [message, onReply])
+
+    const { ref: swipeRef, handlers: swipeHandlers } = useSwipeGesture({
+        onSwipeRight: handleSwipeReply,
+        threshold: 60,
+    })
 
     const handleReaction = useCallback((emoji: string) => {
         if (!currentUser) return
@@ -450,36 +477,65 @@ function MessageBubble({
             currentEmoji: userCurrentEmoji,
         })
         setShowReactions(false)
+        setShowMobileActions(false)
     }, [currentUser, message.id, message.conversation_id, currentUserId, userCurrentEmoji, setReaction])
 
     const handleToggleReaction = useCallback((emoji: string) => {
         handleReaction(emoji)
     }, [handleReaction])
 
-    // Touch handlers for long press
-    const handleTouchStart = useCallback(() => {
+    // Touch handlers for long press (show mobile actions)
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        // Also trigger swipe start
+        swipeHandlers.onTouchStart(e)
+
         longPressTimer.current = setTimeout(() => {
             // Haptic feedback for long press
             haptics.medium()
-            setShowReactions(true)
-        }, 500)
-    }, [])
+            setShowMobileActions(true)
+        }, 400)
+    }, [swipeHandlers])
 
-    const handleTouchEnd = useCallback(() => {
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+        swipeHandlers.onTouchMove(e)
+        // Cancel long press if user starts moving
         if (longPressTimer.current) {
             clearTimeout(longPressTimer.current)
             longPressTimer.current = null
         }
-    }, [])
+    }, [swipeHandlers])
 
-    // Close reactions on outside click
+    const handleTouchEnd = useCallback(() => {
+        swipeHandlers.onTouchEnd()
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current)
+            longPressTimer.current = null
+        }
+    }, [swipeHandlers])
+
+    // Close mobile actions and reactions on outside click
     useEffect(() => {
-        if (!showReactions) return
+        if (!showReactions && !showMobileActions) return
 
-        const handleClick = () => setShowReactions(false)
-        document.addEventListener('click', handleClick)
-        return () => document.removeEventListener('click', handleClick)
-    }, [showReactions])
+        const handleClick = (e: MouseEvent) => {
+            // Don't close if clicking inside the bubble
+            if (bubbleRef.current?.contains(e.target as Node)) return
+            setShowReactions(false)
+            setShowMobileActions(false)
+        }
+
+        // Small delay to prevent immediate close on the triggering tap
+        const timer = setTimeout(() => {
+            document.addEventListener('click', handleClick)
+            document.addEventListener('touchstart', handleClick as EventListener)
+        }, 100)
+
+        return () => {
+            clearTimeout(timer)
+            document.removeEventListener('click', handleClick)
+            document.removeEventListener('touchstart', handleClick as EventListener)
+        }
+    }, [showReactions, showMobileActions])
 
     if (message.is_deleted) {
         return (
@@ -493,7 +549,19 @@ function MessageBubble({
 
     return (
         <div className={cn('flex gap-2 group', isOwn ? 'justify-end' : 'justify-start')}>
-            {/* Action buttons - visible on hover (desktop) */}
+            {/* Swipe reply indicator - shows on the left when swiping */}
+            <div
+                className={cn(
+                    'flex items-center justify-center w-8 flex-shrink-0 opacity-0 transition-opacity',
+                    !isOwn && 'order-first'
+                )}
+            >
+                <div className="p-1.5 rounded-full bg-primary/10 text-primary">
+                    <CornerUpLeft className="w-4 h-4" />
+                </div>
+            </div>
+
+            {/* Action buttons - visible on hover (desktop only) */}
             <div
                 className={cn(
                     'hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
@@ -519,12 +587,44 @@ function MessageBubble({
             </div>
 
             <div
+                ref={(el) => {
+                    bubbleRef.current = el
+                    swipeRef.current = el
+                }}
                 className={cn('max-w-[75%] sm:max-w-[70%] relative', isOwn && 'text-right')}
                 onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchEnd}
-                onDoubleClick={() => setShowReactions(true)}
+                onDoubleClick={() => {
+                    haptics.light()
+                    setShowReactions(true)
+                }}
             >
+                {/* Mobile Actions Popup (long press) */}
+                {showMobileActions && (
+                    <div
+                        className={cn(
+                            'absolute bottom-full mb-2 z-30 sm:hidden',
+                            isOwn ? 'right-0' : 'left-0'
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <MobileMessageActions
+                            onReact={() => {
+                                setShowMobileActions(false)
+                                setShowReactions(true)
+                            }}
+                            onReply={() => {
+                                haptics.light()
+                                onReply(message)
+                                setShowMobileActions(false)
+                            }}
+                            onClose={() => setShowMobileActions(false)}
+                        />
+                    </div>
+                )}
+
                 {/* Reaction picker popup */}
                 {showReactions && (
                     <div
@@ -584,7 +684,7 @@ function MessageBubble({
                             {message.content && !isVoiceMessage && (
                                 <div
                                     className={cn(
-                                        'rounded-2xl px-3 py-2',
+                                        'rounded-2xl px-4 py-2.5',
                                         isOwn
                                             ? 'bg-primary text-primary-foreground rounded-br-sm'
                                             : 'bg-muted text-foreground rounded-bl-sm'
@@ -614,7 +714,7 @@ function MessageBubble({
                     ) : (
                         <div
                             className={cn(
-                                'rounded-2xl px-3 py-2',
+                                'rounded-2xl px-4 py-2.5 active:opacity-90 transition-opacity',
                                 isOwn
                                     ? 'bg-primary text-primary-foreground rounded-br-sm'
                                     : 'bg-muted text-foreground rounded-bl-sm'

@@ -4,6 +4,8 @@ import { useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { GroupedReaction } from '@/lib/types'
 import { QUICK_REACTIONS } from '@/hooks/use-reactions'
+import { haptics } from '@/lib/haptics'
+import { Reply, Smile } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -24,11 +26,16 @@ export function ReactionBadges({
 }: ReactionBadgesProps) {
   if (reactions.length === 0) return null
 
+  const handleToggle = useCallback((emoji: string) => {
+    haptics.light()
+    onToggle(emoji)
+  }, [onToggle])
+
   return (
     <TooltipProvider delayDuration={400}>
       <div
         className={cn(
-          'flex flex-wrap gap-1 mt-1',
+          'flex flex-wrap gap-1.5 mt-1.5',
           isOwn ? 'justify-end' : 'justify-start'
         )}
       >
@@ -36,19 +43,20 @@ export function ReactionBadges({
           <Tooltip key={emoji}>
             <TooltipTrigger asChild>
               <button
-                onClick={() => onToggle(emoji)}
+                onClick={() => handleToggle(emoji)}
                 className={cn(
-                  'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs',
-                  'border active:scale-95 transition-transform touch-manipulation',
+                  'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs',
+                  'border active:scale-95 transition-all touch-manipulation',
+                  'min-h-[28px] min-w-[36px]',
                   hasReacted
-                    ? 'bg-primary/15 border-primary/40'
-                    : 'bg-background/80 border-border/50'
+                    ? 'bg-primary/15 border-primary/40 shadow-sm'
+                    : 'bg-background/90 border-border/60 hover:bg-muted/50'
                 )}
               >
-                <span className="text-sm leading-none">{emoji}</span>
+                <span className="text-base leading-none">{emoji}</span>
                 {/* Only show count if more than 1 */}
                 {count > 1 && (
-                  <span className="text-[10px] text-muted-foreground leading-none">
+                  <span className="text-xs text-muted-foreground leading-none font-medium">
                     {count}
                   </span>
                 )}
@@ -80,6 +88,7 @@ export function QuickReactionsBar({
 }: QuickReactionsBarProps) {
   const handleSelect = useCallback(
     (emoji: string) => {
+      haptics.light()
       onSelect(emoji)
       onClose()
     },
@@ -89,19 +98,21 @@ export function QuickReactionsBar({
   return (
     <div
       className={cn(
-        'flex items-center gap-0.5 px-2 py-1.5',
-        'bg-popover border border-border rounded-full shadow-lg',
+        'flex items-center gap-1 px-2 py-2',
+        'bg-popover border border-border rounded-full shadow-xl',
         'animate-in fade-in-0 zoom-in-95 duration-150'
       )}
       onClick={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
     >
       {QUICK_REACTIONS.map((emoji) => (
         <button
           key={emoji}
           onClick={() => handleSelect(emoji)}
           className={cn(
-            'p-1.5 text-xl rounded-full transition-all touch-manipulation',
-            'hover:bg-muted active:scale-110',
+            'p-2 text-2xl rounded-full transition-all touch-manipulation',
+            'hover:bg-muted active:scale-125 active:bg-muted/80',
+            'min-w-[44px] min-h-[44px] flex items-center justify-center',
             currentEmoji === emoji && 'bg-primary/20 scale-110'
           )}
         >
@@ -118,7 +129,7 @@ interface MessageActionsProps {
   isOwn: boolean
 }
 
-// Action buttons that appear on message hover/long-press
+// Action buttons that appear on message hover/long-press (desktop)
 export function MessageActions({
   onReact,
   onReply,
@@ -150,6 +161,65 @@ export function MessageActions({
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
         </svg>
+      </button>
+    </div>
+  )
+}
+
+interface MobileMessageActionsProps {
+  onReact: () => void
+  onReply: () => void
+  onClose: () => void
+}
+
+// WhatsApp-style floating action menu for mobile (appears on long press)
+export function MobileMessageActions({
+  onReact,
+  onReply,
+  onClose,
+}: MobileMessageActionsProps) {
+  const handleReact = useCallback(() => {
+    haptics.light()
+    onReact()
+  }, [onReact])
+
+  const handleReply = useCallback(() => {
+    haptics.light()
+    onReply()
+  }, [onReply])
+
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 px-3 py-2',
+        'bg-popover border border-border rounded-2xl shadow-xl',
+        'animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-150'
+      )}
+      onClick={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+    >
+      <button
+        onClick={handleReact}
+        className={cn(
+          'flex flex-col items-center gap-1 px-4 py-2 rounded-xl',
+          'hover:bg-muted active:bg-muted/80 active:scale-95',
+          'transition-all touch-manipulation min-w-[60px]'
+        )}
+      >
+        <Smile className="w-6 h-6 text-foreground" />
+        <span className="text-xs text-muted-foreground">React</span>
+      </button>
+      <div className="w-px h-10 bg-border" />
+      <button
+        onClick={handleReply}
+        className={cn(
+          'flex flex-col items-center gap-1 px-4 py-2 rounded-xl',
+          'hover:bg-muted active:bg-muted/80 active:scale-95',
+          'transition-all touch-manipulation min-w-[60px]'
+        )}
+      >
+        <Reply className="w-6 h-6 text-foreground" />
+        <span className="text-xs text-muted-foreground">Reply</span>
       </button>
     </div>
   )

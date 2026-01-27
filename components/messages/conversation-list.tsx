@@ -138,14 +138,16 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
             onClick={handleClick}
             className={cn(
                 'w-full flex items-center gap-3 p-4 transition-all text-left border-l-2',
-                'hover:bg-accent/50 active:bg-accent',
+                'hover:bg-accent/50 active:bg-accent/70 active:scale-[0.99]',
+                'touch-manipulation min-h-[72px]',
                 isSelected
                     ? 'bg-accent border-l-primary'
                     : 'border-l-transparent'
             )}
         >
-            <Avatar className="h-12 w-12 flex-shrink-0">
+            <Avatar className="h-13 w-13 flex-shrink-0">
                 <AvatarFallback className={cn(
+                    'text-base font-medium',
                     isSelected
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-muted-foreground'
@@ -157,7 +159,7 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                     <span className={cn(
-                        'font-medium truncate',
+                        'font-semibold truncate text-[15px]',
                         isSelected ? 'text-foreground' : 'text-foreground'
                     )}>
                         {name}
@@ -179,7 +181,7 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
                         {lastMessage?.content || (lastMessage?.file_name ? '📎 ' + lastMessage.file_name : 'No messages yet')}
                     </p>
                     {unread > 0 && (
-                        <Badge className="ml-2 bg-primary text-primary-foreground flex-shrink-0 min-w-[20px] justify-center">
+                        <Badge className="ml-2 bg-primary text-primary-foreground flex-shrink-0 min-w-[22px] h-[22px] justify-center text-xs font-semibold">
                             {unread > 99 ? '99+' : unread}
                         </Badge>
                     )}
