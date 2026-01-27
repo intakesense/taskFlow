@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils'
 import { GroupedReaction } from '@/lib/types'
 import { QUICK_REACTIONS } from '@/hooks/use-reactions'
 import { haptics } from '@/lib/haptics'
-import { Reply, Smile } from 'lucide-react'
+import { Copy, Smile } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Tooltip,
   TooltipContent,
@@ -168,25 +169,36 @@ export function MessageActions({
 
 interface MobileMessageActionsProps {
   onReact: () => void
-  onReply: () => void
+  onCopy: () => void
   onClose: () => void
+  messageContent?: string
 }
 
 // WhatsApp-style floating action menu for mobile (appears on long press)
 export function MobileMessageActions({
   onReact,
-  onReply,
+  onCopy,
   onClose,
+  messageContent,
 }: MobileMessageActionsProps) {
   const handleReact = useCallback(() => {
     haptics.light()
     onReact()
   }, [onReact])
 
-  const handleReply = useCallback(() => {
+  const handleCopy = useCallback(async () => {
     haptics.light()
-    onReply()
-  }, [onReply])
+    if (messageContent) {
+      try {
+        await navigator.clipboard.writeText(messageContent)
+        toast.success('Copied to clipboard')
+      } catch {
+        toast.error('Failed to copy')
+      }
+    }
+    onCopy()
+    onClose()
+  }, [messageContent, onCopy, onClose])
 
   return (
     <div
@@ -209,18 +221,22 @@ export function MobileMessageActions({
         <Smile className="w-6 h-6 text-foreground" />
         <span className="text-xs text-muted-foreground">React</span>
       </button>
-      <div className="w-px h-10 bg-border" />
-      <button
-        onClick={handleReply}
-        className={cn(
-          'flex flex-col items-center gap-1 px-4 py-2 rounded-xl',
-          'hover:bg-muted active:bg-muted/80 active:scale-95',
-          'transition-all touch-manipulation min-w-[60px]'
-        )}
-      >
-        <Reply className="w-6 h-6 text-foreground" />
-        <span className="text-xs text-muted-foreground">Reply</span>
-      </button>
+      {messageContent && (
+        <>
+          <div className="w-px h-10 bg-border" />
+          <button
+            onClick={handleCopy}
+            className={cn(
+              'flex flex-col items-center gap-1 px-4 py-2 rounded-xl',
+              'hover:bg-muted active:bg-muted/80 active:scale-95',
+              'transition-all touch-manipulation min-w-[60px]'
+            )}
+          >
+            <Copy className="w-6 h-6 text-foreground" />
+            <span className="text-xs text-muted-foreground">Copy</span>
+          </button>
+        </>
+      )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import Image from 'next/image'
 import { DashboardLayout } from '@/components/layout'
 import { useAuth } from '@/lib/auth-context'
 import { useThemeContext } from '@/components/providers/theme-provider'
@@ -15,8 +16,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff } from 'lucide-react'
-import { ThemeMode, ThemePreset } from '@/lib/theme/types'
+import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff, Camera, Trash2 } from 'lucide-react'
+import { ThemePreset } from '@/lib/theme/types'
+import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
+import { toast } from 'sonner'
+import { User as UserType } from '@/lib/types'
 
 // OneSignal SDK types for notification settings
 interface OneSignalInstance {
@@ -55,11 +59,15 @@ export default function SettingsPage() {
     return <SettingsContent profile={profile} />
 }
 
-function SettingsContent({ profile }: { profile: { name?: string; email?: string } | null }) {
+function SettingsContent({ profile }: { profile: UserType | null }) {
+    const { refreshProfile } = useAuth()
     const { mode, preset, setMode, setPreset } = useThemeContext()
     const [notificationsEnabled, setNotificationsEnabled] = useState(false)
     const [notificationStatus, setNotificationStatus] = useState<'loading' | 'granted' | 'denied' | 'default'>('loading')
     const [isOneSignalAvailable, setIsOneSignalAvailable] = useState(false)
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+    const [isDeletingAvatar, setIsDeletingAvatar] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Check notification status on mount
     useEffect(() => {
@@ -104,6 +112,45 @@ function SettingsContent({ profile }: { profile: { name?: string; email?: string
         }
     }, [notificationsEnabled, notificationStatus])
 
+    const handleAvatarClick = () => {
+        fileInputRef.current?.click()
+    }
+
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file || !profile?.id) return
+
+        setIsUploadingAvatar(true)
+        try {
+            await uploadAvatar(file, profile.id)
+            await refreshProfile()
+            toast.success('Avatar updated successfully')
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to upload avatar')
+        } finally {
+            setIsUploadingAvatar(false)
+            // Reset input so same file can be selected again
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ''
+            }
+        }
+    }
+
+    const handleDeleteAvatar = async () => {
+        if (!profile?.id) return
+
+        setIsDeletingAvatar(true)
+        try {
+            await deleteAvatar(profile.id)
+            await refreshProfile()
+            toast.success('Avatar removed')
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to remove avatar')
+        } finally {
+            setIsDeletingAvatar(false)
+        }
+    }
+
     return (
         <DashboardLayout>
             <div className="p-6 lg:p-8">
@@ -131,14 +178,80 @@ function SettingsContent({ profile }: { profile: { name?: string; email?: string
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold">
-                                        {profile?.name?.charAt(0).toUpperCase() || '?'}
+                                    {/* Avatar with upload */}
+                                    <div className="relative group">
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp,image/gif"
+                                            onChange={handleAvatarChange}
+                                            className="hidden"
+                                        />
+                                        {profile?.avatar_url ? (
+                                            <Image
+                                                src={profile.avatar_url}
+                                                alt={profile.name || 'Avatar'}
+                                                width={80}
+                                                height={80}
+                                                className="w-20 h-20 rounded-full object-cover border-2 border-border"
+                                            />
+                                        ) : (
+                                            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold border-2 border-border">
+                                                {profile?.name?.charAt(0).toUpperCase() || '?'}
+                                            </div>
+                                        )}
+                                        {/* Overlay on hover */}
+                                        <button
+                                            onClick={handleAvatarClick}
+                                            disabled={isUploadingAvatar}
+                                            className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                        >
+                                            {isUploadingAvatar ? (
+                                                <Loader2 className="h-6 w-6 text-white animate-spin" />
+                                            ) : (
+                                                <Camera className="h-6 w-6 text-white" />
+                                            )}
+                                        </button>
                                     </div>
-                                    <div>
+                                    <div className="flex-1">
                                         <p className="text-lg font-semibold">{profile?.name}</p>
-                                        <p className="text-muted-foreground">{profile?.email}</p>
+                                        <p className="text-muted-foreground text-sm">{profile?.email}</p>
+                                        <div className="flex gap-2 mt-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleAvatarClick}
+                                                disabled={isUploadingAvatar}
+                                            >
+                                                {isUploadingAvatar ? (
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                ) : (
+                                                    <Camera className="h-4 w-4 mr-2" />
+                                                )}
+                                                {profile?.avatar_url ? 'Change Photo' : 'Add Photo'}
+                                            </Button>
+                                            {profile?.avatar_url && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleDeleteAvatar}
+                                                    disabled={isDeletingAvatar}
+                                                    className="text-destructive hover:text-destructive"
+                                                >
+                                                    {isDeletingAvatar ? (
+                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    ) : (
+                                                        <Trash2 className="h-4 w-4 mr-2" />
+                                                    )}
+                                                    Remove
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Recommended: Square image, at least 200x200 pixels. Max 5MB.
+                                </p>
                             </CardContent>
                         </Card>
 

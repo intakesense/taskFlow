@@ -25,13 +25,13 @@ async function fetchMessages(conversationId: string): Promise<MessageWithSender[
     .from('messages')
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level),
+      sender:users!messages_sender_id_fkey(id, name, email, level, avatar_url),
       reactions:message_reactions(
         id,
         emoji,
         user_id,
         created_at,
-        user:users!message_reactions_user_id_fkey(id, name, email, level)
+        user:users!message_reactions_user_id_fkey(id, name, email, level, avatar_url)
       )
     `)
     .eq('conversation_id', conversationId)
@@ -87,7 +87,7 @@ async function sendMessage(input: SendMessageInput): Promise<MessageWithSender> 
     })
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level)
+      sender:users!messages_sender_id_fkey(id, name, email, level, avatar_url)
     `)
     .single()
 
@@ -106,7 +106,7 @@ async function searchMessages(query: string): Promise<MessageWithSender[]> {
     .from('messages')
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level)
+      sender:users!messages_sender_id_fkey(id, name, email, level, avatar_url)
     `)
     .textSearch('search_vector', query)
     .order('created_at', { ascending: false })
@@ -317,7 +317,7 @@ export function useConversationRealtime(
       if (!sender) {
         const { data: senderData } = await supabase
           .from('users')
-          .select('id, name, email, level')
+          .select('id, name, email, level, avatar_url')
           .eq('id', newMessage.sender_id)
           .single()
         sender = senderData as UserBasic

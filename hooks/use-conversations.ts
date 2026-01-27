@@ -42,7 +42,7 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
                 conversation_id,
                 last_read_at,
                 joined_at,
-                user:users!conversation_members_user_id_fkey(id, name, email, level)
+                user:users!conversation_members_user_id_fkey(id, name, email, level, avatar_url)
             `)
             .in('conversation_id', conversationIds),
 
@@ -51,7 +51,7 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
             .from('messages')
             .select(`
                 *,
-                sender:users!messages_sender_id_fkey(id, name, email, level)
+                sender:users!messages_sender_id_fkey(id, name, email, level, avatar_url)
             `)
             .in('conversation_id', conversationIds)
             .order('created_at', { ascending: false }),

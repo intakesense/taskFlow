@@ -28,6 +28,7 @@ export interface UserBasic {
     name: string;
     email: string;
     level: UserLevel;
+    avatar_url?: string | null;
 }
 
 // Conversation member with read status

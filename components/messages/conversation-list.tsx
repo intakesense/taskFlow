@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useFormattedTimestamp } from '@/lib/global-clock'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -121,7 +121,7 @@ interface ConversationItemProps {
 
 function ConversationItem({ conversation, currentUserId, isSelected, onClick }: ConversationItemProps) {
     const name = getConversationName(conversation, currentUserId)
-    const avatar = getConversationAvatar(conversation, currentUserId)
+    const { initials, imageUrl } = getConversationAvatar(conversation, currentUserId)
     const lastMessage = conversation.lastMessage
     const unread = conversation.unreadCount || 0
 
@@ -146,13 +146,14 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
             )}
         >
             <Avatar className="h-13 w-13 flex-shrink-0">
+                {imageUrl && <AvatarImage src={imageUrl} alt={name} />}
                 <AvatarFallback className={cn(
                     'text-base font-medium',
                     isSelected
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-muted-foreground'
                 )}>
-                    {avatar}
+                    {initials}
                 </AvatarFallback>
             </Avatar>
 
@@ -206,8 +207,16 @@ function getConversationName(conv: ConversationWithMembers, currentUserId?: stri
     return other?.name || 'Unknown'
 }
 
-function getConversationAvatar(conv: ConversationWithMembers, currentUserId?: string): string {
-    if (conv.is_group) return conv.name?.charAt(0).toUpperCase() || 'G'
+function getConversationAvatar(conv: ConversationWithMembers, currentUserId?: string): { initials: string; imageUrl?: string } {
+    if (conv.is_group) {
+        return {
+            initials: conv.name?.charAt(0).toUpperCase() || 'G',
+            imageUrl: conv.avatar_url || undefined,
+        }
+    }
     const other = conv.members.find(m => m.id !== currentUserId)
-    return other?.name?.charAt(0).toUpperCase() || '?'
+    return {
+        initials: other?.name?.charAt(0).toUpperCase() || '?',
+        imageUrl: other?.avatar_url || undefined,
+    }
 }

@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers, MessageWithSender, UserBasic } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { formatMessageTime } from '@/lib/utils/date'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -200,6 +200,10 @@ export function ChatView({
                 )}
                 <div className="relative">
                     <Avatar className="h-10 w-10">
+                        {(() => {
+                            const avatarUrl = conversation.is_group ? conversation.avatar_url : otherUser?.avatar_url
+                            return avatarUrl ? <AvatarImage src={avatarUrl} alt={displayName || 'Avatar'} /> : null
+                        })()}
                         <AvatarFallback className="bg-primary text-primary-foreground">
                             {displayName?.charAt(0).toUpperCase() || '?'}
                         </AvatarFallback>
@@ -548,24 +552,12 @@ function MessageBubble({
     }
 
     return (
-        <div className={cn('flex gap-2 group', isOwn ? 'justify-end' : 'justify-start')}>
-            {/* Swipe reply indicator - shows on the left when swiping */}
-            <div
-                className={cn(
-                    'flex items-center justify-center w-8 flex-shrink-0 opacity-0 transition-opacity',
-                    !isOwn && 'order-first'
-                )}
-            >
-                <div className="p-1.5 rounded-full bg-primary/10 text-primary">
-                    <CornerUpLeft className="w-4 h-4" />
-                </div>
-            </div>
-
+        <div className={cn('flex group', isOwn ? 'justify-end' : 'justify-start')}>
             {/* Action buttons - visible on hover (desktop only) */}
             <div
                 className={cn(
                     'hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
-                    isOwn ? 'order-first' : 'order-last'
+                    isOwn ? 'order-first mr-2' : 'order-last ml-2'
                 )}
             >
                 <button
@@ -591,7 +583,10 @@ function MessageBubble({
                     bubbleRef.current = el
                     swipeRef.current = el
                 }}
-                className={cn('max-w-[75%] sm:max-w-[70%] relative', isOwn && 'text-right')}
+                className={cn(
+                    'max-w-[80%] sm:max-w-[70%] relative select-none',
+                    isOwn && 'text-right'
+                )}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
@@ -661,7 +656,7 @@ function MessageBubble({
                 )}
 
                 {/* Message content */}
-                <div className="inline-block">
+                <div className={cn('inline-block', isOwn ? 'text-left' : 'text-left')}>
                     {message.file_url ? (
                         <div className="space-y-1">
                             {isVoiceMessage ? (
@@ -684,19 +679,24 @@ function MessageBubble({
                             {message.content && !isVoiceMessage && (
                                 <div
                                     className={cn(
-                                        'rounded-2xl px-4 py-2.5',
+                                        'rounded-2xl px-3 py-2',
                                         isOwn
                                             ? 'bg-primary text-primary-foreground rounded-br-sm'
                                             : 'bg-muted text-foreground rounded-bl-sm'
                                     )}
                                 >
                                     <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                                    <span className={cn(
-                                        'text-[10px] float-right ml-2 mt-1',
+                                    <div className={cn(
+                                        'flex items-center justify-end gap-1 mt-1',
                                         isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
                                     )}>
-                                        {timestamp}
-                                    </span>
+                                        <span className="text-[10px]">{timestamp}</span>
+                                        <MessageStatus
+                                            message={message}
+                                            conversation={conversation}
+                                            currentUserId={currentUserId}
+                                        />
+                                    </div>
                                 </div>
                             )}
                             {/* Timestamp for file-only messages */}
@@ -714,26 +714,24 @@ function MessageBubble({
                     ) : (
                         <div
                             className={cn(
-                                'rounded-2xl px-4 py-2.5 active:opacity-90 transition-opacity',
+                                'rounded-2xl px-3 py-2 active:opacity-90 transition-opacity',
                                 isOwn
                                     ? 'bg-primary text-primary-foreground rounded-br-sm'
                                     : 'bg-muted text-foreground rounded-bl-sm'
                             )}
                         >
-                            <p className="text-sm whitespace-pre-wrap break-words">
-                                {message.content}
-                                <span className={cn(
-                                    'text-[10px] float-right ml-2 mt-1 inline-flex items-center gap-1',
-                                    isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                                )}>
-                                    {timestamp}
-                                    <MessageStatus
-                                        message={message}
-                                        conversation={conversation}
-                                        currentUserId={currentUserId}
-                                    />
-                                </span>
-                            </p>
+                            <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                            <div className={cn(
+                                'flex items-center justify-end gap-1 mt-1',
+                                isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                            )}>
+                                <span className="text-[10px]">{timestamp}</span>
+                                <MessageStatus
+                                    message={message}
+                                    conversation={conversation}
+                                    currentUserId={currentUserId}
+                                />
+                            </div>
                         </div>
                     )}
                 </div>

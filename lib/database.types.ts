@@ -435,6 +435,7 @@ export type Database = {
       }
       users: {
         Row: {
+          avatar_url: string | null
           created_at: string
           email: string
           id: string
@@ -445,6 +446,7 @@ export type Database = {
           reports_to: string | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           email: string
           id: string
@@ -455,6 +457,7 @@ export type Database = {
           reports_to?: string | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           email?: string
           id?: string

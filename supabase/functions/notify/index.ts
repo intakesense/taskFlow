@@ -32,10 +32,10 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get sender info
+    // Get sender info including avatar
     const { data: sender } = await supabase
       .from('users')
-      .select('name')
+      .select('name, avatar_url')
       .eq('id', record.sender_id)
       .single()
 
@@ -75,6 +75,9 @@ Deno.serve(async (req) => {
       messagePreview = messagePreview.substring(0, 50) + '...'
     }
 
+    // Use sender's avatar or default icon
+    const notificationIcon = sender?.avatar_url || '/icon.svg'
+
     // Send notification via OneSignal
     const response = await fetch('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
@@ -88,8 +91,22 @@ Deno.serve(async (req) => {
         headings: { en: senderName },
         contents: { en: messagePreview },
         url: `/?conversation=${record.conversation_id}`,
-        chrome_web_icon: '/icon.svg',
-        firefox_icon: '/icon.svg',
+        // Web notification icons
+        chrome_web_icon: notificationIcon,
+        firefox_icon: notificationIcon,
+        // Mobile notification settings
+        small_icon: 'ic_notification', // Android small icon (set in OneSignal dashboard)
+        large_icon: notificationIcon,  // Android large icon (sender avatar)
+        ios_attachments: sender?.avatar_url ? { id: sender.avatar_url } : undefined,
+        // Additional data for rich notifications
+        data: {
+          conversation_id: record.conversation_id,
+          sender_id: record.sender_id,
+          sender_name: senderName,
+          sender_avatar: sender?.avatar_url,
+          message_id: record.id,
+          message_type: record.message_type,
+        },
       }),
     })
 
