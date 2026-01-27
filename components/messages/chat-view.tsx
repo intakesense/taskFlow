@@ -540,9 +540,18 @@ function MessageBubble({
         }
     }, [showReactions, showMobileActions])
 
+    // For group chats, determine if we should show avatar (first message from this sender in a sequence)
+    const isGroupChat = conversation.is_group
+    const messageIndex = messages.findIndex(m => m.id === message.id)
+    const prevMessage = messageIndex > 0 ? messages[messageIndex - 1] : null
+    const showAvatar = isGroupChat && !isOwn && prevMessage?.sender_id !== message.sender_id
+    const showSenderName = isGroupChat && !isOwn && prevMessage?.sender_id !== message.sender_id
+
     if (message.is_deleted) {
         return (
             <div className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}>
+                {/* Avatar placeholder for alignment in groups */}
+                {isGroupChat && !isOwn && <div className="w-8 mr-2 flex-shrink-0" />}
                 <div className="px-4 py-2 rounded-xl bg-muted/50 text-muted-foreground italic text-sm">
                     Message deleted
                 </div>
@@ -552,6 +561,22 @@ function MessageBubble({
 
     return (
         <div className={cn('flex group', isOwn ? 'justify-end' : 'justify-start')}>
+            {/* Avatar for group chats (other people's messages only) */}
+            {isGroupChat && !isOwn && (
+                <div className="w-8 mr-2 flex-shrink-0 self-end">
+                    {showAvatar ? (
+                        <Avatar className="h-8 w-8">
+                            {message.sender?.avatar_url && (
+                                <AvatarImage src={message.sender.avatar_url} alt={message.sender?.name || ''} />
+                            )}
+                            <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+                                {message.sender?.name?.charAt(0).toUpperCase() || '?'}
+                            </AvatarFallback>
+                        </Avatar>
+                    ) : null}
+                </div>
+            )}
+
             {/* Action buttons - visible on hover (desktop only) */}
             <div
                 className={cn(
@@ -584,7 +609,8 @@ function MessageBubble({
                 }}
                 className={cn(
                     'max-w-[80%] sm:max-w-[70%] relative select-none',
-                    isOwn && 'text-right'
+                    // Reduce max-width in groups to account for avatar
+                    isGroupChat && !isOwn && 'max-w-[calc(80%-40px)] sm:max-w-[calc(70%-40px)]'
                 )}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
@@ -595,6 +621,12 @@ function MessageBubble({
                     setShowReactions(true)
                 }}
             >
+                {/* Sender name for group chats */}
+                {showSenderName && (
+                    <p className="text-xs font-medium text-primary mb-1 ml-1">
+                        {message.sender?.name || 'Unknown'}
+                    </p>
+                )}
                 {/* Mobile Actions Popup (long press) */}
                 {showMobileActions && (
                     <div
@@ -633,89 +665,93 @@ function MessageBubble({
                     </div>
                 )}
 
-                {/* Reply reference */}
-                {replyToMessage && (
-                    <div
-                        className={cn(
-                            'mb-1 px-3 py-1.5 rounded-lg text-xs border-l-2 border-primary/50',
-                            isOwn ? 'bg-primary/10 ml-auto' : 'bg-muted/70',
-                            'max-w-[90%] inline-block'
+                {/* Message bubble with reply inside (WhatsApp style) */}
+                {message.file_url ? (
+                    <div className="space-y-1">
+                        {isVoiceMessage ? (
+                            <AudioMessagePlayer
+                                audioUrl={message.file_url}
+                                className={cn(
+                                    isOwn
+                                        ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                        : 'bg-muted text-foreground rounded-bl-sm'
+                                )}
+                            />
+                        ) : (
+                            <FileAttachment
+                                fileUrl={message.file_url}
+                                fileName={message.file_name || 'File'}
+                                fileType={message.file_type || 'application/octet-stream'}
+                                fileSize={message.file_size || undefined}
+                            />
                         )}
-                    >
-                        <p className="font-medium text-primary/80 truncate">
-                            {replyToMessage.sender?.name || 'Unknown'}
-                        </p>
-                        <p className="text-muted-foreground truncate">
-                            {replyToMessage.content || (replyToMessage.file_name ? `File: ${replyToMessage.file_name}` : 'Message')}
-                        </p>
-                    </div>
-                )}
-
-                {/* Message content */}
-                <div className={cn('inline-block', isOwn ? 'text-left' : 'text-left')}>
-                    {message.file_url ? (
-                        <div className="space-y-1">
-                            {isVoiceMessage ? (
-                                <AudioMessagePlayer
-                                    audioUrl={message.file_url}
-                                    className={cn(
-                                        isOwn
-                                            ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                            : 'bg-muted text-foreground rounded-bl-sm'
-                                    )}
-                                />
-                            ) : (
-                                <FileAttachment
-                                    fileUrl={message.file_url}
-                                    fileName={message.file_name || 'File'}
-                                    fileType={message.file_type || 'application/octet-stream'}
-                                    fileSize={message.file_size || undefined}
-                                />
-                            )}
-                            {message.content && !isVoiceMessage && (
-                                <div
-                                    className={cn(
-                                        'rounded-2xl px-3 py-2',
-                                        isOwn
-                                            ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                            : 'bg-muted text-foreground rounded-bl-sm'
-                                    )}
-                                >
-                                    <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                                    <div className={cn(
-                                        'flex items-center justify-end gap-1 mt-1',
-                                        isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                                    )}>
-                                        <span className="text-[10px]">{timestamp}</span>
-                                        <MessageStatus
-                                            message={message}
-                                            conversation={conversation}
-                                            currentUserId={currentUserId}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                            {/* Timestamp for file-only messages */}
-                            {!message.content && (
-                                <div className={cn('flex items-center gap-1', isOwn && 'justify-end')}>
-                                    <span className="text-[10px] text-muted-foreground">{timestamp}</span>
+                        {message.content && !isVoiceMessage && (
+                            <div
+                                className={cn(
+                                    'rounded-2xl px-3 py-2',
+                                    isOwn
+                                        ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                        : 'bg-muted text-foreground rounded-bl-sm'
+                                )}
+                            >
+                                <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                                <div className={cn(
+                                    'flex items-center justify-end gap-1 mt-1',
+                                    isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                                )}>
+                                    <span className="text-[10px]">{timestamp}</span>
                                     <MessageStatus
                                         message={message}
                                         conversation={conversation}
                                         currentUserId={currentUserId}
                                     />
                                 </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div
-                            className={cn(
-                                'rounded-2xl px-3 py-2 active:opacity-90 transition-opacity',
-                                isOwn
-                                    ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                    : 'bg-muted text-foreground rounded-bl-sm'
-                            )}
-                        >
+                            </div>
+                        )}
+                        {/* Timestamp for file-only messages */}
+                        {!message.content && (
+                            <div className={cn('flex items-center gap-1', isOwn && 'justify-end')}>
+                                <span className="text-[10px] text-muted-foreground">{timestamp}</span>
+                                <MessageStatus
+                                    message={message}
+                                    conversation={conversation}
+                                    currentUserId={currentUserId}
+                                />
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div
+                        className={cn(
+                            'rounded-2xl overflow-hidden active:opacity-90 transition-opacity',
+                            isOwn
+                                ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                : 'bg-muted text-foreground rounded-bl-sm'
+                        )}
+                    >
+                        {/* Reply reference inside bubble */}
+                        {replyToMessage && (
+                            <div
+                                className={cn(
+                                    'px-3 pt-2 pb-1 border-l-2 border-primary-foreground/30 mx-1 mt-1 rounded',
+                                    isOwn ? 'bg-primary-foreground/10' : 'bg-background/30'
+                                )}
+                            >
+                                <p className={cn(
+                                    'text-xs font-medium truncate',
+                                    isOwn ? 'text-primary-foreground/90' : 'text-primary'
+                                )}>
+                                    {replyToMessage.sender?.name || 'Unknown'}
+                                </p>
+                                <p className={cn(
+                                    'text-xs truncate',
+                                    isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                                )}>
+                                    {replyToMessage.content || (replyToMessage.file_name ? `File: ${replyToMessage.file_name}` : 'Message')}
+                                </p>
+                            </div>
+                        )}
+                        <div className="px-3 py-2">
                             <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                             <div className={cn(
                                 'flex items-center justify-end gap-1 mt-1',
@@ -729,8 +765,8 @@ function MessageBubble({
                                 />
                             </div>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
 
                 {/* Reaction badges */}
                 {groupedReactions.length > 0 && (
