@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Mic, X, Send, Pause, Play, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { haptics } from '@/lib/haptics'
 
 interface VoiceRecorderProps {
   onSend: (audioBlob: Blob) => void
@@ -84,11 +85,13 @@ export function VoiceRecorder({
   }
 
   const handleStartRecording = async () => {
+    haptics.medium()
     await startRecording()
   }
 
   const handleSend = () => {
     if (audioBlob) {
+      haptics.success()
       onSend(audioBlob)
       // Reset state
       cancelRecording()
@@ -96,6 +99,7 @@ export function VoiceRecorder({
   }
 
   const handleCancel = () => {
+    haptics.light()
     cancelRecording()
     onCancel?.()
   }

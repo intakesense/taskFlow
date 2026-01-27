@@ -17,9 +17,10 @@ interface MessagesViewProps {
   loadingMessages: boolean
   sendingMessage: boolean
   creatingConversation: boolean
+  isPending?: boolean // From useTransition for non-blocking UI
   onSelectConversation: (conv: ConversationWithMembers) => void
-  onSendMessage: (content: string) => void
-  onSendFile?: (file: File) => void
+  onSendMessage: (content: string, replyToId?: string) => void
+  onSendFile?: (file: File, replyToId?: string) => void
   onTyping: () => void
   onCreateDM: (userId: string) => void
   onCreateGroup: (name: string, memberIds: string[]) => void
@@ -40,6 +41,7 @@ export function MessagesView({
   loadingMessages,
   sendingMessage,
   creatingConversation,
+  isPending,
   onSelectConversation,
   onSendMessage,
   onSendFile,
@@ -68,6 +70,7 @@ export function MessagesView({
             onNewChat={onNewChat}
             isLoading={loadingConversations}
             isCreatingConversation={creatingConversation}
+            isPending={isPending}
           />
         </div>
       )}

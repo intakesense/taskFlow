@@ -259,11 +259,15 @@ async function createGroupConversation(userId: string, input: CreateGroupInput):
 }
 
 // Hooks
-export function useConversations(userId: string | undefined) {
+export function useConversations(
+    userId: string | undefined,
+    options?: { initialData?: ConversationWithMembers[] }
+) {
     return useQuery({
         queryKey: conversationKeys.list(),
         queryFn: () => fetchConversations(userId!),
         enabled: !!userId,
+        initialData: options?.initialData,
         // Use default retry and staleTime from QueryProvider
     });
 }

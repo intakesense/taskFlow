@@ -11,6 +11,7 @@ export type Conversation = Database['public']['Tables']['conversations']['Row'];
 export type ConversationMember = Database['public']['Tables']['conversation_members']['Row'];
 export type Message = Database['public']['Tables']['messages']['Row'];
 export type MessageRead = Database['public']['Tables']['message_reads']['Row'];
+export type MessageReaction = Database['public']['Tables']['message_reactions']['Row'];
 export type TypingStatus = Database['public']['Tables']['typing_status']['Row'];
 export type AppSettings = Database['public']['Tables']['app_settings']['Row'];
 
@@ -57,8 +58,22 @@ export interface ConversationWithMembers extends Conversation {
     unreadCount?: number;
 }
 
+// Reaction with user info for display
+export interface ReactionWithUser extends MessageReaction {
+    user: UserBasic | null;
+}
+
+// Grouped reactions for display (e.g., "👍 3")
+export interface GroupedReaction {
+    emoji: string;
+    count: number;
+    users: UserBasic[];
+    hasReacted: boolean; // Whether current user has reacted with this emoji
+}
+
 export interface MessageWithSender extends Message {
     sender: UserBasic | null;
     replyTo?: MessageWithSender | null;
     readBy?: UserBasic[];
+    reactions?: ReactionWithUser[];
 }

@@ -5,8 +5,7 @@ import { useDropzone } from 'react-dropzone'
 import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers, MessageWithSender, UserBasic } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { useUpdatingTimestamp } from '@/hooks/use-updating-timestamp'
-import { uploadAudioBlob } from '@/lib/services/file-upload'
+import { formatMessageTime } from '@/lib/utils/date'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +16,10 @@ import { TypingBubble } from './typing-bubble'
 import { MessageStatus } from './message-status'
 import { OnlineStatusBadge, OnlineStatusDot } from './online-status-badge'
 import { VoiceRecorder, AudioMessagePlayer } from './voice-recorder'
+import { ReactionBadges, QuickReactionsBar } from './message-reactions'
+import { useSetReaction, groupReactions, getUserReaction } from '@/hooks/use-reactions'
 import { toast } from 'sonner'
+import { haptics } from '@/lib/haptics'
 import {
     ArrowLeft,
     Send,
@@ -27,6 +29,7 @@ import {
     Loader2,
     X,
     Mic,
+    Reply,
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -41,8 +44,8 @@ interface ChatViewProps {
     messages: MessageWithSender[]
     typingUsers: UserBasic[]
     isUserOnline: (userId: string) => boolean
-    onSendMessage: (content: string) => void
-    onSendFile?: (file: File) => void | Promise<void>
+    onSendMessage: (content: string, replyToId?: string) => void
+    onSendFile?: (file: File, replyToId?: string) => void | Promise<void>
     onBack?: () => void
     onTyping?: () => void
     isLoading?: boolean
@@ -66,32 +69,51 @@ export function ChatView({
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const [showVoiceRecorder, setShowVoiceRecorder] = useState(false)
     const [isSendingVoice, setIsSendingVoice] = useState(false)
+    const [replyingTo, setReplyingTo] = useState<MessageWithSender | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const inputRef = useRef<HTMLInputElement>(null)
 
     // Scroll to bottom on new messages
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
+    // Focus input when replying
+    useEffect(() => {
+        if (replyingTo) {
+            inputRef.current?.focus()
+        }
+    }, [replyingTo])
+
     const handleSend = () => {
         if (!input.trim() && !selectedFile) return
 
+        // Haptic feedback for sending message
+        haptics.medium()
+
+        const replyToId = replyingTo?.id
+
         if (selectedFile && onSendFile) {
-            onSendFile(selectedFile)
+            onSendFile(selectedFile, replyToId)
             setSelectedFile(null)
         }
 
         if (input.trim()) {
-            onSendMessage(input.trim())
+            onSendMessage(input.trim(), replyToId)
             setInput('')
         }
+
+        setReplyingTo(null)
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             handleSend()
+        }
+        if (e.key === 'Escape' && replyingTo) {
+            setReplyingTo(null)
         }
     }
 
@@ -115,20 +137,17 @@ export function ChatView({
             setIsSendingVoice(true)
             toast.loading('Uploading voice message...', { id: 'voice-upload' })
 
-            // Create File object from Blob (needed for onSendFile)
             const audioFile = new File([audioBlob], 'Voice Message.webm', {
                 type: audioBlob.type || 'audio/webm'
             })
 
-            // Use the existing onSendFile handler which:
-            // 1. Uploads to storage
-            // 2. Sends message with file URL
             if (onSendFile) {
-                await onSendFile(audioFile)
+                await onSendFile(audioFile, replyingTo?.id)
             }
 
             toast.success('Voice message sent', { id: 'voice-upload' })
             setShowVoiceRecorder(false)
+            setReplyingTo(null)
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to send voice message'
             toast.error(message, { id: 'voice-upload' })
@@ -136,6 +155,11 @@ export function ChatView({
             setIsSendingVoice(false)
         }
     }
+
+    const handleReply = useCallback((message: MessageWithSender) => {
+        haptics.light()
+        setReplyingTo(message)
+    }, [])
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
@@ -145,7 +169,7 @@ export function ChatView({
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        maxSize: 10 * 1024 * 1024, // 10MB
+        maxSize: 10 * 1024 * 1024,
         multiple: false,
         noClick: true,
         noKeyboard: true,
@@ -153,10 +177,15 @@ export function ChatView({
 
     const otherUser = conversation.members.find(m => m.id !== profile?.id)
     const displayName = conversation.is_group ? conversation.name : otherUser?.name || 'Unknown'
-
-    // WhatsApp-style: Show send button only when there's text or file
     const hasContent = input.trim().length > 0 || selectedFile !== null
     const showSendButton = hasContent || showVoiceRecorder
+
+    const currentUser = profile ? {
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        level: profile.level
+    } : null
 
     return (
         <div className="flex flex-col h-full bg-background">
@@ -173,7 +202,6 @@ export function ChatView({
                             {displayName?.charAt(0).toUpperCase() || '?'}
                         </AvatarFallback>
                     </Avatar>
-                    {/* Show online status for DM conversations */}
                     {!conversation.is_group && otherUser && isUserOnline(otherUser.id) && (
                         <OnlineStatusBadge
                             isOnline={true}
@@ -232,7 +260,7 @@ export function ChatView({
             <div
                 {...getRootProps()}
                 className={cn(
-                    'flex-1 overflow-y-auto p-4 space-y-4 relative',
+                    'flex-1 overflow-y-auto p-4 space-y-2 relative',
                     isDragActive && 'bg-primary/5'
                 )}
             >
@@ -256,28 +284,48 @@ export function ChatView({
                     </div>
                 ) : (
                     <>
-                        {messages.map((message, index) => (
+                        {messages.map((message) => (
                             <MessageBubble
                                 key={message.id}
                                 message={message}
+                                messages={messages}
                                 conversation={conversation}
                                 currentUserId={profile?.id || ''}
+                                currentUser={currentUser}
                                 isOwn={message.sender_id === profile?.id}
-                                showAvatar={
-                                    conversation.is_group &&
-                                    message.sender_id !== profile?.id &&
-                                    (index === 0 || messages[index - 1].sender_id !== message.sender_id)
-                                }
+                                onReply={handleReply}
                             />
                         ))}
-                        {/* Typing indicator in message thread */}
                         <TypingBubble typingUsers={typingUsers} />
                     </>
                 )}
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input - WhatsApp Style */}
+            {/* Reply Preview */}
+            {replyingTo && (
+                <div className="px-4 py-2 border-t border-border bg-muted/50 flex items-center gap-3">
+                    <div className="w-1 h-10 bg-primary rounded-full" />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-primary">
+                            Replying to {replyingTo.sender?.name || 'Unknown'}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                            {replyingTo.content || (replyingTo.file_name ? `File: ${replyingTo.file_name}` : 'Message')}
+                        </p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setReplyingTo(null)}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+
+            {/* Input */}
             {showVoiceRecorder ? (
                 <VoiceRecorder
                     onSend={handleSendVoiceMessage}
@@ -286,7 +334,6 @@ export function ChatView({
                 />
             ) : (
                 <div className="p-4 border-t border-border bg-card">
-                    {/* File Preview */}
                     {selectedFile && (
                         <div className="mb-3">
                             <FilePreview
@@ -313,7 +360,8 @@ export function ChatView({
                             <Paperclip className="h-5 w-5" />
                         </Button>
                         <Input
-                            placeholder={selectedFile ? "Add a message (optional)..." : "Type a message..."}
+                            ref={inputRef}
+                            placeholder={replyingTo ? "Reply..." : selectedFile ? "Add a message (optional)..." : "Type a message..."}
                             value={input}
                             onChange={handleInputChange}
                             onKeyDown={handleKeyDown}
@@ -321,7 +369,6 @@ export function ChatView({
                             disabled={isSendingVoice}
                         />
 
-                        {/* WhatsApp-style: Show send button when typing, mic button when empty */}
                         {showSendButton ? (
                             <Button
                                 onClick={handleSend}
@@ -355,18 +402,84 @@ export function ChatView({
 
 interface MessageBubbleProps {
     message: MessageWithSender
+    messages: MessageWithSender[]
     conversation: ConversationWithMembers
     currentUserId: string
+    currentUser: UserBasic | null
     isOwn: boolean
-    showAvatar?: boolean
+    onReply: (message: MessageWithSender) => void
 }
 
-function MessageBubble({ message, conversation, currentUserId, isOwn, showAvatar }: MessageBubbleProps) {
-    // Use reactive timestamp that updates automatically
-    const timestamp = useUpdatingTimestamp(message.created_at, 'message')
+function MessageBubble({
+    message,
+    messages,
+    conversation,
+    currentUserId,
+    currentUser,
+    isOwn,
+    onReply,
+}: MessageBubbleProps) {
+    const [showReactions, setShowReactions] = useState(false)
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null)
+    const setReaction = useSetReaction()
 
-    // Check if message is a voice message (audio file)
     const isVoiceMessage = message.file_type?.startsWith('audio/')
+    const groupedReactions = groupReactions(message.reactions, currentUserId)
+    const userCurrentEmoji = getUserReaction(message.reactions, currentUserId)
+
+    // Find the replied-to message
+    const replyToMessage = message.reply_to_id
+        ? messages.find(m => m.id === message.reply_to_id)
+        : null
+
+    // Format timestamp for each message
+    const timestamp = formatMessageTime(message.created_at)
+
+    const handleReaction = useCallback((emoji: string) => {
+        if (!currentUser) return
+
+        // Haptic feedback for reaction
+        haptics.light()
+
+        setReaction.mutate({
+            messageId: message.id,
+            conversationId: message.conversation_id,
+            userId: currentUserId,
+            emoji,
+            user: currentUser,
+            currentEmoji: userCurrentEmoji,
+        })
+        setShowReactions(false)
+    }, [currentUser, message.id, message.conversation_id, currentUserId, userCurrentEmoji, setReaction])
+
+    const handleToggleReaction = useCallback((emoji: string) => {
+        handleReaction(emoji)
+    }, [handleReaction])
+
+    // Touch handlers for long press
+    const handleTouchStart = useCallback(() => {
+        longPressTimer.current = setTimeout(() => {
+            // Haptic feedback for long press
+            haptics.medium()
+            setShowReactions(true)
+        }, 500)
+    }, [])
+
+    const handleTouchEnd = useCallback(() => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current)
+            longPressTimer.current = null
+        }
+    }, [])
+
+    // Close reactions on outside click
+    useEffect(() => {
+        if (!showReactions) return
+
+        const handleClick = () => setShowReactions(false)
+        document.addEventListener('click', handleClick)
+        return () => document.removeEventListener('click', handleClick)
+    }, [showReactions])
 
     if (message.is_deleted) {
         return (
@@ -379,83 +492,161 @@ function MessageBubble({ message, conversation, currentUserId, isOwn, showAvatar
     }
 
     return (
-        <div className={cn('flex gap-2', isOwn ? 'justify-end' : 'justify-start')}>
-            {!isOwn && showAvatar && (
-                <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                        {message.sender?.name?.charAt(0).toUpperCase() || '?'}
-                    </AvatarFallback>
-                </Avatar>
-            )}
-            {/* Spacer for alignment - only in group chats where avatars are shown */}
-            {!isOwn && !showAvatar && conversation.is_group && <div className="w-8" />}
-
-            <div className={cn('max-w-[70%]', isOwn && 'text-right')}>
-                {!isOwn && showAvatar && (
-                    <p className="text-xs text-muted-foreground mb-1">{message.sender?.name}</p>
+        <div className={cn('flex gap-2 group', isOwn ? 'justify-end' : 'justify-start')}>
+            {/* Action buttons - visible on hover (desktop) */}
+            <div
+                className={cn(
+                    'hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
+                    isOwn ? 'order-first' : 'order-last'
                 )}
+            >
+                <button
+                    onClick={() => setShowReactions(true)}
+                    className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="React"
+                >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </button>
+                <button
+                    onClick={() => onReply(message)}
+                    className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="Reply"
+                >
+                    <Reply className="w-4 h-4" />
+                </button>
+            </div>
 
-                {message.file_url ? (
-                    <div className="space-y-2">
-                        {/* Voice Message Player */}
-                        {isVoiceMessage ? (
-                            <AudioMessagePlayer
-                                audioUrl={message.file_url}
-                                className={cn(
-                                    isOwn
-                                        ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                        : 'bg-muted text-foreground rounded-bl-sm'
-                                )}
-                            />
-                        ) : (
-                            /* Regular File Attachment */
-                            <FileAttachment
-                                fileUrl={message.file_url}
-                                fileName={message.file_name || 'File'}
-                                fileType={message.file_type || 'application/octet-stream'}
-                                fileSize={message.file_size || undefined}
-                            />
-                        )}
-                        {/* Optional text content with file */}
-                        {message.content && !isVoiceMessage && (
-                            <div
-                                className={cn(
-                                    'rounded-2xl px-4 py-2 inline-block',
-                                    isOwn
-                                        ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                        : 'bg-muted text-foreground rounded-bl-sm'
-                                )}
-                            >
-                                <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    /* Text-only message */
+            <div
+                className={cn('max-w-[75%] sm:max-w-[70%] relative', isOwn && 'text-right')}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
+                onDoubleClick={() => setShowReactions(true)}
+            >
+                {/* Reaction picker popup */}
+                {showReactions && (
                     <div
                         className={cn(
-                            'rounded-2xl px-4 py-2 inline-block',
-                            isOwn
-                                ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                : 'bg-muted text-foreground rounded-bl-sm'
+                            'absolute bottom-full mb-2 z-20',
+                            isOwn ? 'right-0' : 'left-0'
                         )}
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                        <QuickReactionsBar
+                            onSelect={handleReaction}
+                            currentEmoji={userCurrentEmoji}
+                            onClose={() => setShowReactions(false)}
+                        />
                     </div>
                 )}
 
-                <div className={cn('flex items-center gap-1 mt-1', isOwn && 'justify-end')}>
-                    <span className="text-xs text-muted-foreground">
-                        {timestamp}
-                    </span>
-                    <MessageStatus
-                        message={message}
-                        conversation={conversation}
-                        currentUserId={currentUserId}
-                    />
+                {/* Reply reference */}
+                {replyToMessage && (
+                    <div
+                        className={cn(
+                            'mb-1 px-3 py-1.5 rounded-lg text-xs border-l-2 border-primary/50',
+                            isOwn ? 'bg-primary/10 ml-auto' : 'bg-muted/70',
+                            'max-w-[90%] inline-block'
+                        )}
+                    >
+                        <p className="font-medium text-primary/80 truncate">
+                            {replyToMessage.sender?.name || 'Unknown'}
+                        </p>
+                        <p className="text-muted-foreground truncate">
+                            {replyToMessage.content || (replyToMessage.file_name ? `File: ${replyToMessage.file_name}` : 'Message')}
+                        </p>
+                    </div>
+                )}
+
+                {/* Message content */}
+                <div className="inline-block">
+                    {message.file_url ? (
+                        <div className="space-y-1">
+                            {isVoiceMessage ? (
+                                <AudioMessagePlayer
+                                    audioUrl={message.file_url}
+                                    className={cn(
+                                        isOwn
+                                            ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                            : 'bg-muted text-foreground rounded-bl-sm'
+                                    )}
+                                />
+                            ) : (
+                                <FileAttachment
+                                    fileUrl={message.file_url}
+                                    fileName={message.file_name || 'File'}
+                                    fileType={message.file_type || 'application/octet-stream'}
+                                    fileSize={message.file_size || undefined}
+                                />
+                            )}
+                            {message.content && !isVoiceMessage && (
+                                <div
+                                    className={cn(
+                                        'rounded-2xl px-3 py-2',
+                                        isOwn
+                                            ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                            : 'bg-muted text-foreground rounded-bl-sm'
+                                    )}
+                                >
+                                    <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                                    <span className={cn(
+                                        'text-[10px] float-right ml-2 mt-1',
+                                        isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                                    )}>
+                                        {timestamp}
+                                    </span>
+                                </div>
+                            )}
+                            {/* Timestamp for file-only messages */}
+                            {!message.content && (
+                                <div className={cn('flex items-center gap-1', isOwn && 'justify-end')}>
+                                    <span className="text-[10px] text-muted-foreground">{timestamp}</span>
+                                    <MessageStatus
+                                        message={message}
+                                        conversation={conversation}
+                                        currentUserId={currentUserId}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div
+                            className={cn(
+                                'rounded-2xl px-3 py-2',
+                                isOwn
+                                    ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                    : 'bg-muted text-foreground rounded-bl-sm'
+                            )}
+                        >
+                            <p className="text-sm whitespace-pre-wrap break-words">
+                                {message.content}
+                                <span className={cn(
+                                    'text-[10px] float-right ml-2 mt-1 inline-flex items-center gap-1',
+                                    isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                                )}>
+                                    {timestamp}
+                                    <MessageStatus
+                                        message={message}
+                                        conversation={conversation}
+                                        currentUserId={currentUserId}
+                                    />
+                                </span>
+                            </p>
+                        </div>
+                    )}
                 </div>
+
+                {/* Reaction badges */}
+                {groupedReactions.length > 0 && (
+                    <ReactionBadges
+                        reactions={groupedReactions}
+                        onToggle={handleToggleReaction}
+                        isOwn={isOwn}
+                    />
+                )}
             </div>
         </div>
     )
 }
-

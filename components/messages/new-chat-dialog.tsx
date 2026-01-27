@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Search, MessageCircle, Users, Loader2 } from 'lucide-react'
+import { haptics } from '@/lib/haptics'
 
 interface NewChatDialogProps {
     open: boolean
@@ -70,6 +71,7 @@ export function NewChatDialog({
     })
 
     const handleUserSelect = (userId: string) => {
+        haptics.selection()
         if (mode === 'dm') {
             onCreateDM(userId)
         } else {
@@ -110,7 +112,10 @@ export function NewChatDialog({
                         variant={mode === 'dm' ? 'default' : 'outline'}
                         size="sm"
                         className="flex-1"
-                        onClick={() => setMode('dm')}
+                        onClick={() => {
+                            haptics.light()
+                            setMode('dm')
+                        }}
                     >
                         <MessageCircle className="h-4 w-4 mr-2" />
                         Message
@@ -119,7 +124,10 @@ export function NewChatDialog({
                         variant={mode === 'group' ? 'default' : 'outline'}
                         size="sm"
                         className="flex-1"
-                        onClick={() => setMode('group')}
+                        onClick={() => {
+                            haptics.light()
+                            setMode('group')
+                        }}
                     >
                         <Users className="h-4 w-4 mr-2" />
                         Group

@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { useUpdatingTimestamp } from '@/hooks/use-updating-timestamp'
+import { useFormattedTimestamp } from '@/lib/global-clock'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Plus, Users, MessageSquare, ListTodo } from 'lucide-react'
+import { haptics } from '@/lib/haptics'
 
 interface ConversationListProps {
     conversations: ConversationWithMembers[]
@@ -19,6 +20,7 @@ interface ConversationListProps {
     onNewChat?: () => void
     isLoading?: boolean
     isCreatingConversation?: boolean
+    isPending?: boolean // From useTransition
 }
 
 export function ConversationList({
@@ -27,6 +29,7 @@ export function ConversationList({
     onSelect,
     onNewChat,
     isLoading,
+    isPending,
 }: ConversationListProps) {
     const { profile } = useAuth()
     const [search, setSearch] = useState('')
@@ -39,7 +42,10 @@ export function ConversationList({
     })
 
     return (
-        <div className="flex flex-col h-full bg-card">
+        <div className={cn(
+            "flex flex-col h-full bg-card transition-opacity duration-150",
+            isPending && "opacity-70"
+        )}>
             {/* Header */}
             <div className="p-4 border-b border-border">
                 <div className="flex items-center justify-between mb-4">
@@ -119,12 +125,17 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
     const lastMessage = conversation.lastMessage
     const unread = conversation.unreadCount || 0
 
-    // Use reactive timestamp that updates automatically
-    const timestamp = useUpdatingTimestamp(lastMessage?.created_at, 'message')
+    // Use reactive timestamp from global clock (single interval for all timestamps)
+    const timestamp = useFormattedTimestamp(lastMessage?.created_at, 'message')
+
+    const handleClick = () => {
+        haptics.selection()
+        onClick()
+    }
 
     return (
         <button
-            onClick={onClick}
+            onClick={handleClick}
             className={cn(
                 'w-full flex items-center gap-3 p-4 transition-all text-left border-l-2',
                 'hover:bg-accent/50 active:bg-accent',

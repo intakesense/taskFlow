@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth-context'
 import {
@@ -16,6 +17,8 @@ import {
   useMarkAsRead,
   useMobile,
   useBackNavigation,
+  chatMessageKeys,
+  fetchMessages,
 } from '@/hooks'
 import { ConversationWithMembers } from '@/lib/types'
 import { uploadFile } from '@/lib/services/file-upload'
@@ -23,12 +26,19 @@ import { MessagesView } from './messages-view'
 import { DashboardLayout } from '@/components/layout'
 import { Loader2 } from 'lucide-react'
 
-export function MessagesContainer() {
+interface MessagesContainerProps {
+  initialConversations?: ConversationWithMembers[]
+}
+
+export function MessagesContainer({ initialConversations }: MessagesContainerProps) {
   const router = useRouter()
   const { user, profile, loading: authLoading } = useAuth()
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithMembers | null>(null)
   const [showNewChat, setShowNewChat] = useState(false)
   const isMobileView = useMobile()
+
+  // useTransition for non-blocking conversation switching
+  const [isPending, startTransition] = useTransition()
 
   // Handle browser back button - returns to conversation list instead of leaving app
   const handleBackToList = useCallback(() => {
@@ -48,9 +58,27 @@ export function MessagesContainer() {
     }
   }, [authLoading, user, router])
 
-  // Hooks
-  const { data: conversations = [], isLoading: loadingConversations } = useConversations(profile?.id)
+  // Hooks - pass initialData from server for instant first paint
+  const queryClient = useQueryClient()
+  const { data: conversations = [], isLoading: loadingConversations } = useConversations(
+    profile?.id,
+    { initialData: initialConversations }
+  )
   useConversationsRealtime(profile?.id)
+
+  // AGGRESSIVE PREFETCHING: Preload ALL conversation messages on mount
+  // Since we only have ~20 employees, this is fast and makes switching instant
+  useEffect(() => {
+    if (conversations.length === 0) return
+
+    conversations.forEach(conv => {
+      queryClient.prefetchQuery({
+        queryKey: chatMessageKeys.conversation(conv.id),
+        queryFn: () => fetchMessages(conv.id),
+        staleTime: 60_000, // Consider fresh for 1 minute
+      })
+    })
+  }, [conversations, queryClient])
 
   const { data: messages = [], isLoading: loadingMessages } = useChatMessages(selectedConversation?.id)
 
@@ -119,18 +147,21 @@ export function MessagesContainer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversation?.id, profile?.id])
 
-  // Handlers
+  // Handlers - use startTransition for non-blocking conversation switching
   const handleSelectConversation = (conv: ConversationWithMembers) => {
-    setSelectedConversation(conv)
+    startTransition(() => {
+      setSelectedConversation(conv)
+    })
   }
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = (content: string, replyToId?: string) => {
     if (!selectedConversation || !profile?.id) return
 
     sendMessage.mutate({
       conversationId: selectedConversation.id,
       senderId: profile.id,
       content,
+      replyToId,
     }, {
       onError: (error) => {
         console.error('Failed to send message:', error)
@@ -154,7 +185,7 @@ export function MessagesContainer() {
     })
   }
 
-  const handleSendFile = async (file: File) => {
+  const handleSendFile = async (file: File, replyToId?: string) => {
     if (!selectedConversation || !profile?.id) return
 
     try {
@@ -171,6 +202,7 @@ export function MessagesContainer() {
         fileName: file.name,
         fileSize: uploadedFile.size,
         fileType: uploadedFile.type,
+        replyToId,
       })
 
       toast.success('File uploaded successfully', { id: 'file-upload' })
@@ -254,6 +286,7 @@ export function MessagesContainer() {
         loadingMessages={loadingMessages}
         sendingMessage={sendMessage.isPending}
         creatingConversation={createDM.isPending || createGroup.isPending}
+        isPending={isPending}
         onSelectConversation={handleSelectConversation}
         onSendMessage={handleSendMessage}
         onSendFile={handleSendFile}

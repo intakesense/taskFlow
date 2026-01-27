@@ -17,12 +17,14 @@ export { useNotes, useCreateNote, useUpdateNote, useDeleteNote, getVisibilityLab
 
 // Messaging
 export { useConversations, useCreateDM, useCreateGroup, useConversationsRealtime, conversationKeys } from './use-conversations';
-export { useChatMessages, useSendMessage as useSendChatMessage, useSearchMessages, useMarkAsRead, useDeleteMessage, useConversationRealtime, useSetTyping, messageKeys as chatMessageKeys } from './use-chat-messages';
+export { useChatMessages, useSendMessage as useSendChatMessage, useSearchMessages, useMarkAsRead, useDeleteMessage, useConversationRealtime, useSetTyping, messageKeys as chatMessageKeys, fetchMessages } from './use-chat-messages';
+export { useSetReaction, groupReactions, getUserReaction, QUICK_REACTIONS } from './use-reactions';
 
 // Common utilities
 export { useDialog, useDialogs } from './use-dialog';
 export { useAsync } from './use-async';
 export { useMobile, useBreakpoints } from './use-mobile';
 export { useUpdatingTimestamp, useUpdatingRelativeTime } from './use-updating-timestamp';
+export { useFormattedTimestamp, useFormattedRelativeTime, useGlobalTime } from '@/lib/global-clock';
 export { useAudioRecorder, formatRecordingTime } from './use-audio-recorder';
 export { useBackNavigation } from './use-back-navigation';

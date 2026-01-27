@@ -16,13 +16,23 @@ export const messageKeys = {
   search: (query: string) => [...messageKeys.all, 'search', query] as const,
 }
 
+// Export fetchMessages for prefetching
+export { fetchMessages }
+
 // Fetch messages for a conversation
 async function fetchMessages(conversationId: string): Promise<MessageWithSender[]> {
   const { data, error } = await supabase
     .from('messages')
     .select(`
       *,
-      sender:users!messages_sender_id_fkey(id, name, email, level)
+      sender:users!messages_sender_id_fkey(id, name, email, level),
+      reactions:message_reactions(
+        id,
+        emoji,
+        user_id,
+        created_at,
+        user:users!message_reactions_user_id_fkey(id, name, email, level)
+      )
     `)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
@@ -36,7 +46,7 @@ async function fetchMessages(conversationId: string): Promise<MessageWithSender[
       .order('created_at', { ascending: true })
 
     if (fallbackError) throw fallbackError
-    return (messagesOnly || []).map((m: Message) => ({ ...m, sender: null })) as MessageWithSender[]
+    return (messagesOnly || []).map((m: Message) => ({ ...m, sender: null, reactions: [] })) as MessageWithSender[]
   }
 
   return data as MessageWithSender[]
@@ -170,6 +180,7 @@ export function useSendMessage() {
         created_at: new Date().toISOString(),
         search_vector: null,
         sender: null, // Will be populated by realtime
+        reactions: [], // New messages have no reactions
       }
 
       queryClient.setQueryData<MessageWithSender[]>(
@@ -315,6 +326,7 @@ export function useConversationRealtime(
       const messageWithSender: MessageWithSender = {
         ...newMessage,
         sender,
+        reactions: [], // New messages via realtime have no reactions yet
       }
 
       // Add to cache without refetching

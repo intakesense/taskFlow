@@ -10,6 +10,7 @@ import {
     Settings,
     Users,
 } from 'lucide-react'
+import { haptics } from '@/lib/haptics'
 
 interface NavItem {
     name: string
@@ -45,6 +46,12 @@ export function BottomNav() {
                         <Link
                             key={item.name}
                             href={item.href}
+                            onClick={() => {
+                                // Haptic feedback on navigation
+                                if (!isActive) {
+                                    haptics.light()
+                                }
+                            }}
                             className={cn(
                                 'flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[64px]',
                                 'active:scale-95',
