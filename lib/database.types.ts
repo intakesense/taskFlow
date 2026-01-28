@@ -477,12 +477,152 @@ export type Database = {
           },
         ]
       }
+      voice_channel_participants: {
+        Row: {
+          channel_id: string
+          connection_quality: string | null
+          is_muted: boolean | null
+          is_screen_sharing: boolean | null
+          is_speaking: boolean | null
+          is_video_on: boolean | null
+          joined_at: string | null
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          connection_quality?: string | null
+          is_muted?: boolean | null
+          is_screen_sharing?: boolean | null
+          is_speaking?: boolean | null
+          is_video_on?: boolean | null
+          joined_at?: string | null
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          connection_quality?: string | null
+          is_muted?: boolean | null
+          is_screen_sharing?: boolean | null
+          is_speaking?: boolean | null
+          is_video_on?: boolean | null
+          joined_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_channel_participants_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "voice_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_channel_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_channel_sessions: {
+        Row: {
+          channel_id: string | null
+          id: string
+          joined_at: string
+          left_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          channel_id?: string | null
+          id?: string
+          joined_at: string
+          left_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          channel_id?: string | null
+          id?: string
+          joined_at?: string
+          left_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_channel_sessions_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "voice_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_channel_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_channels: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          daily_room_name: string | null
+          daily_room_url: string | null
+          description: string | null
+          id: string
+          is_default: boolean | null
+          max_participants: number | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          daily_room_name?: string | null
+          daily_room_url?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          max_participants?: number | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          daily_room_name?: string | null
+          daily_room_url?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          max_participants?: number | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_channels_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      cleanup_stale_voice_participants: { Args: never; Returns: number }
+      get_default_voice_channel_id: { Args: never; Returns: string }
       get_user_level: { Args: { user_id: string }; Returns: number }
+      get_voice_channel_participant_count: {
+        Args: { p_channel_id: string }
+        Returns: number
+      }
       is_admin: { Args: { user_id: string }; Returns: boolean }
       user_conversation_ids: { Args: { user_id: string }; Returns: string[] }
     }

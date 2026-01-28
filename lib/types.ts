@@ -78,3 +78,24 @@ export interface MessageWithSender extends Message {
     readBy?: UserBasic[];
     reactions?: ReactionWithUser[];
 }
+
+// Voice Channel Types
+export type VoiceChannel = Database['public']['Tables']['voice_channels']['Row'];
+export type VoiceChannelParticipant = Database['public']['Tables']['voice_channel_participants']['Row'];
+export type VoiceChannelSession = Database['public']['Tables']['voice_channel_sessions']['Row'];
+
+export interface VoiceParticipantWithUser extends VoiceChannelParticipant {
+    user: UserBasic;
+}
+
+export interface VoiceChannelWithParticipants extends VoiceChannel {
+    participants: VoiceParticipantWithUser[];
+    participantCount: number;
+}
+
+// Daily.co specific types
+export interface DailyRoomInfo {
+    url: string;
+    token: string;
+    roomName: string;
+}

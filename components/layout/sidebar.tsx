@@ -1,42 +1,37 @@
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import {
     ListTodo,
     Users,
-    Settings,
-    LogOut,
     Menu,
     Eye,
     X,
-    MessageSquare
+    MessageSquare,
+    Headphones
 } from 'lucide-react'
 import { getLevelLabel } from '@/lib/services/users'
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { voiceChannelService } from '@/lib/services/voice-channels'
+import { useVoiceParticipantCount } from '@/hooks/use-voice-participants'
 
 interface SidebarProps {
     className?: string
 }
 
-// Navigation - Tasks and Messages
+// Navigation - Tasks, Messages, and ChitChat
 const navigation = [
-    { name: 'Messages', href: '/', icon: MessageSquare },
-    { name: 'Tasks', href: '/tasks', icon: ListTodo },
+    { name: 'Messages', href: '/', icon: MessageSquare, showBadge: false },
+    { name: 'ChitChat', href: '/chitchat', icon: Headphones, showBadge: true },
+    { name: 'Tasks', href: '/tasks', icon: ListTodo, showBadge: false },
 ]
 
 // Admin-only navigation
@@ -48,10 +43,20 @@ function NavItems({ onClick }: { onClick?: () => void }) {
     const pathname = usePathname()
     const { profile } = useAuth()
 
+    // Get default voice channel for badge
+    const { data: defaultChannel } = useQuery({
+        queryKey: ['voice-channel', 'default'],
+        queryFn: () => voiceChannelService.getDefaultChannel(),
+    })
+
+    const participantCount = useVoiceParticipantCount(defaultChannel?.id || null)
+
     return (
         <nav className="flex-1 px-3 py-4 space-y-1">
             {navigation.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                const isActive = item.href === '/'
+                    ? pathname === item.href
+                    : pathname === item.href || pathname.startsWith(item.href + '/')
                 return (
                     <Link
                         key={item.name}
@@ -66,6 +71,14 @@ function NavItems({ onClick }: { onClick?: () => void }) {
                     >
                         <item.icon className="h-5 w-5" />
                         {item.name}
+                        {item.showBadge && participantCount > 0 && (
+                            <Badge
+                                variant={isActive ? 'secondary' : 'default'}
+                                className="ml-auto h-5 min-w-5 flex items-center justify-center px-1.5"
+                            >
+                                {participantCount}
+                            </Badge>
+                        )}
                     </Link>
                 )
             })}
@@ -103,13 +116,7 @@ function NavItems({ onClick }: { onClick?: () => void }) {
 }
 
 function UserMenu() {
-    const { profile, maskedAsUser, maskAs, signOut } = useAuth()
-    const router = useRouter()
-
-    const handleSignOut = async () => {
-        await signOut()
-        router.push('/login')
-    }
+    const { profile, maskedAsUser, maskAs } = useAuth()
 
     const displayUser = maskedAsUser || profile
 
@@ -134,46 +141,32 @@ function UserMenu() {
                 </div>
             )}
 
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        className="w-full justify-start gap-3 px-2 py-6 hover:bg-muted"
-                    >
-                        <Avatar className="h-9 w-9">
-                            <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                                {displayUser?.name?.charAt(0).toUpperCase() || 'U'}
-                            </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 text-left">
-                            <p className="text-sm font-medium text-foreground truncate">
-                                {displayUser?.name}
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <p className="text-xs text-muted-foreground truncate">
-                                    {displayUser?.email}
-                                </p>
-                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                    {getLevelLabel(displayUser?.level || 4)}
-                                </Badge>
-                            </div>
-                        </div>
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => router.push('/settings')}>
-                        <Settings className="mr-2 h-4 w-4" />
-                        Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Sign Out
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+            <Link
+                href="/settings"
+                className="flex items-center gap-3 px-2 py-3 rounded-lg hover:bg-muted transition-colors"
+            >
+                <Avatar className="h-9 w-9">
+                    {displayUser?.avatar_url && (
+                        <AvatarImage src={displayUser.avatar_url} alt={displayUser.name || 'Avatar'} />
+                    )}
+                    <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                        {displayUser?.name?.charAt(0).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 text-left min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                        {displayUser?.name}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground truncate">
+                            {displayUser?.email}
+                        </p>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                            {getLevelLabel(displayUser?.level || 4)}
+                        </Badge>
+                    </div>
+                </div>
+            </Link>
         </div>
     )
 }

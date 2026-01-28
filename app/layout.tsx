@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
+import { VoiceChannelProvider } from "@/lib/voice/voice-channel-context";
 import { ThemeProvider, QueryProvider } from "@/components/providers";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { RealtimeHealthMonitor } from "@/components/realtime-health-monitor";
@@ -58,11 +59,13 @@ export default function RootLayout({
           <QueryProvider>
             <ThemeProvider>
               <AuthProvider>
-                {children}
-                <Toaster />
-                <RealtimeHealthMonitor />
-                <ServiceWorkerRegister />
-                <OneSignalInit />
+                <VoiceChannelProvider>
+                  {children}
+                  <Toaster />
+                  <RealtimeHealthMonitor />
+                  <ServiceWorkerRegister />
+                  <OneSignalInit />
+                </VoiceChannelProvider>
               </AuthProvider>
             </ThemeProvider>
           </QueryProvider>

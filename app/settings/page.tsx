@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout'
 import { useAuth } from '@/lib/auth-context'
 import { useThemeContext } from '@/components/providers/theme-provider'
@@ -16,7 +17,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff, Camera, Trash2 } from 'lucide-react'
+import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff, Camera, Trash2, LogOut } from 'lucide-react'
 import { ThemePreset } from '@/lib/theme/types'
 import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
 import { toast } from 'sonner'
@@ -60,13 +61,15 @@ export default function SettingsPage() {
 }
 
 function SettingsContent({ profile }: { profile: UserType | null }) {
-    const { refreshProfile } = useAuth()
+    const { refreshProfile, signOut } = useAuth()
+    const router = useRouter()
     const { mode, preset, setMode, setPreset } = useThemeContext()
     const [notificationsEnabled, setNotificationsEnabled] = useState(false)
     const [notificationStatus, setNotificationStatus] = useState<'loading' | 'granted' | 'denied' | 'default'>('loading')
     const [isOneSignalAvailable, setIsOneSignalAvailable] = useState(false)
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
     const [isDeletingAvatar, setIsDeletingAvatar] = useState(false)
+    const [isSigningOut, setIsSigningOut] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Check notification status on mount
@@ -151,6 +154,12 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
         }
     }
 
+    const handleSignOut = async () => {
+        setIsSigningOut(true)
+        await signOut()
+        router.push('/login')
+    }
+
     return (
         <DashboardLayout>
             <div className="p-6 lg:p-8">
@@ -193,10 +202,10 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                                 alt={profile.name || 'Avatar'}
                                                 width={80}
                                                 height={80}
-                                                className="w-20 h-20 rounded-full object-cover border-2 border-border"
+                                                className="w-20 h-20 aspect-square rounded-full object-cover border-2 border-border"
                                             />
                                         ) : (
-                                            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold border-2 border-border">
+                                            <div className="w-20 h-20 aspect-square rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold border-2 border-border">
                                                 {profile?.name?.charAt(0).toUpperCase() || '?'}
                                             </div>
                                         )}
@@ -369,6 +378,20 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                 )}
                             </CardContent>
                         </Card>
+
+                        {/* Sign Out */}
+                        <button
+                            onClick={handleSignOut}
+                            disabled={isSigningOut}
+                            className="w-full flex items-center justify-center gap-2 py-3 text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                            {isSigningOut ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <LogOut className="h-4 w-4" />
+                            )}
+                            <span className="text-sm font-medium">Sign Out</span>
+                        </button>
                     </div>
                 </div>
             </div>
