@@ -222,14 +222,23 @@ export function useSendMessage() {
     onSuccess: (newMessage, variables) => {
       console.log('✅ Message sent successfully:', newMessage.id)
 
-      // Replace optimistic message with real one
+      // Replace temp message with real one IN-PLACE to prevent flicker
       queryClient.setQueryData<MessageWithSender[]>(
         messageKeys.conversation(variables.conversationId),
         (old = []) => {
-          // Remove temp message and add real one if not already added by realtime
-          const withoutTemp = old.filter((msg) => !msg.id.startsWith('temp-'))
-          const hasReal = withoutTemp.some((msg) => msg.id === newMessage.id)
-          return hasReal ? withoutTemp : [...withoutTemp, newMessage]
+          // Find the temp message index
+          const tempIndex = old.findIndex((msg) => msg.id.startsWith('temp-'))
+
+          if (tempIndex !== -1) {
+            // Replace temp message with real one at the same position
+            const newMessages = [...old]
+            newMessages[tempIndex] = newMessage
+            return newMessages
+          }
+
+          // Fallback: if no temp message (shouldn't happen), check for duplicates
+          const exists = old.some((msg) => msg.id === newMessage.id)
+          return exists ? old : [...old, newMessage]
         }
       )
 
@@ -326,6 +335,13 @@ export function useConversationRealtime(
       // IMPORTANT: Only process messages for THIS conversation
       if (newMessage.conversation_id !== conversationId) {
         console.warn(`⚠️ Ignoring message for different conversation: ${newMessage.conversation_id}`)
+        return
+      }
+
+      // IMPORTANT: Skip messages we sent ourselves - they're handled by mutation's onSuccess
+      // This prevents the disappear/reappear flicker, especially in self-chat
+      if (newMessage.sender_id === currentUserId) {
+        console.log(`⏭️ Skipping own message (handled by mutation): ${newMessage.id}`)
         return
       }
 

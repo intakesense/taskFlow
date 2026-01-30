@@ -151,7 +151,8 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
 
 // Create a DM conversation
 async function createDMConversation(userId: string, otherUserId: string): Promise<Conversation> {
-    console.log('🔍 Creating DM between', userId, 'and', otherUserId);
+    const isSelfChat = userId === otherUserId
+    console.log('🔍 Creating DM between', userId, 'and', otherUserId, isSelfChat ? '(self-chat)' : '');
 
     // Check if DM already exists
     const { data: existing, error: existingError } = await supabase
@@ -177,9 +178,17 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
                 continue;
             }
 
-            if (members?.length === 2) {
+            // Self-chat has 1 member, regular DM has 2
+            const expectedMemberCount = isSelfChat ? 1 : 2
+            if (members?.length === expectedMemberCount) {
                 const memberIds = members.map((m: { user_id: string }) => m.user_id);
-                if (memberIds.includes(otherUserId)) {
+                // For self-chat, check if the only member is the user
+                // For regular DM, check if both users are members
+                const isMatch = isSelfChat
+                    ? memberIds[0] === userId
+                    : memberIds.includes(otherUserId) && memberIds.includes(userId);
+
+                if (isMatch) {
                     console.log('✅ Found existing DM:', conv.conversation_id);
                     const { data: convData, error: convError } = await supabase
                         .from('conversations')
@@ -213,14 +222,18 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
 
     console.log('✅ Created conversation:', newConv.id);
 
-    // Add both members
+    // Add members - for self-chat, only add one member
     console.log('➕ Adding members to conversation');
-    const { error: memberError } = await supabase
-        .from('conversation_members')
-        .insert([
+    const membersToAdd = isSelfChat
+        ? [{ conversation_id: newConv.id, user_id: userId }]
+        : [
             { conversation_id: newConv.id, user_id: userId },
             { conversation_id: newConv.id, user_id: otherUserId },
-        ]);
+        ];
+
+    const { error: memberError } = await supabase
+        .from('conversation_members')
+        .insert(membersToAdd);
 
     if (memberError) {
         logError('createDMConversation.addMembers', memberError)

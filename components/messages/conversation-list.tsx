@@ -248,6 +248,10 @@ function getConversationName(conv: ConversationWithMembers, currentUserId?: stri
     if (conv.is_group && conv.name) return conv.name
     // For DMs, show the other person's name
     const other = conv.members.find(m => m.id !== currentUserId)
+    // Self-chat: only member is yourself
+    if (!other && conv.members.length === 1 && conv.members[0].id === currentUserId) {
+        return 'You (Notes)' // WhatsApp-style self-chat name
+    }
     return other?.name || 'Unknown'
 }
 
@@ -259,6 +263,14 @@ function getConversationAvatar(conv: ConversationWithMembers, currentUserId?: st
         }
     }
     const other = conv.members.find(m => m.id !== currentUserId)
+    // Self-chat: use your own avatar
+    if (!other && conv.members.length === 1 && conv.members[0].id === currentUserId) {
+        const self = conv.members[0]
+        return {
+            initials: self?.name?.charAt(0).toUpperCase() || '?',
+            imageUrl: self?.avatar_url || undefined,
+        }
+    }
     return {
         initials: other?.name?.charAt(0).toUpperCase() || '?',
         imageUrl: other?.avatar_url || undefined,

@@ -186,7 +186,13 @@ export function ChatView({
     })
 
     const otherUser = conversation.members.find(m => m.id !== profile?.id)
-    const displayName = conversation.is_group ? conversation.name : otherUser?.name || 'Unknown'
+    // Self-chat: only member is yourself
+    const isSelfChat = !otherUser && conversation.members.length === 1 && conversation.members[0]?.id === profile?.id
+    const displayName = conversation.is_group
+        ? conversation.name
+        : isSelfChat
+            ? 'You (Notes)'
+            : otherUser?.name || 'Unknown'
     const hasContent = input.trim().length > 0 || selectedFile !== null
     const showSendButton = hasContent || showVoiceRecorder
 
@@ -209,7 +215,12 @@ export function ChatView({
                 <div className="relative">
                     <Avatar className="h-10 w-10">
                         {(() => {
-                            const avatarUrl = conversation.is_group ? conversation.avatar_url : otherUser?.avatar_url
+                            // For self-chat, use your own avatar
+                            const avatarUrl = conversation.is_group
+                                ? conversation.avatar_url
+                                : isSelfChat
+                                    ? profile?.avatar_url
+                                    : otherUser?.avatar_url
                             return avatarUrl ? <AvatarImage src={avatarUrl} alt={displayName || 'Avatar'} /> : null
                         })()}
                         <AvatarFallback className="bg-primary text-primary-foreground">
