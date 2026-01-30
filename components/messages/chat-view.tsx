@@ -460,9 +460,18 @@ function MessageBubble({
 }: MessageBubbleProps) {
     const [showReactions, setShowReactions] = useState(false)
     const [showMobileActions, setShowMobileActions] = useState(false)
+    const [popupTop, setPopupTop] = useState(80)
     const longPressTimer = useRef<NodeJS.Timeout | null>(null)
     const setReaction = useSetReaction()
     const bubbleRef = useRef<HTMLDivElement>(null)
+
+    // Calculate popup position when showing actions
+    const updatePopupPosition = useCallback(() => {
+        if (bubbleRef.current) {
+            const rect = bubbleRef.current.getBoundingClientRect()
+            setPopupTop(Math.max(80, rect.top - 60))
+        }
+    }, [])
 
     const isVoiceMessage = message.file_type?.startsWith('audio/')
     const groupedReactions = groupReactions(message.reactions, currentUserId)
@@ -540,9 +549,10 @@ function MessageBubble({
         longPressTimer.current = setTimeout(() => {
             // Haptic feedback for long press
             haptics.medium()
+            updatePopupPosition()
             setShowMobileActions(true)
         }, 400)
-    }, [swipeHandlers])
+    }, [swipeHandlers, updatePopupPosition])
 
     const handleTouchMove = useCallback((e: React.TouchEvent) => {
         swipeHandlers.onTouchMove(e)
@@ -648,7 +658,10 @@ function MessageBubble({
                 )}
             >
                 <button
-                    onClick={() => setShowReactions(true)}
+                    onClick={() => {
+                        updatePopupPosition()
+                        setShowReactions(true)
+                    }}
                     className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                     title="React"
                 >
@@ -681,6 +694,7 @@ function MessageBubble({
                 onTouchCancel={handleTouchEnd}
                 onDoubleClick={() => {
                     haptics.light()
+                    updatePopupPosition()
                     setShowReactions(true)
                 }}
             >
@@ -690,13 +704,14 @@ function MessageBubble({
                         {message.sender?.name || 'Unknown'}
                     </p>
                 )}
-                {/* Mobile Actions Popup (long press) */}
+                {/* Mobile Actions Popup (long press) - positioned to avoid header overlap */}
                 {showMobileActions && (
                     <div
                         className={cn(
-                            'absolute bottom-full mb-2 z-30 sm:hidden',
-                            isOwn ? 'right-0' : 'left-0'
+                            'fixed z-50 sm:hidden',
+                            isOwn ? 'right-4' : 'left-4'
                         )}
+                        style={{ top: popupTop }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <MobileMessageActions
@@ -711,13 +726,14 @@ function MessageBubble({
                     </div>
                 )}
 
-                {/* Reaction picker popup */}
+                {/* Reaction picker popup - positioned to avoid header overlap */}
                 {showReactions && (
                     <div
                         className={cn(
-                            'absolute bottom-full mb-2 z-20',
-                            isOwn ? 'right-0' : 'left-0'
+                            'fixed z-50',
+                            isOwn ? 'right-4' : 'left-4'
                         )}
+                        style={{ top: popupTop }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <QuickReactionsBar

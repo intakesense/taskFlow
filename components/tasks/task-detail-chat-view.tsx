@@ -13,6 +13,7 @@ import {
   Eye,
   User,
   MessageCircle,
+  ChevronDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
@@ -44,6 +45,7 @@ import { ChatBubble, ChatInput } from '@/components/chat'
 import type { ChatMessage } from '@/components/chat'
 import type { TaskWithUsers, TaskMessageWithSender, UserBasic } from '@/lib/types'
 import { groupTaskReactions, getUserTaskReaction } from '@/hooks/use-task-messages'
+import { useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
 
 interface TaskDetailChatViewProps {
   task: TaskWithUsers
@@ -79,6 +81,7 @@ export function TaskDetailChatView({
 }: TaskDetailChatViewProps) {
   const router = useRouter()
   const prefersReducedMotion = useReducedMotion()
+  const { setVisible } = useBottomNavVisibility()
   const [showOnHoldDialog, setShowOnHoldDialog] = useState(false)
   const [onHoldReason, setOnHoldReason] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
@@ -90,6 +93,12 @@ export function TaskDetailChatView({
     fileName?: string | null
   } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Hide bottom nav when in task chat view (like message chat view)
+  useEffect(() => {
+    setVisible(false)
+    return () => setVisible(true)
+  }, [setVisible])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -186,7 +195,7 @@ export function TaskDetailChatView({
     created_at: msg.created_at,
     sender_id: msg.sender_id,
     sender: msg.sender,
-    is_deleted: msg.is_deleted,
+    is_deleted: msg.is_deleted ?? undefined,
     file_url: msg.file_url,
     file_name: msg.file_name,
     file_size: msg.file_size,
@@ -213,44 +222,64 @@ export function TaskDetailChatView({
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      {/* Header - WhatsApp Style */}
-      <div className="flex-shrink-0 px-4 py-3 border-b bg-card sticky top-0 z-10">
-        <div className="flex items-center gap-3">
+      {/* Unified Header - Clean single header with task info */}
+      <div className="flex-shrink-0 bg-card sticky top-0 z-10">
+        {/* Main header row */}
+        <div className="px-4 py-3 flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 rounded-full"
+            className="h-9 w-9 rounded-full flex-shrink-0"
             onClick={() => router.back()}
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
 
-          {task.assignees && task.assignees.length > 0 ? (
-            <StackedAvatars users={task.assignees} max={3} size="md" showTooltip={false} />
-          ) : (
-            <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-muted text-muted-foreground text-sm font-medium">
-                ?
-              </AvatarFallback>
-            </Avatar>
-          )}
+          {/* Clickable task info - expands details */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex-1 min-w-0 flex items-center gap-3 text-left"
+          >
+            {task.assignees && task.assignees.length > 0 ? (
+              <StackedAvatars users={task.assignees} max={3} size="md" showTooltip={false} />
+            ) : (
+              <Avatar className="h-10 w-10 flex-shrink-0">
+                <AvatarFallback className="bg-muted text-muted-foreground text-sm font-medium">
+                  ?
+                </AvatarFallback>
+              </Avatar>
+            )}
 
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold text-sm truncate">
-              {task.assignees?.length === 1
-                ? task.assignees[0].name
-                : task.assignees?.length
-                  ? `${task.assignees.length} people`
-                  : 'Unassigned'}
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-sm truncate">{task.title}</div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full',
+                    statusInfo.bgColor,
+                    statusInfo.color
+                  )}
+                >
+                  {statusInfo.label}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className={cn('w-1.5 h-1.5 rounded-full', getPriorityColor(task.priority))} />
+                  <span className="capitalize">{task.priority}</span>
+                </span>
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground truncate">
-              {task.title}
-            </div>
-          </div>
+
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 text-muted-foreground transition-transform flex-shrink-0',
+                isExpanded && 'rotate-180'
+              )}
+            />
+          </button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full flex-shrink-0">
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
@@ -293,76 +322,42 @@ export function TaskDetailChatView({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
 
-      {/* Task Info Card - Collapsible */}
-      <div className="flex-shrink-0 border-b bg-muted/30">
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors"
-        >
-          <div className="flex items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <h1 className="font-semibold text-lg mb-2">{task.title}</h1>
-
-              {/* Pills */}
-              <div className="flex flex-wrap gap-2 mb-2">
-                <div
-                  className={cn(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs',
-                    statusInfo.bgColor,
-                    statusInfo.color
-                  )}
-                >
-                  {statusInfo.label}
-                </div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background text-xs">
-                  <span className={cn('w-2 h-2 rounded-full', getPriorityColor(task.priority))} />
-                  <span className="capitalize">{task.priority}</span>
-                </div>
-                {task.deadline && (
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background text-xs text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    {formatMessageTime(task.deadline)}
-                  </div>
-                )}
-              </div>
-
-              {!isExpanded && task.description && (
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {task.description}
-                </p>
-              )}
-            </div>
-          </div>
-        </button>
-
+        {/* Expandable details section */}
         {isExpanded && (
-          <div className="px-4 pb-4 space-y-3">
-            {task.description && (
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">Description</div>
-                <p className="text-sm">{task.description}</p>
+          <div className="px-4 pb-3 pt-0 space-y-3 border-t bg-muted/20">
+            {/* Deadline if exists */}
+            {task.deadline && (
+              <div className="flex items-center gap-2 pt-3 text-sm">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Due:</span>
+                <span>{formatMessageTime(task.deadline)}</span>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">Assigned by</div>
-                <div className="flex items-center gap-2">
-                  <User className="h-3 w-3" />
-                  {task.assigner?.name || 'Unknown'}
-                </div>
+
+            {/* Description */}
+            {task.description && (
+              <div className="pt-2">
+                <p className="text-sm text-muted-foreground">{task.description}</p>
               </div>
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-1">Visibility</div>
-                <div className="flex items-center gap-2">
-                  <Eye className="h-3 w-3" />
-                  <span className="capitalize">{task.visibility.replace('_', ' ')}</span>
-                </div>
+            )}
+
+            {/* Meta info */}
+            <div className="flex flex-wrap gap-4 pt-2 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <User className="h-3.5 w-3.5" />
+                <span>By {task.assigner?.name || 'Unknown'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Eye className="h-3.5 w-3.5" />
+                <span className="capitalize">{task.visibility.replace('_', ' ')}</span>
               </div>
             </div>
           </div>
         )}
+
+        {/* Border at bottom of header */}
+        <div className="border-b" />
       </div>
 
       {/* Messages Area - Using shared ChatBubble */}

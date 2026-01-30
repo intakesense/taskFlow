@@ -144,9 +144,18 @@ export function ChatBubble({
 }: ChatBubbleProps) {
     const [showReactions, setShowReactions] = useState(false)
     const [showMobileActions, setShowMobileActions] = useState(false)
+    const [popupTop, setPopupTop] = useState(80)
     const longPressTimer = useRef<NodeJS.Timeout | null>(null)
     const bubbleRef = useRef<HTMLDivElement>(null)
     const prefersReducedMotion = useReducedMotion()
+
+    // Calculate popup position when showing actions
+    const updatePopupPosition = useCallback(() => {
+        if (bubbleRef.current) {
+            const rect = bubbleRef.current.getBoundingClientRect()
+            setPopupTop(Math.max(80, rect.top - 60))
+        }
+    }, [])
 
     const isVoiceMessage = message.file_type?.startsWith('audio/')
     const isEmojiOnly = isEmojiOnlyMessage(message.content) && !message.reply_to_id
@@ -183,9 +192,10 @@ export function ChatBubble({
 
         longPressTimer.current = setTimeout(() => {
             haptics.medium()
+            updatePopupPosition()
             setShowMobileActions(true)
         }, 400)
-    }, [swipeHandlers, onReply])
+    }, [swipeHandlers, onReply, updatePopupPosition])
 
     const handleTouchMove = useCallback((e: React.TouchEvent) => {
         if (onReply) swipeHandlers.onTouchMove(e)
@@ -281,7 +291,10 @@ export function ChatBubble({
                 >
                     {onReact && (
                         <button
-                            onClick={() => setShowReactions(true)}
+                            onClick={() => {
+                                updatePopupPosition()
+                                setShowReactions(true)
+                            }}
                             className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                             title="React"
                         >
@@ -318,6 +331,7 @@ export function ChatBubble({
                 onDoubleClick={() => {
                     if (onReact) {
                         haptics.light()
+                        updatePopupPosition()
                         setShowReactions(true)
                     }
                 }}
@@ -329,13 +343,14 @@ export function ChatBubble({
                     </p>
                 )}
 
-                {/* Mobile actions popup */}
+                {/* Mobile actions popup - positioned to avoid header overlap */}
                 {showMobileActions && (
                     <div
                         className={cn(
-                            'absolute bottom-full mb-2 z-30 sm:hidden',
-                            isOwn ? 'right-0' : 'left-0'
+                            'fixed z-50 sm:hidden',
+                            isOwn ? 'right-4' : 'left-4'
                         )}
+                        style={{ top: popupTop }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <MobileMessageActions
@@ -351,13 +366,14 @@ export function ChatBubble({
                     </div>
                 )}
 
-                {/* Reaction picker popup */}
+                {/* Reaction picker popup - positioned to avoid header overlap */}
                 {showReactions && onReact && (
                     <div
                         className={cn(
-                            'absolute bottom-full mb-2 z-20',
-                            isOwn ? 'right-0' : 'left-0'
+                            'fixed z-50',
+                            isOwn ? 'right-4' : 'left-4'
                         )}
+                        style={{ top: popupTop }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <QuickReactionsBar

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
-import { MoreVertical, MessageCircle, CheckCircle2, Clock, Calendar } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { MoreVertical, CheckCircle2, Clock, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { StackedAvatars } from './stacked-avatars'
 import { cn } from '@/lib/utils'
-import { formatRelative, formatMessageTime } from '@/lib/utils/date'
+import { formatRelative } from '@/lib/utils/date'
 import type { TaskWithUsers } from '@/lib/types'
 
 interface TaskCardSocialProps {
@@ -29,7 +29,7 @@ export function TaskCardSocial({
   onDelete,
   currentUserId,
 }: TaskCardSocialProps) {
-  const [isExpanded] = useState(false)
+  const router = useRouter()
 
   const isAssignedToMe = task.assignees?.some(a => a.id === currentUserId) || false
   const isCreatedByMe = currentUserId === task.assigned_by
@@ -68,88 +68,70 @@ export function TaskCardSocial({
     ? assigneeNames[0]
     : `${assigneeNames[0]} +${assigneeNames.length - 1}`
 
+  // Handle card click - navigate to task detail
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on interactive elements
+    const target = e.target as HTMLElement
+    if (target.closest('button') || target.closest('[role="menuitem"]') || target.closest('a')) {
+      return
+    }
+    router.push(`/tasks/${task.id}`)
+  }
+
   return (
     <div
+      onClick={handleCardClick}
       className={cn(
-        'bg-card rounded-2xl border transition-all',
-        'hover:shadow-md active:scale-[0.98]',
+        'bg-card rounded-2xl border transition-all cursor-pointer',
+        'hover:shadow-md active:scale-[0.99]',
         isAssignedToMe && 'border-primary/20 bg-primary/5'
       )}
     >
-      {/* Header */}
+      {/* Main Content */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-start gap-3">
           {/* Stacked Avatars */}
-          <Link href={`/tasks/${task.id}`}>
-            <div className="cursor-pointer">
-              {task.assignees && task.assignees.length > 0 ? (
-                <StackedAvatars users={task.assignees} max={3} size="lg" />
-              ) : (
-                <StackedAvatars users={task.assigner ? [task.assigner] : []} max={1} size="lg" />
-              )}
-            </div>
-          </Link>
+          <div className="flex-shrink-0 pt-0.5">
+            {task.assignees && task.assignees.length > 0 ? (
+              <StackedAvatars users={task.assignees} max={3} size="md" />
+            ) : (
+              <StackedAvatars users={task.assigner ? [task.assigner] : []} max={1} size="md" />
+            )}
+          </div>
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {/* Name and Time */}
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-semibold text-sm truncate">
-                {assigneeDisplay}
-              </span>
-              <span className="text-xs text-muted-foreground flex-shrink-0">
-                {formatMessageTime(task.created_at)}
+            {/* Task Title - Primary info, shown first */}
+            <h3 className="font-semibold text-base mb-1 line-clamp-2">
+              {task.title}
+            </h3>
+
+            {/* Assignee info - Secondary */}
+            <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
+              <span className="truncate">
+                {isAssignedToMe ? (
+                  <>From {task.assigner?.name}</>
+                ) : isCreatedByMe ? (
+                  <>To {assigneeDisplay}</>
+                ) : (
+                  <>{assigneeDisplay}</>
+                )}
               </span>
             </div>
-
-            {/* Relationship */}
-            <div className="text-xs text-muted-foreground mb-2">
-              {isAssignedToMe ? (
-                <span>Assigned by {task.assigner?.name}</span>
-              ) : isCreatedByMe ? (
-                <span>
-                  You assigned to {assigneeNames.length > 0
-                    ? assigneeNames.length === 1
-                      ? assigneeNames[0]
-                      : `${assigneeNames.length} people`
-                    : 'someone'}
-                </span>
-              ) : (
-                <span>From {task.assigner?.name}</span>
-              )}
-            </div>
-
-            {/* Title */}
-            <Link href={`/tasks/${task.id}`}>
-              <h3 className="font-semibold text-base mb-2 cursor-pointer hover:underline">
-                {task.title}
-              </h3>
-            </Link>
 
             {/* Description Preview */}
             {task.description && (
-              <div
-                className={cn(
-                  'text-sm text-muted-foreground mb-3',
-                  !isExpanded && 'line-clamp-2'
-                )}
-              >
+              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                 {task.description}
-              </div>
+              </p>
             )}
 
             {/* Meta Pills */}
-            <div className="flex flex-wrap gap-2 mb-3">
-              {/* Priority */}
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
-                <span className={cn('w-2 h-2 rounded-full', getPriorityColor(task.priority))} />
-                <span className="capitalize">{task.priority}</span>
-              </div>
-
+            <div className="flex flex-wrap items-center gap-2">
               {/* Status */}
               <div
                 className={cn(
-                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs',
+                  'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-muted text-xs',
                   statusInfo.color
                 )}
               >
@@ -157,11 +139,17 @@ export function TaskCardSocial({
                 {statusInfo.label}
               </div>
 
+              {/* Priority */}
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-muted text-xs">
+                <span className={cn('w-1.5 h-1.5 rounded-full', getPriorityColor(task.priority))} />
+                <span className="capitalize">{task.priority}</span>
+              </div>
+
               {/* Deadline */}
               {task.deadline && (
                 <div
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs',
+                    'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs',
                     isOverdue
                       ? 'bg-red-500/10 text-red-500'
                       : 'bg-muted text-muted-foreground'
@@ -181,6 +169,7 @@ export function TaskCardSocial({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full flex-shrink-0"
+                onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -242,26 +231,21 @@ export function TaskCardSocial({
         </div>
       </div>
 
-      {/* Action Bar */}
-      <div className="px-4 pb-3 pt-1 border-t flex items-center gap-4">
-        <Link
-          href={`/tasks/${task.id}`}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <MessageCircle className="h-4 w-4" />
-          <span>Comment</span>
-        </Link>
-
-        {isAssignedToMe && task.status !== 'archived' && (
+      {/* Action Bar - Only show if user can complete */}
+      {isAssignedToMe && task.status !== 'archived' && (
+        <div className="px-4 pb-3 pt-1 border-t flex items-center">
           <button
-            onClick={() => onStatusChange?.(task.id, 'archived')}
+            onClick={(e) => {
+              e.stopPropagation()
+              onStatusChange?.(task.id, 'archived')
+            }}
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-green-500 transition-colors"
           >
             <CheckCircle2 className="h-4 w-4" />
-            <span>Complete</span>
+            <span>Mark Complete</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
