@@ -49,6 +49,7 @@ const modernEffects: ThemeEffects = {
     shadows: 'subtle',
     borderRadius: 'md',
     animations: true,
+    chatPattern: 'none',
 };
 
 // Glass (glassmorphism with transparency)
@@ -59,6 +60,7 @@ const glassEffects: ThemeEffects = {
     shadows: 'medium',
     borderRadius: 'lg',
     animations: true,
+    chatPattern: 'waves',
 };
 
 const glassLightColors: ThemeColors = {
@@ -88,6 +90,7 @@ const neumorphismEffects: ThemeEffects = {
     shadows: 'dramatic',
     borderRadius: 'xl',
     animations: true,
+    chatPattern: 'dots',
 };
 
 const neumorphismLightColors: ThemeColors = {
@@ -116,6 +119,7 @@ const y2kEffects: ThemeEffects = {
     shadows: 'dramatic',
     borderRadius: 'xl',
     animations: true,
+    chatPattern: 'confetti',
 };
 
 const y2kLightColors: ThemeColors = {

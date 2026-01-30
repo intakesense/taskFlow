@@ -60,6 +60,8 @@ interface TaskDetailChatViewProps {
     fileType?: string
     replyToId?: string
   }) => Promise<void>
+  onSendFile?: (file: File, replyToId?: string) => Promise<void>
+  onSendVoiceMessage?: (audioBlob: Blob, replyToId?: string) => Promise<void>
   onStatusChange: (status: string, reason?: string) => Promise<void>
   onDelete: () => Promise<void>
   onReact?: (messageId: string, emoji: string, currentEmoji?: string) => Promise<void>
@@ -73,6 +75,8 @@ export function TaskDetailChatView({
   currentUserId,
   currentUser,
   onSendMessage,
+  onSendFile,
+  onSendVoiceMessage,
   onStatusChange,
   onDelete,
   onReact,
@@ -487,6 +491,8 @@ export function TaskDetailChatView({
           replyingTo={replyingTo}
           onCancelReply={() => setReplyingTo(null)}
           onEmojiSelect={(emoji) => setInputValue(prev => prev + emoji)}
+          onFileSelect={onSendFile ? (file) => onSendFile(file, replyingTo?.id) : undefined}
+          onVoiceMessage={onSendVoiceMessage ? (blob) => onSendVoiceMessage(blob, replyingTo?.id) : undefined}
         />
       ) : (
         <div className="flex-shrink-0 px-4 py-3 border-t bg-muted/30">

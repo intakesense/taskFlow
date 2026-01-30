@@ -13,6 +13,8 @@ import {
 import { TaskDetailChatView } from './task-detail-chat-view'
 import { DashboardLayout } from '@/components/layout'
 import { Loader2 } from 'lucide-react'
+import { uploadFile } from '@/lib/services/file-upload'
+import { toast } from 'sonner'
 
 interface TaskDetailContainerSocialProps {
   taskId: string
@@ -55,6 +57,63 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
       fileType: params.fileType,
       replyToId: params.replyToId,
     })
+  }
+
+  const handleSendFile = async (file: File, replyToId?: string) => {
+    if (!effectiveUser) return
+
+    try {
+      toast.loading('Uploading file...', { id: 'file-upload' })
+
+      // Upload file to storage
+      const uploadedFile = await uploadFile(file, effectiveUser.id)
+
+      // Send message with file attachment
+      await sendMessage.mutateAsync({
+        taskId,
+        senderId: effectiveUser.id,
+        fileUrl: uploadedFile.url,
+        fileName: file.name,
+        fileSize: uploadedFile.size,
+        fileType: uploadedFile.type,
+        replyToId,
+      })
+
+      toast.success('File uploaded', { id: 'file-upload' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to upload file'
+      toast.error(message, { id: 'file-upload' })
+    }
+  }
+
+  const handleSendVoiceMessage = async (audioBlob: Blob, replyToId?: string) => {
+    if (!effectiveUser) return
+
+    try {
+      toast.loading('Sending voice message...', { id: 'voice-upload' })
+
+      // Convert blob to file
+      const file = new File([audioBlob], `voice-${Date.now()}.webm`, { type: audioBlob.type })
+
+      // Upload voice file
+      const uploadedFile = await uploadFile(file, effectiveUser.id)
+
+      // Send message with voice attachment
+      await sendMessage.mutateAsync({
+        taskId,
+        senderId: effectiveUser.id,
+        fileUrl: uploadedFile.url,
+        fileName: file.name,
+        fileSize: uploadedFile.size,
+        fileType: uploadedFile.type,
+        replyToId,
+      })
+
+      toast.success('Voice message sent', { id: 'voice-upload' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to send voice message'
+      toast.error(message, { id: 'voice-upload' })
+    }
   }
 
   const handleReact = async (messageId: string, emoji: string, currentEmoji?: string) => {
@@ -131,6 +190,8 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
           avatar_url: effectiveUser.avatar_url,
         }}
         onSendMessage={handleSendMessage}
+        onSendFile={handleSendFile}
+        onSendVoiceMessage={handleSendVoiceMessage}
         onStatusChange={handleStatusChange}
         onDelete={handleDelete}
         onReact={handleReact}

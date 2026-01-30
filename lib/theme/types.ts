@@ -25,6 +25,16 @@ export interface ThemeColors {
     destructive: string;
 }
 
+// Chat background pattern types
+export type ChatPatternType =
+    | 'none'
+    | 'doodles'
+    | 'dots'
+    | 'grid'
+    | 'waves'
+    | 'geometric'
+    | 'confetti';
+
 export interface ThemeEffects {
     // Effect layers
     glassmorphism: boolean;
@@ -33,6 +43,8 @@ export interface ThemeEffects {
     shadows: 'none' | 'subtle' | 'medium' | 'dramatic';
     borderRadius: 'none' | 'sm' | 'md' | 'lg' | 'xl';
     animations: boolean;
+    // Chat customization
+    chatPattern: ChatPatternType;
 }
 
 export interface ThemeFonts {
