@@ -1,10 +1,23 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, X, File, FileText, Image as ImageIcon } from 'lucide-react'
+import { Upload, X, File, FileText, Image as ImageIcon, LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+
+// File icon mapping - declared outside component to avoid recreation during render
+const FILE_ICON_MAP: Record<string, LucideIcon> = {
+  image: ImageIcon,
+  text: FileText,
+  default: File,
+}
+
+function getFileIconKey(type: string): string {
+  if (type.startsWith('image/')) return 'image'
+  if (type.startsWith('text/')) return 'text'
+  return 'default'
+}
 
 interface FileUploadProps {
   onFilesSelected: (files: File[]) => void
@@ -86,13 +99,7 @@ interface FilePreviewProps {
 }
 
 export function FilePreview({ file, onRemove }: FilePreviewProps) {
-  const getFileIcon = (type: string) => {
-    if (type.startsWith('image/')) return ImageIcon
-    if (type.startsWith('text/')) return FileText
-    return File
-  }
-
-  const FileIcon = getFileIcon(file.type)
+  const FileIcon = useMemo(() => FILE_ICON_MAP[getFileIconKey(file.type)], [file.type])
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg bg-muted border border-border">

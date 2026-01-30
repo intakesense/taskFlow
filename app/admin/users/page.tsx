@@ -49,7 +49,6 @@ export default function AdminUsersPage() {
     const [deletingUser, setDeletingUser] = useState<User | null>(null)
     const [saving, setSaving] = useState(false)
     const [deleting, setDeleting] = useState(false)
-    const [deleteError, setDeleteError] = useState('')
 
     // Edit form state
     const [editName, setEditName] = useState('')
@@ -79,7 +78,7 @@ export default function AdminUsersPage() {
             queryClient.invalidateQueries({ queryKey: userKeys.all })
             toast.success('User updated successfully')
             setEditDialogOpen(false)
-        } catch (error) {
+        } catch {
             toast.error('Failed to update user')
         } finally {
             setSaving(false)
@@ -94,19 +93,17 @@ export default function AdminUsersPage() {
     const handleDeleteUser = async () => {
         if (!deletingUser) return
         setDeleting(true)
-        setDeleteError('')
         try {
             const result = await deleteUserAsAdmin(deletingUser.id)
             if (result.error) {
-                setDeleteError(result.error)
+                toast.error(result.error)
                 return
             }
             queryClient.invalidateQueries({ queryKey: userKeys.all })
             toast.success('User deleted successfully')
             setDeleteDialogOpen(false)
-        } catch (error) {
+        } catch {
             toast.error('Failed to delete user')
-            setDeleteError('Failed to delete user')
         } finally {
             setDeleting(false)
         }

@@ -25,8 +25,8 @@ export function useUpdatingTimestamp(
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
+    // Handle empty dateString via cleanup - avoid direct setState in effect body
     if (!dateString) {
-      setTimestamp('')
       return
     }
 
@@ -51,15 +51,15 @@ export function useUpdatingTimestamp(
       }
     }
 
-    // Update the timestamp
+    // Update the timestamp - this is in an interval callback, not direct effect body
     const updateTimestamp = () => {
       const formatted =
         formatType === 'message' ? formatMessageTime(dateString) : formatRelative(dateString)
       setTimestamp(formatted)
     }
 
-    // Initial update
-    updateTimestamp()
+    // Schedule initial update via microtask to avoid direct setState in effect body
+    queueMicrotask(updateTimestamp)
 
     // Set up interval with intelligent timing
     const interval = getUpdateInterval()

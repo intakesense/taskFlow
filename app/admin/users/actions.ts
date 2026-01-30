@@ -41,6 +41,7 @@ export async function createUserAsAdmin(data: {
         })
 
         if (createError) {
+            console.error('[Error] createUserAsAdmin.createUser:', createError)
             return { error: createError.message, user: null }
         }
 
@@ -52,7 +53,18 @@ export async function createUserAsAdmin(data: {
                 .eq('id', authData.user.id)
 
             if (updateError) {
-                // Silently fail - user was created successfully, just reports_to wasn't set
+                // Log the error but don't fail - user was created successfully
+                console.error('[Error] createUserAsAdmin.reportsTo:', updateError)
+                console.error(`  Code: ${updateError.code}`)
+                console.error(`  Message: ${updateError.message}`)
+                console.error(`  Details: ${updateError.details}`)
+                console.error(`  Hint: ${updateError.hint}`)
+                // Return with warning - user created but reports_to wasn't set
+                return {
+                    error: null,
+                    user: authData.user,
+                    warning: `User created, but could not set supervisor: ${updateError.message}`
+                }
             }
         }
 
@@ -83,14 +95,20 @@ export async function deleteUserAsAdmin(userId: string) {
         const { error: authError } = await supabase.auth.admin.deleteUser(userId)
 
         if (authError) {
+            console.error('[Error] deleteUserAsAdmin.auth:', authError)
             return { error: authError.message }
         }
 
         // Also delete from users table in case there's no trigger
-        await supabase.from('users').delete().eq('id', userId)
+        const { error: deleteError } = await supabase.from('users').delete().eq('id', userId)
+        if (deleteError) {
+            console.error('[Error] deleteUserAsAdmin.users:', deleteError)
+            // Don't fail - auth user was deleted, users table might be cleaned by trigger
+        }
 
         return { error: null }
     } catch (err) {
+        console.error('[Error] deleteUserAsAdmin:', err)
         return {
             error: err instanceof Error ? err.message : 'Failed to delete user'
         }

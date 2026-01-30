@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
+import { logError } from '@/lib/utils/error'
 
 const BUCKET_NAME = 'message-attachments'
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -24,7 +25,6 @@ export async function uploadFile(
 
   const supabase = createClient()
   const timestamp = Date.now()
-  const fileExt = file.name.split('.').pop()
   const fileName = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
   const filePath = `${userId}/${fileName}`
 
@@ -36,6 +36,7 @@ export async function uploadFile(
     })
 
   if (error) {
+    logError('uploadFile', error)
     throw new Error(`Failed to upload file: ${error.message}`)
   }
 
@@ -64,6 +65,7 @@ export async function getSignedUrl(filePath: string): Promise<string> {
     .createSignedUrl(filePath, 3600) // 1 hour expiry
 
   if (error) {
+    logError('getSignedUrl', error)
     throw new Error(`Failed to get signed URL: ${error.message}`)
   }
 
@@ -81,6 +83,7 @@ export async function deleteFile(filePath: string): Promise<void> {
     .remove([filePath])
 
   if (error) {
+    logError('deleteFile', error)
     throw new Error(`Failed to delete file: ${error.message}`)
   }
 }
@@ -98,6 +101,7 @@ export async function getFileMetadata(filePath: string) {
     })
 
   if (error) {
+    logError('getFileMetadata', error)
     throw new Error(`Failed to get file metadata: ${error.message}`)
   }
 

@@ -1,4 +1,7 @@
 // Task Detail View - Pure presentational component
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
 import { TaskWithUsers, TaskMessageWithSender, TaskNoteWithAuthor, Visibility, TaskStatus, TaskPriority } from '@/lib/types'
 import { STATUS_CONFIG, PRIORITY_CONFIG, VISIBILITY_LABELS } from '@/lib/constants'
@@ -18,6 +21,7 @@ import {
   Send,
   Calendar,
   User,
+  Users,
   Clock,
   CheckCircle2,
   PauseCircle,
@@ -27,7 +31,10 @@ import {
   MessageSquare,
   Eye,
   Lock,
+  Pencil,
 } from 'lucide-react'
+import { StackedAvatars } from './stacked-avatars'
+import { MultiUserSelector } from './multi-user-selector'
 import type { UseDialogReturn } from '@/hooks/use-dialog'
 
 interface TaskDetailViewProps {
@@ -57,6 +64,8 @@ interface TaskDetailViewProps {
   onOnHoldConfirm: () => void
   onDelete: () => void
   onArchive: () => void
+  onUpdateAssignees: (userIds: string[]) => void
+  updatingAssignees: boolean
 }
 
 export function TaskDetailView({
@@ -65,7 +74,7 @@ export function TaskDetailView({
   notes,
   isAssigner,
   isAssignee,
-  isParticipant,
+  isParticipant: _,
   newMessage,
   setNewMessage,
   newNote,
@@ -86,7 +95,13 @@ export function TaskDetailView({
   onOnHoldConfirm,
   onDelete,
   onArchive,
+  onUpdateAssignees,
+  updatingAssignees,
 }: TaskDetailViewProps) {
+  const [isEditingAssignees, setIsEditingAssignees] = useState(false)
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>(
+    task.assignees?.map(a => a.id) || []
+  )
   const statusConfig = STATUS_CONFIG[task.status as TaskStatus]
   const priorityConfig = PRIORITY_CONFIG[task.priority as TaskPriority]
 
@@ -197,10 +212,66 @@ export function TaskDetailView({
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Assigned to</p>
-                  <p className="font-medium">{task.assignee?.name}</p>
+                <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">Assigned to</p>
+                    {isAssigner && task.status !== 'archived' && !isEditingAssignees && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => {
+                          setSelectedAssigneeIds(task.assignees?.map(a => a.id) || [])
+                          setIsEditingAssignees(true)
+                        }}
+                      >
+                        <Pencil className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                  {isEditingAssignees ? (
+                    <div className="mt-2 space-y-3">
+                      <MultiUserSelector
+                        selectedUserIds={selectedAssigneeIds}
+                        onSelectUsers={setSelectedAssigneeIds}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedAssigneeIds(task.assignees?.map(a => a.id) || [])
+                            setIsEditingAssignees(false)
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={updatingAssignees || selectedAssigneeIds.length === 0}
+                          onClick={() => {
+                            onUpdateAssignees(selectedAssigneeIds)
+                            setIsEditingAssignees(false)
+                          }}
+                        >
+                          {updatingAssignees ? 'Saving...' : 'Save'}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : task.assignees && task.assignees.length > 0 ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <StackedAvatars users={task.assignees} max={4} size="sm" />
+                      <span className="font-medium text-sm">
+                        {task.assignees.length === 1
+                          ? task.assignees[0].name
+                          : `${task.assignees.length} people`}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="font-medium text-muted-foreground">Unassigned</p>
+                  )}
                 </div>
               </div>
             </div>

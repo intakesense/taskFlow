@@ -1,12 +1,19 @@
 'use client'
 
 import { useCallback } from 'react'
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { GroupedReaction } from '@/lib/types'
 import { QUICK_REACTIONS } from '@/hooks/use-reactions'
 import { haptics } from '@/lib/haptics'
 import { Copy, Smile } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  reactionVariants,
+  reactionBarVariants,
+  reactionEmojiVariants,
+  springs,
+} from '@/lib/animations'
 import {
   Tooltip,
   TooltipContent,
@@ -25,12 +32,14 @@ export function ReactionBadges({
   onToggle,
   isOwn,
 }: ReactionBadgesProps) {
-  if (reactions.length === 0) return null
+  const prefersReducedMotion = useReducedMotion()
 
   const handleToggle = useCallback((emoji: string) => {
     haptics.light()
     onToggle(emoji)
   }, [onToggle])
+
+  if (reactions.length === 0) return null
 
   return (
     <TooltipProvider delayDuration={400}>
@@ -40,36 +49,49 @@ export function ReactionBadges({
           isOwn ? 'justify-end' : 'justify-start'
         )}
       >
-        {reactions.map(({ emoji, count, users, hasReacted }) => (
-          <Tooltip key={emoji}>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => handleToggle(emoji)}
-                className={cn(
-                  'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs',
-                  'border active:scale-95 transition-all touch-manipulation',
-                  'min-h-[28px] min-w-[36px]',
-                  hasReacted
-                    ? 'bg-primary/15 border-primary/40 shadow-sm'
-                    : 'bg-background/90 border-border/60 hover:bg-muted/50'
-                )}
-              >
-                <span className="text-base leading-none">{emoji}</span>
-                {/* Only show count if more than 1 */}
-                {count > 1 && (
-                  <span className="text-xs text-muted-foreground leading-none font-medium">
-                    {count}
-                  </span>
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[200px] hidden sm:block">
-              <p className="text-xs">
-                {users.map((u) => u.name).join(', ')}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        ))}
+        <AnimatePresence mode="popLayout">
+          {reactions.map(({ emoji, count, users, hasReacted }) => (
+            <m.div
+              key={emoji}
+              variants={prefersReducedMotion ? undefined : reactionVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              whileHover={prefersReducedMotion ? undefined : "hover"}
+              whileTap={prefersReducedMotion ? undefined : "tap"}
+              layout
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => handleToggle(emoji)}
+                    className={cn(
+                      'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs',
+                      'border transition-colors touch-manipulation',
+                      'min-h-[28px] min-w-[36px]',
+                      hasReacted
+                        ? 'bg-primary/15 border-primary/40 shadow-sm'
+                        : 'bg-background/90 border-border/60 hover:bg-muted/50'
+                    )}
+                  >
+                    <span className="text-base leading-none">{emoji}</span>
+                    {/* Only show count if more than 1 */}
+                    {count > 1 && (
+                      <span className="text-xs text-muted-foreground leading-none font-medium">
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[200px] hidden sm:block">
+                  <p className="text-xs">
+                    {users.map((u) => u.name).join(', ')}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </m.div>
+          ))}
+        </AnimatePresence>
       </div>
     </TooltipProvider>
   )
@@ -96,31 +118,40 @@ export function QuickReactionsBar({
     [onSelect, onClose]
   )
 
+  const prefersReducedMotion = useReducedMotion()
+
   return (
-    <div
+    <m.div
+      variants={prefersReducedMotion ? undefined : reactionBarVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
       className={cn(
         'flex items-center gap-1 px-2 py-2',
-        'bg-popover border border-border rounded-full shadow-xl',
-        'animate-in fade-in-0 zoom-in-95 duration-150'
+        'bg-popover border border-border rounded-full shadow-xl'
       )}
       onClick={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
     >
-      {QUICK_REACTIONS.map((emoji) => (
-        <button
+      {QUICK_REACTIONS.map((emoji, index) => (
+        <m.button
           key={emoji}
+          variants={prefersReducedMotion ? undefined : reactionEmojiVariants}
+          whileHover={prefersReducedMotion ? undefined : "hover"}
+          whileTap={prefersReducedMotion ? undefined : "tap"}
+          custom={index}
           onClick={() => handleSelect(emoji)}
           className={cn(
-            'p-2 text-2xl rounded-full transition-all touch-manipulation',
-            'hover:bg-muted active:scale-125 active:bg-muted/80',
+            'p-2 text-2xl rounded-full transition-colors touch-manipulation',
+            'hover:bg-muted',
             'min-w-[44px] min-h-[44px] flex items-center justify-center',
-            currentEmoji === emoji && 'bg-primary/20 scale-110'
+            currentEmoji === emoji && 'bg-primary/20'
           )}
         >
           {emoji}
-        </button>
+        </m.button>
       ))}
-    </div>
+    </m.div>
   )
 }
 
@@ -200,43 +231,52 @@ export function MobileMessageActions({
     onClose()
   }, [messageContent, onCopy, onClose])
 
+  const prefersReducedMotion = useReducedMotion()
+
   return (
-    <div
+    <m.div
+      variants={prefersReducedMotion ? undefined : reactionBarVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
       className={cn(
         'flex items-center gap-2 px-3 py-2',
-        'bg-popover border border-border rounded-2xl shadow-xl',
-        'animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-150'
+        'bg-popover border border-border rounded-2xl shadow-xl'
       )}
       onClick={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
     >
-      <button
+      <m.button
+        whileHover={prefersReducedMotion ? undefined : { scale: 1.05 }}
+        whileTap={prefersReducedMotion ? undefined : { scale: 0.95 }}
+        transition={springs.micro}
         onClick={handleReact}
         className={cn(
           'flex flex-col items-center gap-1 px-4 py-2 rounded-xl',
-          'hover:bg-muted active:bg-muted/80 active:scale-95',
-          'transition-all touch-manipulation min-w-[60px]'
+          'hover:bg-muted transition-colors touch-manipulation min-w-[60px]'
         )}
       >
         <Smile className="w-6 h-6 text-foreground" />
         <span className="text-xs text-muted-foreground">React</span>
-      </button>
+      </m.button>
       {messageContent && (
         <>
           <div className="w-px h-10 bg-border" />
-          <button
+          <m.button
+            whileHover={prefersReducedMotion ? undefined : { scale: 1.05 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.95 }}
+            transition={springs.micro}
             onClick={handleCopy}
             className={cn(
               'flex flex-col items-center gap-1 px-4 py-2 rounded-xl',
-              'hover:bg-muted active:bg-muted/80 active:scale-95',
-              'transition-all touch-manipulation min-w-[60px]'
+              'hover:bg-muted transition-colors touch-manipulation min-w-[60px]'
             )}
           >
             <Copy className="w-6 h-6 text-foreground" />
             <span className="text-xs text-muted-foreground">Copy</span>
-          </button>
+          </m.button>
         </>
       )}
-    </div>
+    </m.div>
   )
 }

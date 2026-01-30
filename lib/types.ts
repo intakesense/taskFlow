@@ -12,6 +12,7 @@ export type ConversationMember = Database['public']['Tables']['conversation_memb
 export type Message = Database['public']['Tables']['messages']['Row'];
 export type MessageRead = Database['public']['Tables']['message_reads']['Row'];
 export type MessageReaction = Database['public']['Tables']['message_reactions']['Row'];
+export type TaskMessageReaction = Database['public']['Tables']['task_message_reactions']['Row'];
 export type TypingStatus = Database['public']['Tables']['typing_status']['Row'];
 export type AppSettings = Database['public']['Tables']['app_settings']['Row'];
 
@@ -31,6 +32,11 @@ export interface UserBasic {
     avatar_url?: string | null;
 }
 
+// Assignee with assignment timestamp (for multi-assignee support)
+export interface AssigneeWithDetails extends UserBasic {
+    assigned_at: string;
+}
+
 // Conversation member with read status
 export interface ConversationMemberWithUser {
     user: UserBasic;
@@ -40,11 +46,19 @@ export interface ConversationMemberWithUser {
 
 export interface TaskWithUsers extends Task {
     assigner: UserBasic | null;
-    assignee: UserBasic | null;
+    assignee: UserBasic | null; // DEPRECATED: Use assignees array instead. Kept for backward compatibility.
+    assignees: AssigneeWithDetails[]; // Array of assignees for multi-assignee support
+}
+
+// Reaction with user info for task messages
+export interface TaskReactionWithUser extends TaskMessageReaction {
+    user: UserBasic | null;
 }
 
 export interface TaskMessageWithSender extends TaskMessage {
     sender: UserBasic | null;
+    replyTo?: TaskMessageWithSender | null;
+    reactions?: TaskReactionWithUser[];
 }
 
 export interface TaskNoteWithAuthor extends TaskNote {

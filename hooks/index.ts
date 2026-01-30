@@ -4,8 +4,18 @@
 export { useTheme } from './use-theme';
 
 // Tasks
-export { useTasks, useTask, useCreateTask, useUpdateTask, useDeleteTask, taskKeys } from './use-tasks';
-export { useTaskMessages, useSendTaskMessage, useTaskMessagesRealtime, taskMessageKeys } from './use-task-messages';
+export { useTasks, useTask, useCreateTask, useUpdateTask, useDeleteTask, useUpdateTaskAssignees, useAddTaskAssignee, useRemoveTaskAssignee, taskKeys } from './use-tasks';
+export {
+  useTaskMessages,
+  useSendTaskMessage,
+  useDeleteTaskMessage,
+  useSetTaskReaction,
+  useTaskMessagesRealtime,
+  taskMessageKeys,
+  groupTaskReactions,
+  getUserTaskReaction,
+  QUICK_REACTIONS as TASK_QUICK_REACTIONS
+} from './use-task-messages';
 export { useTaskNotes, useAddTaskNote, useDeleteTaskNote, taskNoteKeys } from './use-task-notes';
 
 // Users

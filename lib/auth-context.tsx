@@ -87,13 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         setProfile(profileData)
                     }
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.error('Auth initialization error:', error)
                 if (mounted) {
                     setUser(null)
                     setProfile(null)
                     // Only show toast for non-auth errors
-                    if (!error?.__isAuthError) {
+                    const authError = error as { __isAuthError?: boolean }
+                    if (!authError?.__isAuthError) {
                         toast.error('Failed to initialize authentication')
                     }
                 }
@@ -111,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // CRITICAL: Do NOT use async/await in this callback - it causes deadlocks!
         // See: https://github.com/supabase/supabase/issues/35754
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (event: string, session: any) => {
+            (event, session) => {
                 if (!mounted) return
 
                 // Handle sign out events

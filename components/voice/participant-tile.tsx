@@ -3,7 +3,6 @@
 import {
   useParticipant,
   useVideoTrack,
-  useAudioTrack,
   useScreenVideoTrack,
   useActiveSpeakerId,
   DailyVideo,
@@ -20,14 +19,12 @@ interface ParticipantTileProps {
 export function ParticipantTile({ sessionId, isLocal }: ParticipantTileProps) {
   const participant = useParticipant(sessionId)
   const videoTrack = useVideoTrack(sessionId)
-  const audioTrack = useAudioTrack(sessionId)
   const screenVideoTrack = useScreenVideoTrack(sessionId)
   const activeSpeakerId = useActiveSpeakerId()
 
   if (!participant) return null
 
   const hasVideo = videoTrack.state === 'playable'
-  const hasAudio = audioTrack.state === 'playable'
   const hasScreenShare = screenVideoTrack.state === 'playable'
   const isMuted = !participant.audio
   const isSpeaking = activeSpeakerId === sessionId

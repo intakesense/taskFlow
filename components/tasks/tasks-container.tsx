@@ -37,7 +37,7 @@ export function TasksContainer() {
             }
 
             // Type filter
-            if (typeFilter === 'assigned' && task.assigned_to !== effectiveUser?.id) {
+            if (typeFilter === 'assigned' && !task.assignees?.some(a => a.id === effectiveUser?.id)) {
                 return false;
             }
             if (typeFilter === 'created' && task.assigned_by !== effectiveUser?.id) {

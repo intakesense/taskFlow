@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useAudioRecorder, formatRecordingTime } from '@/hooks/use-audio-recorder'
 import { Button } from '@/components/ui/button'
-import { Mic, X, Send, Pause, Play, Trash2 } from 'lucide-react'
+import { Mic, X, Send, Pause, Play, Trash2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { haptics } from '@/lib/haptics'
@@ -12,6 +12,7 @@ interface VoiceRecorderProps {
   onSend: (audioBlob: Blob) => void
   onCancel?: () => void
   maxDuration?: number // in seconds
+  isSending?: boolean // Show loading state while uploading
   className?: string
 }
 
@@ -37,6 +38,7 @@ export function VoiceRecorder({
   onSend,
   onCancel,
   maxDuration = 300,
+  isSending = false,
   className,
 }: VoiceRecorderProps) {
   const {
@@ -64,6 +66,7 @@ export function VoiceRecorder({
   // Auto-start recording when component mounts (WhatsApp behavior)
   useEffect(() => {
     if (recordingState === 'idle') {
+      haptics.medium()
       startRecording()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,11 +85,6 @@ export function VoiceRecorder({
         Voice recording is not supported in your browser
       </div>
     )
-  }
-
-  const handleStartRecording = async () => {
-    haptics.medium()
-    await startRecording()
   }
 
   const handleSend = () => {
@@ -218,9 +216,14 @@ export function VoiceRecorder({
         <Button
           size="icon"
           onClick={handleSend}
+          disabled={isSending}
           className="flex-shrink-0"
         >
-          <Send className="h-5 w-5" />
+          {isSending ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Send className="h-5 w-5" />
+          )}
         </Button>
       </div>
     )

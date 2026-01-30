@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import { TaskNote, TaskNoteWithAuthor, Visibility } from '@/lib/types'
+import { logError } from '@/lib/utils/error'
 
 function getSupabase() { return createClient() }
 
@@ -14,7 +15,10 @@ export async function getTaskNotes(taskId: string): Promise<TaskNoteWithAuthor[]
         .eq('task_id', taskId)
         .order('created_at', { ascending: false })
 
-    if (error) throw error
+    if (error) {
+        logError('getTaskNotes', error)
+        throw error
+    }
     return data as TaskNoteWithAuthor[]
 }
 
@@ -37,7 +41,10 @@ export async function addNote(userId: string, input: CreateNoteInput): Promise<T
         .select()
         .single()
 
-    if (error) throw error
+    if (error) {
+        logError('addNote', error)
+        throw error
+    }
     return data as TaskNote
 }
 
@@ -50,14 +57,20 @@ export async function updateNoteVisibility(noteId: string, visibility: Visibilit
         .select()
         .single()
 
-    if (error) throw error
+    if (error) {
+        logError('updateNoteVisibility', error)
+        throw error
+    }
     return data as TaskNote
 }
 
 export async function deleteNote(noteId: string): Promise<void> {
     const supabase = getSupabase()
     const { error } = await supabase.from('task_notes').delete().eq('id', noteId)
-    if (error) throw error
+    if (error) {
+        logError('deleteNote', error)
+        throw error
+    }
 }
 
 export function getVisibilityLabel(visibility: Visibility): string {

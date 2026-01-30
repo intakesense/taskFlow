@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { TaskMessage, TaskMessageWithSender } from '@/lib/types'
-import { RealtimeChannel } from '@supabase/supabase-js'
+import { RealtimeChannel, RealtimePostgresInsertPayload } from '@supabase/supabase-js'
+import { logError } from '@/lib/utils/error'
 
 function getSupabase() { return createClient() }
 
@@ -15,7 +16,10 @@ export async function getTaskMessages(taskId: string): Promise<TaskMessageWithSe
         .eq('task_id', taskId)
         .order('created_at', { ascending: true })
 
-    if (error) throw error
+    if (error) {
+        logError('getTaskMessages', error)
+        throw error
+    }
     return data as TaskMessageWithSender[]
 }
 
@@ -31,11 +35,14 @@ export async function sendMessage(taskId: string, senderId: string, message: str
         .select()
         .single()
 
-    if (error) throw error
+    if (error) {
+        logError('sendMessage', error)
+        throw error
+    }
     return data as TaskMessage
 }
 
-export function subscribeToMessages(taskId: string, callback: (payload: any) => void): RealtimeChannel {
+export function subscribeToMessages(taskId: string, callback: (payload: RealtimePostgresInsertPayload<TaskMessage>) => void): RealtimeChannel {
     const supabase = getSupabase()
     return supabase
         .channel(`task-messages:${taskId}`)

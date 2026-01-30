@@ -1,7 +1,7 @@
 'use client'
 
 import Script from 'next/script'
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase/client'
 
@@ -24,14 +24,19 @@ interface OneSignalSDK {
   }
 }
 
+// Hook to check origin using useSyncExternalStore (avoids setState in effect)
+const emptySubscribe = () => () => {}
+function useIsAllowedOrigin() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => typeof window !== 'undefined' && window.location.origin === ALLOWED_ORIGIN,
+    () => false // Server: not allowed
+  )
+}
+
 export function OneSignalInit() {
   const { user } = useAuth()
-  const [isAllowedOrigin, setIsAllowedOrigin] = useState(false)
-
-  // Check if we're on the allowed origin
-  useEffect(() => {
-    setIsAllowedOrigin(window.location.origin === ALLOWED_ORIGIN)
-  }, [])
+  const isAllowedOrigin = useIsAllowedOrigin()
 
   // Link user to OneSignal after login
   useEffect(() => {

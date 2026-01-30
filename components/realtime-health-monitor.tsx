@@ -10,7 +10,7 @@ import { realtimeManager } from '@/lib/realtime-manager'
  */
 export function RealtimeHealthMonitor() {
   const [showMonitor, setShowMonitor] = useState(false)
-  const [health, setHealth] = useState<any>(null)
+  const [health, setHealth] = useState<ReturnType<typeof realtimeManager.getHealthStatus> | null>(null)
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return

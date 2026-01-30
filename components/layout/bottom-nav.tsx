@@ -1,10 +1,13 @@
 'use client'
 
+import { useMemo } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { m, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
+import { navIconVariants, springs } from '@/lib/animations'
 import {
     MessageSquare,
     ListTodo,
@@ -28,6 +31,7 @@ const navItems: NavItem[] = [
 export function BottomNav() {
     const pathname = usePathname()
     const { profile, maskedAsUser } = useAuth()
+    const prefersReducedMotion = useReducedMotion()
 
     // Filter items based on admin status
     const visibleItems = navItems.filter(item => !item.adminOnly || profile?.is_admin)
@@ -35,9 +39,37 @@ export function BottomNav() {
     const displayUser = maskedAsUser || profile
     const isSettingsActive = pathname === '/settings'
 
+    // Calculate active index for indicator
+    const activeIndex = useMemo(() => {
+        const navIndex = visibleItems.findIndex(item =>
+            item.href === '/'
+                ? pathname === '/'
+                : pathname === item.href || pathname.startsWith(item.href + '/')
+        )
+        if (navIndex !== -1) return navIndex
+        if (isSettingsActive) return visibleItems.length // Profile is last
+        return -1
+    }, [pathname, visibleItems, isSettingsActive])
+
+    const totalItems = visibleItems.length + 1 // +1 for profile
+
     return (
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border safe-area-bottom">
-            <div className="flex items-center justify-around h-16">
+            <div className="relative flex items-center justify-around h-16">
+                {/* Sliding indicator */}
+                {activeIndex >= 0 && !prefersReducedMotion && (
+                    <m.div
+                        className="absolute top-0 h-0.5 bg-primary rounded-full"
+                        initial={false}
+                        animate={{
+                            left: `${(activeIndex / totalItems) * 100 + (50 / totalItems)}%`,
+                            width: 32,
+                        }}
+                        transition={springs.fast}
+                        style={{ translateX: '-50%' }}
+                    />
+                )}
+
                 {visibleItems.map((item) => {
                     // Check if current path matches the nav item
                     const isActive = item.href === '/'
@@ -55,22 +87,21 @@ export function BottomNav() {
                                 }
                             }}
                             className={cn(
-                                'flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[64px]',
-                                'active:scale-95',
+                                'flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-colors min-w-[64px]',
                                 isActive
                                     ? 'text-primary'
                                     : 'text-muted-foreground hover:text-foreground'
                             )}
                         >
-                            <item.icon
-                                className={cn(
-                                    'h-5 w-5 transition-all',
-                                    isActive && 'scale-110'
-                                )}
-                            />
+                            <m.div
+                                variants={prefersReducedMotion ? undefined : navIconVariants}
+                                animate={isActive ? 'active' : 'inactive'}
+                            >
+                                <item.icon className="h-5 w-5" />
+                            </m.div>
                             <span
                                 className={cn(
-                                    'text-[10px] font-medium transition-all',
+                                    'text-[10px] font-medium transition-colors',
                                     isActive && 'font-semibold'
                                 )}
                             >
@@ -89,15 +120,16 @@ export function BottomNav() {
                         }
                     }}
                     className={cn(
-                        'flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[64px]',
-                        'active:scale-95'
+                        'flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-colors min-w-[64px]'
                     )}
                 >
-                    <div
+                    <m.div
+                        variants={prefersReducedMotion ? undefined : navIconVariants}
+                        animate={isSettingsActive ? 'active' : 'inactive'}
                         className={cn(
-                            'h-6 w-6 rounded-full overflow-hidden transition-all flex items-center justify-center',
+                            'h-6 w-6 rounded-full overflow-hidden flex items-center justify-center',
                             isSettingsActive
-                                ? 'ring-2 ring-primary ring-offset-1 ring-offset-card scale-110'
+                                ? 'ring-2 ring-primary ring-offset-1 ring-offset-card'
                                 : 'ring-1 ring-border'
                         )}
                     >
@@ -114,10 +146,10 @@ export function BottomNav() {
                                 {displayUser?.name?.charAt(0).toUpperCase() || 'U'}
                             </div>
                         )}
-                    </div>
+                    </m.div>
                     <span
                         className={cn(
-                            'text-[10px] font-medium transition-all',
+                            'text-[10px] font-medium transition-colors',
                             isSettingsActive
                                 ? 'text-primary font-semibold'
                                 : 'text-muted-foreground'

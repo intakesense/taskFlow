@@ -60,11 +60,12 @@ export function NewChatDialog({
     })
 
     const selectedMembers = watch('selectedMembers')
-    const groupName = watch('groupName')
 
-    // Filter out current user and filter by search
+    // Filter users by search, and exclude self only for group mode (auto-added as creator)
+    // For DM mode, show self so user can message themselves like WhatsApp
     const filteredUsers = users.filter((user) => {
-        if (user.id === currentUserId) return false
+        // For group mode, exclude current user (they're auto-added)
+        if (mode === 'group' && user.id === currentUserId) return false
         if (!search) return true
         return user.name.toLowerCase().includes(search.toLowerCase()) ||
             user.email.toLowerCase().includes(search.toLowerCase())
@@ -233,7 +234,7 @@ function UserRow({ user, isSelected, showCheckbox, onClick, disabled }: UserRowP
                 <Checkbox
                     checked={isSelected}
                     className="pointer-events-none"
-                    onCheckedChange={() => {}} // No-op since parent handles clicks
+                    onCheckedChange={() => { }} // No-op since parent handles clicks
                 />
             )}
             <Avatar className="h-10 w-10">

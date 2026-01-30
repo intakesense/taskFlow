@@ -13,6 +13,7 @@ import {
   useAddTaskNote,
   useUpdateTask,
   useDeleteTask,
+  useUpdateTaskAssignees,
   useDialog,
 } from '@/hooks'
 import { TaskDetailView } from './task-detail-view'
@@ -41,6 +42,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   const addNote = useAddTaskNote()
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
+  const updateAssignees = useUpdateTaskAssignees()
 
   // Local state
   const [newMessage, setNewMessage] = useState('')
@@ -54,7 +56,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
 
   // Permissions
   const isAssigner = task?.assigned_by === effectiveUser?.id || false
-  const isAssignee = task?.assigned_to === effectiveUser?.id || false
+  const isAssignee = task?.assignees?.some(a => a.id === effectiveUser?.id) || false
   const isParticipant = isAssigner || isAssignee || (profile?.is_admin ?? false)
 
   // Handlers
@@ -64,7 +66,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
     await sendMessage.mutateAsync({
       taskId,
       senderId: effectiveUser.id,
-      message: newMessage.trim(),
+      content: newMessage.trim(),
     })
 
     setNewMessage('')
@@ -92,7 +94,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
 
     await updateTask.mutateAsync({
       id: taskId,
-      input: { status: status as any },
+      input: { status: status as 'pending' | 'in_progress' | 'on_hold' | 'archived' },
     })
 
     toast.success('Status updated')
@@ -124,6 +126,14 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
       input: { status: 'archived' },
     })
     toast.success('Task archived')
+  }
+
+  const handleUpdateAssignees = async (userIds: string[]) => {
+    await updateAssignees.mutateAsync({
+      taskId,
+      userIds,
+    })
+    toast.success('Assignees updated')
   }
 
   // Loading state
@@ -178,6 +188,8 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
         onOnHoldConfirm={handleOnHoldConfirm}
         onDelete={handleDelete}
         onArchive={handleArchive}
+        onUpdateAssignees={handleUpdateAssignees}
+        updatingAssignees={updateAssignees.isPending}
       />
     </DashboardLayout>
   )

@@ -1,8 +1,10 @@
 // useConversations - OPTIMIZED: Fixed N+1 query problem
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { Conversation, ConversationWithMembers, UserBasic, MessageWithSender, ConversationMemberWithUser } from '@/lib/types';
+import { logError, getErrorMessage } from '@/lib/utils/error';
 
 const supabase = createClient();
 
@@ -21,7 +23,10 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
         .select('conversation_id, last_read_at')
         .eq('user_id', userId);
 
-    if (memberError) throw memberError;
+    if (memberError) {
+        logError('fetchConversations.memberOf', memberError)
+        throw memberError
+    }
     if (!memberOf?.length) return [];
 
     const conversationIds = memberOf.map((m: { conversation_id: string; last_read_at: string | null }) => m.conversation_id);
@@ -63,7 +68,10 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
             .in('conversation_id', conversationIds)
     ]);
 
-    if (conversationsResult.error) throw conversationsResult.error;
+    if (conversationsResult.error) {
+        logError('fetchConversations.conversations', conversationsResult.error)
+        throw conversationsResult.error
+    }
     const conversations = conversationsResult.data || [];
 
     // Step 3: Build lookup maps for O(1) access (instead of nested loops)
@@ -74,9 +82,15 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
 
     // Process members data
     if (membersResult.data) {
-        membersResult.data.forEach((item: any) => {
+        interface MemberResultItem {
+            conversation_id: string;
+            last_read_at: string;
+            joined_at: string;
+            user: UserBasic;
+        }
+        (membersResult.data as MemberResultItem[]).forEach((item) => {
             const convId = item.conversation_id;
-            const user = item.user as UserBasic;
+            const user = item.user;
             if (!membersByConv.has(convId)) {
                 membersByConv.set(convId, []);
                 membersWithStatusByConv.set(convId, []);
@@ -94,10 +108,10 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
 
     // Process last messages
     if (messagesResult.data) {
-        messagesResult.data.forEach((msg: any) => {
+        (messagesResult.data as MessageWithSender[]).forEach((msg) => {
             // Only keep the first (most recent) message per conversation
             if (!lastMessageByConv.has(msg.conversation_id)) {
-                lastMessageByConv.set(msg.conversation_id, msg as MessageWithSender);
+                lastMessageByConv.set(msg.conversation_id, msg);
             }
         });
     }
@@ -106,7 +120,12 @@ async function fetchConversations(userId: string): Promise<ConversationWithMembe
     if (unreadMessagesResult.data) {
         const membershipMap = new Map(memberOf.map((m: { conversation_id: string; last_read_at: string | null }) => [m.conversation_id, m.last_read_at]));
 
-        unreadMessagesResult.data.forEach((msg: any) => {
+        interface UnreadMessageItem {
+            conversation_id: string;
+            created_at: string;
+            sender_id: string;
+        }
+        (unreadMessagesResult.data as UnreadMessageItem[]).forEach((msg) => {
             const lastReadAt = membershipMap.get(msg.conversation_id);
             // Count messages sent after last read by other users
             if (lastReadAt && msg.created_at > lastReadAt && msg.sender_id !== userId) {
@@ -141,8 +160,8 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
         .eq('user_id', userId);
 
     if (existingError) {
-        console.error('❌ Error checking existing DMs:', existingError);
-        throw new Error(`Failed to check existing conversations: ${existingError.message}`);
+        logError('createDMConversation.checkExisting', existingError)
+        throw new Error(`Failed to check existing conversations: ${existingError.message}`)
     }
 
     if (existing?.length) {
@@ -154,7 +173,7 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
                 .eq('conversation_id', conv.conversation_id);
 
             if (membersError) {
-                console.error('❌ Error fetching members:', membersError);
+                logError('createDMConversation.fetchMembers', membersError)
                 continue;
             }
 
@@ -170,7 +189,7 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
                         .single();
 
                     if (convError) {
-                        console.error('❌ Error fetching conversation:', convError);
+                        logError('createDMConversation.fetchConversation', convError)
                         continue;
                     }
                     if (convData) return convData;
@@ -188,8 +207,8 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
         .single();
 
     if (convError) {
-        console.error('❌ Error creating conversation:', convError);
-        throw new Error(`Failed to create conversation: ${convError.message} (${convError.code})`);
+        logError('createDMConversation.create', convError)
+        throw new Error(`Failed to create conversation: ${convError.message}`)
     }
 
     console.log('✅ Created conversation:', newConv.id);
@@ -204,10 +223,10 @@ async function createDMConversation(userId: string, otherUserId: string): Promis
         ]);
 
     if (memberError) {
-        console.error('❌ Error adding members:', memberError);
+        logError('createDMConversation.addMembers', memberError)
         // Try to clean up the orphaned conversation
-        await supabase.from('conversations').delete().eq('id', newConv.id);
-        throw new Error(`Failed to add members: ${memberError.message} (${memberError.code})`);
+        await supabase.from('conversations').delete().eq('id', newConv.id)
+        throw new Error(`Failed to add members: ${memberError.message}`)
     }
 
     console.log('✅ Successfully created DM with both members');
@@ -234,8 +253,8 @@ async function createGroupConversation(userId: string, input: CreateGroupInput):
         .single();
 
     if (convError) {
-        console.error('❌ Error creating group conversation:', convError);
-        throw new Error(`Failed to create group: ${convError.message} (${convError.code})`);
+        logError('createGroupConversation.create', convError)
+        throw new Error(`Failed to create group: ${convError.message}`)
     }
 
     console.log('✅ Created group conversation:', newConv.id);
@@ -248,10 +267,10 @@ async function createGroupConversation(userId: string, input: CreateGroupInput):
         .insert(allMembers.map(id => ({ conversation_id: newConv.id, user_id: id })));
 
     if (memberError) {
-        console.error('❌ Error adding members to group:', memberError);
+        logError('createGroupConversation.addMembers', memberError)
         // Try to clean up the orphaned conversation
-        await supabase.from('conversations').delete().eq('id', newConv.id);
-        throw new Error(`Failed to add members to group: ${memberError.message} (${memberError.code})`);
+        await supabase.from('conversations').delete().eq('id', newConv.id)
+        throw new Error(`Failed to add members to group: ${memberError.message}`)
     }
 
     console.log('✅ Successfully created group with all members');
@@ -281,6 +300,10 @@ export function useCreateDM() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: conversationKeys.all });
         },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to start conversation')
+            toast.error(message)
+        },
     });
 }
 
@@ -292,6 +315,10 @@ export function useCreateGroup() {
             createGroupConversation(userId, input),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+        },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to create group')
+            toast.error(message)
         },
     });
 }

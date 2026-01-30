@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { CheckCircle2, Trash2, Clock } from 'lucide-react'
+import { CheckCircle2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskCardSocial } from './task-card-social'
 import type { TaskWithUsers } from '@/lib/types'
@@ -24,7 +24,7 @@ export function SwipeableTaskCard({
   const startX = useRef(0)
   const currentX = useRef(0)
 
-  const isAssignedToMe = currentUserId === task.assigned_to
+  const isAssignedToMe = task.assignees?.some(a => a.id === currentUserId) || false
   const isAssignedByMe = currentUserId === task.assigned_by
   const canComplete = isAssignedToMe && task.status !== 'archived'
   // Only the person who assigned the task can delete it

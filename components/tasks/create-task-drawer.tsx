@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Send, Calendar, Eye, ChevronDown } from 'lucide-react'
+import { Send, CalendarDays } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { useCreateTask } from '@/hooks/use-tasks'
@@ -18,15 +17,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { UserSelector } from './user-selector'
+import { MultiUserSelector } from './multi-user-selector'
 import { cn } from '@/lib/utils'
+import { useState } from 'react'
 
 interface CreateTaskDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-// Define form schema inline to avoid type conflicts
 const taskFormSchema = z.object({
   title: z.string().min(1, 'Title is required').min(3, 'Title must be at least 3 characters'),
   description: z.string().optional(),
@@ -41,8 +40,7 @@ export function CreateTaskDrawer({ open, onOpenChange }: CreateTaskDrawerProps) 
   const router = useRouter()
   const { effectiveUser } = useAuth()
   const createTask = useCreateTask()
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
 
   const {
     register,
@@ -63,10 +61,8 @@ export function CreateTaskDrawer({ open, onOpenChange }: CreateTaskDrawerProps) 
   })
 
   const title = watch('title')
-  const description = watch('description')
   const priority = watch('priority')
   const visibility = watch('visibility')
-  const deadline = watch('deadline')
 
   const onSubmit = async (data: TaskFormData) => {
     if (!effectiveUser?.id) {
@@ -74,8 +70,8 @@ export function CreateTaskDrawer({ open, onOpenChange }: CreateTaskDrawerProps) 
       return
     }
 
-    if (!selectedUserId) {
-      toast.error('Please select someone to assign the task to')
+    if (selectedUserIds.length === 0) {
+      toast.error('Please select at least one person to assign the task to')
       return
     }
 
@@ -89,13 +85,12 @@ export function CreateTaskDrawer({ open, onOpenChange }: CreateTaskDrawerProps) 
           status: 'pending',
           visibility: data.visibility,
           deadline: data.deadline,
-          assigned_to: selectedUserId,
+          assigned_to: selectedUserIds,
         },
       })
       toast.success('Task created!')
       reset()
-      setSelectedUserId(null)
-      setShowAdvanced(false)
+      setSelectedUserIds([])
       onOpenChange(false)
       router.push('/tasks')
     } catch (error) {
@@ -104,11 +99,12 @@ export function CreateTaskDrawer({ open, onOpenChange }: CreateTaskDrawerProps) 
     }
   }
 
-  const handleClose = () => {
-    reset()
-    setSelectedUserId(null)
-    setShowAdvanced(false)
-    onOpenChange(false)
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      reset()
+      setSelectedUserIds([])
+    }
+    onOpenChange(isOpen)
   }
 
   const priorityOptions = [
@@ -118,164 +114,170 @@ export function CreateTaskDrawer({ open, onOpenChange }: CreateTaskDrawerProps) 
   ]
 
   const visibilityOptions = [
-    { value: 'private', label: 'Private', icon: '🔒' },
-    { value: 'supervisor', label: 'Supervisor', icon: '👤' },
-    { value: 'hierarchy_same', label: 'Same Level', icon: '👥' },
-    { value: 'hierarchy_above', label: 'Above Levels', icon: '⬆️' },
-    { value: 'all', label: 'Everyone', icon: '🌐' },
+    { value: 'private', label: 'Only me', description: 'Private task' },
+    { value: 'supervisor', label: 'Supervisor', description: 'My supervisor can see' },
+    { value: 'hierarchy_same', label: 'Same level', description: 'Peers can see' },
+    { value: 'hierarchy_above', label: 'Above', description: 'Higher levels can see' },
+    { value: 'all', label: 'Everyone', description: 'Visible to all' },
   ]
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side="bottom"
-        className="h-[85vh] sm:h-[90vh] p-0 flex flex-col rounded-t-3xl sm:rounded-t-2xl"
+        className="h-[90vh] p-0 flex flex-col rounded-t-2xl"
       >
-        {/* Header */}
-        <SheetHeader className="px-4 py-3 border-b flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <SheetTitle className="text-lg font-semibold">New Task</SheetTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              onClick={handleClose}
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
+        {/* Header - Clean, minimal */}
+        <SheetHeader className="px-5 py-4 border-b flex-shrink-0">
+          <SheetTitle className="text-center text-base font-semibold">New Task</SheetTitle>
         </SheetHeader>
 
         {/* Content */}
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-            {/* Title Input - WhatsApp style */}
-            <div className="space-y-2">
+          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+
+            {/* Title - Required */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Title <span className="text-destructive">*</span>
+              </label>
               <Input
                 {...register('title')}
                 placeholder="What needs to be done?"
-                className="text-base border-0 border-b rounded-none px-0 focus-visible:ring-0 focus-visible:border-primary"
+                className="h-11 text-base rounded-xl bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
                 autoFocus
               />
               {errors.title && (
-                <p className="text-sm text-destructive">{errors.title.message}</p>
+                <p className="text-xs text-destructive">{errors.title.message}</p>
               )}
             </div>
 
-            {/* Description - Auto-expanding textarea */}
-            <div className="space-y-2">
+            {/* Description - Optional */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Description <span className="text-muted-foreground/60 normal-case">(optional)</span>
+              </label>
               <Textarea
                 {...register('description')}
-                placeholder="Add details... (optional)"
-                className="min-h-[80px] resize-none border-0 bg-muted/50 rounded-2xl px-4 py-3 text-base focus-visible:ring-1"
-                rows={3}
+                placeholder="Add details..."
+                className="min-h-[72px] resize-none rounded-xl bg-muted/50 border-0 text-sm focus-visible:ring-1 focus-visible:ring-primary"
+                rows={2}
               />
-              {errors.description && (
-                <p className="text-sm text-destructive">{errors.description.message}</p>
-              )}
             </div>
 
-            {/* User Selector */}
+            {/* Assign to - Required */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Assign to <span className="text-destructive">*</span>
+              </label>
+              <MultiUserSelector
+                selectedUserIds={selectedUserIds}
+                onSelectUsers={setSelectedUserIds}
+              />
+            </div>
+
+            {/* Priority */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Assign to</label>
-              <UserSelector
-                selectedUserId={selectedUserId}
-                onSelectUser={setSelectedUserId}
-              />
-            </div>
-
-            {/* Quick Actions - Pill buttons */}
-            <div className="flex flex-wrap gap-2">
-              {/* Priority Selector */}
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Priority
+              </label>
               <div className="flex gap-2">
                 {priorityOptions.map((option) => (
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => setValue('priority', option.value as any)}
+                    onClick={() => setValue('priority', option.value as 'low' | 'medium' | 'high')}
                     className={cn(
-                      'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
-                      'border flex items-center gap-1.5',
+                      'flex-1 py-2 rounded-lg text-xs font-medium transition-all',
+                      'flex items-center justify-center gap-1.5',
                       priority === option.value
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background border-border text-muted-foreground hover:bg-muted'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
                     )}
                   >
-                    <span className={cn('w-2 h-2 rounded-full', option.color)} />
+                    <span className={cn(
+                      'w-1.5 h-1.5 rounded-full',
+                      option.color,
+                      priority !== option.value && 'opacity-60'
+                    )} />
                     {option.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Advanced Options Toggle */}
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ChevronDown
-                className={cn('h-4 w-4 transition-transform', showAdvanced && 'rotate-180')}
-              />
-              {showAdvanced ? 'Hide' : 'Show'} more options
-            </button>
-
-            {/* Advanced Options */}
-            {showAdvanced && (
-              <div className="space-y-4 pb-4">
-                {/* Deadline */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    Deadline
-                  </label>
-                  <Input
-                    type="datetime-local"
-                    {...register('deadline')}
-                    className="rounded-xl"
-                  />
-                  {errors.deadline && (
-                    <p className="text-sm text-destructive">{errors.deadline.message}</p>
+            {/* Deadline - Optional */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Deadline <span className="text-muted-foreground/60 normal-case">(optional)</span>
+              </label>
+              <div className="relative">
+                <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="datetime-local"
+                  {...register('deadline')}
+                  className={cn(
+                    'h-11 pl-10 rounded-xl bg-muted/50 border-0',
+                    'focus-visible:ring-1 focus-visible:ring-primary',
+                    'text-sm [color-scheme:light] dark:[color-scheme:dark]',
+                    // Fix calendar icon visibility
+                    '[&::-webkit-calendar-picker-indicator]:opacity-60',
+                    '[&::-webkit-calendar-picker-indicator]:cursor-pointer',
+                    'dark:[&::-webkit-calendar-picker-indicator]:invert'
                   )}
-                </div>
-
-                {/* Visibility */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                    <Eye className="h-4 w-4" />
-                    Who can see this
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {visibilityOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setValue('visibility', option.value as any)}
-                        className={cn(
-                          'px-4 py-3 rounded-xl text-sm font-medium transition-all text-left',
-                          'border flex items-center gap-2',
-                          visibility === option.value
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background border-border hover:bg-muted'
-                        )}
-                      >
-                        <span className="text-base">{option.icon}</span>
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
+                />
               </div>
-            )}
+            </div>
+
+            {/* Visibility */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Visibility
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {visibilityOptions.slice(0, 3).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setValue('visibility', option.value as TaskFormData['visibility'])}
+                    className={cn(
+                      'py-2.5 px-2 rounded-lg text-xs font-medium transition-all text-center',
+                      visibility === option.value
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {visibilityOptions.slice(3).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setValue('visibility', option.value as TaskFormData['visibility'])}
+                    className={cn(
+                      'py-2.5 px-2 rounded-lg text-xs font-medium transition-all text-center',
+                      visibility === option.value
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
           </div>
 
-          {/* Footer - Sticky send button */}
+          {/* Footer - Submit button */}
           <div className="flex-shrink-0 p-4 border-t bg-background">
             <Button
               type="submit"
-              disabled={isSubmitting || !title?.trim()}
-              className="w-full rounded-full h-12 text-base font-medium"
+              disabled={isSubmitting || !title?.trim() || selectedUserIds.length === 0}
+              className="w-full rounded-xl h-12 text-sm font-semibold"
               size="lg"
             >
               {isSubmitting ? (
@@ -285,7 +287,7 @@ export function CreateTaskDrawer({ open, onOpenChange }: CreateTaskDrawerProps) 
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Send className="h-5 w-5" />
+                  <Send className="h-4 w-4" />
                   Create Task
                 </div>
               )}

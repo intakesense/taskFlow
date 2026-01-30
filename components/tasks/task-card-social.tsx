@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { MoreVertical, MessageCircle, CheckCircle2, Clock, Flag, User, Calendar } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { MoreVertical, MessageCircle, CheckCircle2, Clock, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -12,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { StackedAvatars } from './stacked-avatars'
 import { cn } from '@/lib/utils'
 import { formatRelative, formatMessageTime } from '@/lib/utils/date'
 import type { TaskWithUsers } from '@/lib/types'
@@ -29,19 +29,10 @@ export function TaskCardSocial({
   onDelete,
   currentUserId,
 }: TaskCardSocialProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded] = useState(false)
 
-  const isAssignedToMe = currentUserId === task.assigned_to
+  const isAssignedToMe = task.assignees?.some(a => a.id === currentUserId) || false
   const isCreatedByMe = currentUserId === task.assigned_by
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
-  }
 
   const getPriorityColor = (priority: string) => {
     const colors = {
@@ -69,6 +60,14 @@ export function TaskCardSocial({
   const isOverdue =
     task.deadline && new Date(task.deadline) < new Date() && task.status !== 'archived'
 
+  // Get assignee names for display
+  const assigneeNames = task.assignees?.map(a => a.name) || []
+  const assigneeDisplay = assigneeNames.length === 0
+    ? 'Unassigned'
+    : assigneeNames.length === 1
+    ? assigneeNames[0]
+    : `${assigneeNames[0]} +${assigneeNames.length - 1}`
+
   return (
     <div
       className={cn(
@@ -80,24 +79,15 @@ export function TaskCardSocial({
       {/* Header */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-start gap-3">
-          {/* Avatar */}
+          {/* Stacked Avatars */}
           <Link href={`/tasks/${task.id}`}>
-            <Avatar className="h-11 w-11 cursor-pointer">
-              <AvatarFallback
-                className={cn(
-                  'text-sm font-medium',
-                  isAssignedToMe
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground'
-                )}
-              >
-                {task.assignee
-                  ? getInitials(task.assignee.name)
-                  : task.assigner
-                  ? getInitials(task.assigner.name)
-                  : '?'}
-              </AvatarFallback>
-            </Avatar>
+            <div className="cursor-pointer">
+              {task.assignees && task.assignees.length > 0 ? (
+                <StackedAvatars users={task.assignees} max={3} size="lg" />
+              ) : (
+                <StackedAvatars users={task.assigner ? [task.assigner] : []} max={1} size="lg" />
+              )}
+            </div>
           </Link>
 
           {/* Content */}
@@ -105,7 +95,7 @@ export function TaskCardSocial({
             {/* Name and Time */}
             <div className="flex items-center gap-2 mb-1">
               <span className="font-semibold text-sm truncate">
-                {task.assignee?.name || 'Unassigned'}
+                {assigneeDisplay}
               </span>
               <span className="text-xs text-muted-foreground flex-shrink-0">
                 {formatMessageTime(task.created_at)}
@@ -117,7 +107,13 @@ export function TaskCardSocial({
               {isAssignedToMe ? (
                 <span>Assigned by {task.assigner?.name}</span>
               ) : isCreatedByMe ? (
-                <span>You assigned to {task.assignee?.name || 'someone'}</span>
+                <span>
+                  You assigned to {assigneeNames.length > 0
+                    ? assigneeNames.length === 1
+                      ? assigneeNames[0]
+                      : `${assigneeNames.length} people`
+                    : 'someone'}
+                </span>
               ) : (
                 <span>From {task.assigner?.name}</span>
               )}
@@ -258,7 +254,7 @@ export function TaskCardSocial({
 
         {isAssignedToMe && task.status !== 'archived' && (
           <button
-            onClick={() => onStatusChange?.(task.id, 'completed')}
+            onClick={() => onStatusChange?.(task.id, 'archived')}
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-green-500 transition-colors"
           >
             <CheckCircle2 className="h-4 w-4" />

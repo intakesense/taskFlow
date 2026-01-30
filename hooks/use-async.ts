@@ -8,13 +8,13 @@ interface UseAsyncState<T> {
   error: Error | null
 }
 
-interface UseAsyncReturn<T, Args extends any[]> extends UseAsyncState<T> {
+interface UseAsyncReturn<T, Args extends unknown[]> extends UseAsyncState<T> {
   execute: (...args: Args) => Promise<T | null>
   reset: () => void
 }
 
-interface UseAsyncOptions {
-  onSuccess?: (data: any) => void
+interface UseAsyncOptions<T = unknown> {
+  onSuccess?: (data: T) => void
   onError?: (error: Error) => void
   successMessage?: string
   errorMessage?: string
@@ -35,9 +35,9 @@ interface UseAsyncOptions {
  *   {deleteTask.loading ? 'Deleting...' : 'Delete'}
  * </Button>
  */
-export function useAsync<T, Args extends any[]>(
+export function useAsync<T, Args extends unknown[]>(
   asyncFunction: (...args: Args) => Promise<T>,
-  options: UseAsyncOptions = {}
+  options: UseAsyncOptions<T> = {}
 ): UseAsyncReturn<T, Args> {
   const {
     onSuccess,

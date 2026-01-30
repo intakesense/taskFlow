@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
 import { VoiceChannelProvider } from "@/lib/voice/voice-channel-context";
-import { ThemeProvider, QueryProvider } from "@/components/providers";
+import { ThemeProvider, QueryProvider, MotionProvider } from "@/components/providers";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { RealtimeHealthMonitor } from "@/components/realtime-health-monitor";
 import { ServiceWorkerRegister } from "@/components/pwa";
@@ -58,15 +58,17 @@ export default function RootLayout({
         <ErrorBoundary>
           <QueryProvider>
             <ThemeProvider>
-              <AuthProvider>
-                <VoiceChannelProvider>
-                  {children}
-                  <Toaster />
-                  <RealtimeHealthMonitor />
-                  <ServiceWorkerRegister />
-                  <OneSignalInit />
-                </VoiceChannelProvider>
-              </AuthProvider>
+              <MotionProvider>
+                <AuthProvider>
+                  <VoiceChannelProvider>
+                    {children}
+                    <Toaster />
+                    <RealtimeHealthMonitor />
+                    <ServiceWorkerRegister />
+                    <OneSignalInit />
+                  </VoiceChannelProvider>
+                </AuthProvider>
+              </MotionProvider>
             </ThemeProvider>
           </QueryProvider>
         </ErrorBoundary>

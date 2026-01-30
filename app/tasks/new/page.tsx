@@ -46,7 +46,7 @@ export default function NewTaskPage() {
                 input: {
                     title,
                     description,
-                    assigned_to: assignedTo,
+                    assigned_to: [assignedTo],
                     priority,
                     deadline: deadline || undefined,
                     status: 'pending',
@@ -55,7 +55,7 @@ export default function NewTaskPage() {
             })
             toast.success('Task created successfully')
             router.push('/tasks')
-        } catch (error) {
+        } catch {
             toast.error('Failed to create task')
         }
     }

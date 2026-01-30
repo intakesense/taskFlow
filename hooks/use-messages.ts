@@ -1,13 +1,15 @@
 // useMessages - React Query hooks that wrap task messages service
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 import {
     getTaskMessages,
     sendMessage,
     subscribeToMessages,
     unsubscribeFromMessages
 } from '@/lib/services/messages';
-import { TaskMessageWithSender, TaskMessage } from '@/lib/types';
+import { TaskMessageWithSender } from '@/lib/types';
+import { getErrorMessage } from '@/lib/utils/error';
 
 // Query keys
 export const messageKeys = {
@@ -34,6 +36,9 @@ export function useSendMessage() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: messageKeys.task(variables.taskId) });
         },
+        onError: (error) => {
+            toast.error(getErrorMessage(error, 'Failed to send message'));
+        },
     });
 }
 
@@ -44,7 +49,8 @@ export function useRealtimeMessages(taskId: string | undefined) {
     useEffect(() => {
         if (!taskId) return;
 
-        const channel = subscribeToMessages(taskId, (newMessage: TaskMessage) => {
+        const channel = subscribeToMessages(taskId, (payload) => {
+            const newMessage = payload.new
             // Add new message to cache
             queryClient.setQueryData<TaskMessageWithSender[]>(
                 messageKeys.task(taskId),

@@ -87,9 +87,15 @@ async function fetchInitialConversations(
 
     // Process members
     if (membersResult.data) {
-      membersResult.data.forEach((item: any) => {
+      interface MemberResultItem {
+        conversation_id: string
+        last_read_at: string
+        joined_at: string
+        user: UserBasic
+      }
+      (membersResult.data as MemberResultItem[]).forEach((item) => {
         const convId = item.conversation_id
-        const itemUser = item.user as UserBasic
+        const itemUser = item.user
         if (!membersByConv.has(convId)) {
           membersByConv.set(convId, [])
           membersWithStatusByConv.set(convId, [])
@@ -107,9 +113,9 @@ async function fetchInitialConversations(
 
     // Process last messages
     if (messagesResult.data) {
-      messagesResult.data.forEach((msg: any) => {
+      (messagesResult.data as MessageWithSender[]).forEach((msg) => {
         if (!lastMessageByConv.has(msg.conversation_id)) {
-          lastMessageByConv.set(msg.conversation_id, msg as MessageWithSender)
+          lastMessageByConv.set(msg.conversation_id, msg)
         }
       })
     }
@@ -118,7 +124,12 @@ async function fetchInitialConversations(
     if (unreadMessagesResult.data) {
       const membershipMap = new Map(memberOf.map((m) => [m.conversation_id, m.last_read_at]))
 
-      unreadMessagesResult.data.forEach((msg: any) => {
+      interface UnreadMessageItem {
+        conversation_id: string
+        created_at: string
+        sender_id: string
+      }
+      (unreadMessagesResult.data as UnreadMessageItem[]).forEach((msg) => {
         const lastReadAt = membershipMap.get(msg.conversation_id)
         if (lastReadAt && msg.created_at > lastReadAt && msg.sender_id !== userId) {
           unreadCountByConv.set(

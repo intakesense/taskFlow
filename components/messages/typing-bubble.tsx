@@ -1,4 +1,8 @@
+'use client'
+
+import { m, useReducedMotion } from 'framer-motion'
 import { UserBasic } from '@/lib/types'
+import { typingBubbleVariants } from '@/lib/animations'
 
 interface TypingBubbleProps {
   typingUsers: UserBasic[]
@@ -11,6 +15,8 @@ interface TypingBubbleProps {
  * Supports single and multiple typing users with appropriate messaging.
  */
 export function TypingBubble({ typingUsers }: TypingBubbleProps) {
+  const prefersReducedMotion = useReducedMotion()
+
   if (typingUsers.length === 0) return null
 
   const displayText =
@@ -21,7 +27,13 @@ export function TypingBubble({ typingUsers }: TypingBubbleProps) {
         : `${typingUsers.length} people are typing...`
 
   return (
-    <div className="flex items-start gap-3 px-4 py-2 animate-in fade-in duration-200">
+    <m.div
+      variants={prefersReducedMotion ? undefined : typingBubbleVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className="flex items-start gap-3 px-4 py-2"
+    >
       {/* Bubble container */}
       <div className="flex items-center gap-2 px-4 py-3 bg-muted rounded-2xl rounded-bl-sm shadow-sm">
         {/* Animated dots */}
@@ -45,6 +57,6 @@ export function TypingBubble({ typingUsers }: TypingBubbleProps) {
       <span className="text-xs text-muted-foreground mt-2 flex-1">
         {displayText}
       </span>
-    </div>
+    </m.div>
   )
 }

@@ -1,11 +1,13 @@
 // useChatMessages - Message operations with React Query
 // OPTIMIZED: Fixed channel leaks, N+1 queries, and infinite loops
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useCallback, useState, useRef } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { Message, MessageWithSender, UserBasic } from '@/lib/types'
+import { Message, MessageWithSender, UserBasic, ConversationWithMembers } from '@/lib/types'
 import { conversationKeys } from './use-conversations'
 import { realtimeManager } from '@/lib/realtime-manager'
+import { logError, getErrorMessage } from '@/lib/utils/error'
 
 const supabase = createClient()
 
@@ -38,6 +40,7 @@ async function fetchMessages(conversationId: string): Promise<MessageWithSender[
     .order('created_at', { ascending: true })
 
   if (error) {
+    logError('fetchMessages', error)
     // Fallback without joins if the join fails
     const { data: messagesOnly, error: fallbackError } = await supabase
       .from('messages')
@@ -45,7 +48,10 @@ async function fetchMessages(conversationId: string): Promise<MessageWithSender[
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
 
-    if (fallbackError) throw fallbackError
+    if (fallbackError) {
+      logError('fetchMessages.fallback', fallbackError)
+      throw fallbackError
+    }
     return (messagesOnly || []).map((m: Message) => ({ ...m, sender: null, reactions: [] })) as MessageWithSender[]
   }
 
@@ -92,8 +98,8 @@ async function sendMessage(input: SendMessageInput): Promise<MessageWithSender> 
     .single()
 
   if (error) {
-    console.error('❌ Failed to send message:', error);
-    throw new Error(`Failed to send message: ${error.message} (${error.code})`);
+    logError('sendMessage', error)
+    throw new Error(`Failed to send message: ${error.message}`)
   }
 
   console.log('✅ Message sent successfully:', data.id);
@@ -112,18 +118,26 @@ async function searchMessages(query: string): Promise<MessageWithSender[]> {
     .order('created_at', { ascending: false })
     .limit(50)
 
-  if (error) throw error
+  if (error) {
+    logError('searchMessages', error)
+    throw error
+  }
   return data as MessageWithSender[]
 }
 
 // Mark messages as read
 async function markAsRead(conversationId: string, userId: string): Promise<void> {
   // Update last_read_at in conversation_members
-  await supabase
+  const { error } = await supabase
     .from('conversation_members')
     .update({ last_read_at: new Date().toISOString() })
     .eq('conversation_id', conversationId)
     .eq('user_id', userId)
+
+  if (error) {
+    logError('markAsRead', error)
+    throw error
+  }
 }
 
 // Delete message (soft delete)
@@ -133,7 +147,10 @@ async function deleteMessage(messageId: string): Promise<void> {
     .update({ is_deleted: true, content: null })
     .eq('id', messageId)
 
-  if (error) throw error
+  if (error) {
+    logError('deleteMessage', error)
+    throw error
+  }
 }
 
 // Hooks
@@ -191,7 +208,8 @@ export function useSendMessage() {
       return { previousMessages }
     },
     onError: (err, variables, context) => {
-      console.error('❌ Failed to send message:', err)
+      // Error already logged in service layer
+      toast.error(getErrorMessage(err, 'Failed to send message'))
 
       // Rollback on error
       if (context?.previousMessages) {
@@ -239,6 +257,11 @@ export function useMarkAsRead() {
       // Only invalidate conversation list (for unread count)
       queryClient.invalidateQueries({ queryKey: conversationKeys.list() })
     },
+    onError: (error) => {
+      // Don't show toast for this - it's a background operation
+      // But still log for debugging
+      logError('useMarkAsRead', error)
+    },
   })
 }
 
@@ -247,9 +270,13 @@ export function useDeleteMessage() {
 
   return useMutation({
     mutationFn: deleteMessage,
-    onSuccess: (_, messageId) => {
+    onSuccess: () => {
       // Only invalidate affected queries, not all messages
       queryClient.invalidateQueries({ queryKey: messageKeys.all })
+    },
+    onError: (error) => {
+      // Error already logged in service layer
+      toast.error(getErrorMessage(error, 'Failed to delete message'))
     },
   })
 }
@@ -279,6 +306,7 @@ export function useConversationRealtime(
   useEffect(() => {
     if (!conversationId || !currentUserId) {
       // Clear state when no conversation selected
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset state when conversation deselected
       setTypingUsers([])
       setOnlineUserIds(new Set())
       return
@@ -290,8 +318,8 @@ export function useConversationRealtime(
     const channel = realtimeManager.getOrCreateChannel(conversationId)
 
     // Handler for new messages - NOTE: Uses conversationId from closure
-    const handleNewMessage = async (payload: any) => {
-      const newMessage = payload.new as Message
+    const handleNewMessage = async (payload: { new: Message }) => {
+      const newMessage = payload.new
 
       console.log(`📨 New message received for conversation: ${newMessage.conversation_id}`)
 
@@ -302,12 +330,12 @@ export function useConversationRealtime(
       }
 
       // OPTIMIZED: Try to get sender from cache first
-      const conversationsData = queryClient.getQueryData<any>(conversationKeys.list())
+      const conversationsData = queryClient.getQueryData<ConversationWithMembers[]>(conversationKeys.list())
       let sender: UserBasic | null = null
 
       if (conversationsData) {
         // Try to find sender in cached conversation members
-        const conversation = conversationsData.find((c: any) => c.id === conversationId)
+        const conversation = conversationsData.find((c) => c.id === conversationId)
         if (conversation?.members) {
           sender = conversation.members.find((m: UserBasic) => m.id === newMessage.sender_id) || null
         }
@@ -347,13 +375,27 @@ export function useConversationRealtime(
     }
 
     // Handler for presence sync - extracts BOTH typing and online status
+    interface PresenceState {
+      user_id?: string
+      online_at?: string
+      is_typing?: boolean
+      user_name?: string
+      user_email?: string
+      user_level?: number
+      user_avatar_url?: string | null
+      typing?: boolean
+      user?: UserBasic
+      presence_ref?: string
+    }
     const handlePresenceSync = () => {
       const state = channel.presenceState()
       const typing: UserBasic[] = []
       const online = new Set<string>()
 
-      Object.values(state).forEach((presences: any) => {
-        presences.forEach((presence: any) => {
+      Object.values(state).forEach((presences) => {
+        (presences as unknown as PresenceState[]).forEach((presence) => {
+          // Skip if no user_id (shouldn't happen but guard against it)
+          if (!presence.user_id) return
           // Skip current user
           if (presence.user_id === currentUserId) return
 
@@ -404,9 +446,11 @@ export function useConversationRealtime(
         if (status === 'SUBSCRIBED') {
           console.log(`✅ Subscribed to conversation: ${conversationId}`)
         } else if (status === 'CHANNEL_ERROR') {
-          console.error(`❌ Channel error for conversation: ${conversationId}`)
+          logError('realtimeSubscription', { status, conversationId })
+          toast.error('Connection lost. Messages may not update in real-time.')
         } else if (status === 'TIMED_OUT') {
-          console.error(`⏱️ Channel timed out for conversation: ${conversationId}`)
+          logError('realtimeSubscription', { status: 'TIMED_OUT', conversationId })
+          toast.error('Connection timed out. Please refresh the page.')
         }
       })
 
@@ -425,7 +469,7 @@ export function useConversationRealtime(
       online_at: new Date().toISOString(),
       // Note: typing flag will be added by useSetTyping when user types
     }).catch((err) => {
-      console.warn('Error tracking presence:', err)
+      logError('presenceTrack', err)
     })
 
     return () => {
@@ -437,7 +481,7 @@ export function useConversationRealtime(
 
       // Clear presence for current user
       channel.untrack().catch((err) => {
-        console.warn('Error untracking presence:', err)
+        logError('presenceUntrack', err)
       })
 
       // Release channel (will only remove when ref count reaches 0)
@@ -497,12 +541,12 @@ export function useSetTyping() {
 }
 
 // Backwards compatibility exports (deprecated)
-export const useMessagesRealtime = (conversationId: string | undefined) => {
+export function useMessagesRealtime() {
   console.warn('useMessagesRealtime is deprecated. Use useConversationRealtime instead.')
   // No-op, functionality moved to useConversationRealtime
 }
 
-export const useTypingIndicator = (conversationId: string | undefined) => {
+export function useTypingIndicator() {
   console.warn('useTypingIndicator is deprecated. Use useConversationRealtime instead.')
   return []
 }

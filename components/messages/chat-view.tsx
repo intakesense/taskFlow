@@ -2,10 +2,12 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers, MessageWithSender, UserBasic } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { formatMessageTime } from '@/lib/utils/date'
+import { messageBubbleVariants, replyReferenceVariants } from '@/lib/animations'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -295,7 +297,7 @@ export function ChatView({
                         <p>No messages yet. Say hi!</p>
                     </div>
                 ) : (
-                    <>
+                    <AnimatePresence mode="popLayout" initial={false}>
                         {messages.map((message) => (
                             <MessageBubble
                                 key={message.id}
@@ -308,37 +310,45 @@ export function ChatView({
                                 onReply={handleReply}
                             />
                         ))}
-                        <TypingBubble typingUsers={typingUsers} />
-                    </>
+                        <TypingBubble key="typing" typingUsers={typingUsers} />
+                    </AnimatePresence>
                 )}
                 <div ref={messagesEndRef} />
             </div>
 
             {/* Reply Preview */}
-            {replyingTo && (
-                <div className="px-4 py-3 border-t border-border bg-muted/50 flex items-center gap-3">
-                    <div className="w-1 h-12 bg-primary rounded-full flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-primary">
-                            Replying to {replyingTo.sender?.name || 'Unknown'}
-                        </p>
-                        <p className="text-sm text-muted-foreground truncate">
-                            {replyingTo.content || (replyingTo.file_name ? `File: ${replyingTo.file_name}` : 'Message')}
-                        </p>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10 rounded-full touch-manipulation flex-shrink-0"
-                        onClick={() => {
-                            haptics.light()
-                            setReplyingTo(null)
-                        }}
+            <AnimatePresence>
+                {replyingTo && (
+                    <m.div
+                        variants={replyReferenceVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        className="px-4 py-3 border-t border-border bg-muted/50 flex items-center gap-3 overflow-hidden"
                     >
-                        <X className="h-5 w-5" />
-                    </Button>
-                </div>
-            )}
+                        <div className="w-1 h-12 bg-primary rounded-full flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-primary">
+                                Replying to {replyingTo.sender?.name || 'Unknown'}
+                            </p>
+                            <p className="text-sm text-muted-foreground truncate">
+                                {replyingTo.content || (replyingTo.file_name ? `File: ${replyingTo.file_name}` : 'Message')}
+                            </p>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 rounded-full touch-manipulation flex-shrink-0"
+                            onClick={() => {
+                                haptics.light()
+                                setReplyingTo(null)
+                            }}
+                        >
+                            <X className="h-5 w-5" />
+                        </Button>
+                    </m.div>
+                )}
+            </AnimatePresence>
 
             {/* Input */}
             {showVoiceRecorder ? (
@@ -582,20 +592,38 @@ function MessageBubble({
     const showAvatar = isGroupChat && !isOwn && prevMessage?.sender_id !== message.sender_id
     const showSenderName = isGroupChat && !isOwn && prevMessage?.sender_id !== message.sender_id
 
+    const prefersReducedMotion = useReducedMotion()
+
     if (message.is_deleted) {
         return (
-            <div className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}>
+            <m.div
+                layout
+                custom={isOwn}
+                variants={prefersReducedMotion ? undefined : messageBubbleVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}
+            >
                 {/* Avatar placeholder for alignment in groups */}
                 {isGroupChat && !isOwn && <div className="w-8 mr-2 flex-shrink-0" />}
                 <div className="px-4 py-2 rounded-xl bg-muted/50 text-muted-foreground italic text-sm">
                     Message deleted
                 </div>
-            </div>
+            </m.div>
         )
     }
 
     return (
-        <div className={cn('flex group', isOwn ? 'justify-end' : 'justify-start')}>
+        <m.div
+            layout
+            custom={isOwn}
+            variants={prefersReducedMotion ? undefined : messageBubbleVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className={cn('flex group', isOwn ? 'justify-end' : 'justify-start')}
+        >
             {/* Avatar for group chats (other people's messages only) */}
             {isGroupChat && !isOwn && (
                 <div className="w-8 mr-2 flex-shrink-0 self-end">
@@ -828,6 +856,6 @@ function MessageBubble({
                     />
                 )}
             </div>
-        </div>
+        </m.div>
     )
 }

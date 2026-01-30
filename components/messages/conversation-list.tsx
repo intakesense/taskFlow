@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useAuth } from '@/lib/auth-context'
 import { ConversationWithMembers } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useFormattedTimestamp } from '@/lib/global-clock'
+import { listContainerVariants, listItemVariants, badgeVariants, springs } from '@/lib/animations'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -97,15 +99,23 @@ export function ConversationList({
                         )}
                     </div>
                 ) : (
-                    filteredConversations.map((conv) => (
-                        <ConversationItem
-                            key={conv.id}
-                            conversation={conv}
-                            currentUserId={profile?.id}
-                            isSelected={selectedId === conv.id}
-                            onClick={() => onSelect(conv)}
-                        />
-                    ))
+                    <m.div
+                        variants={listContainerVariants}
+                        initial="initial"
+                        animate="animate"
+                    >
+                        <AnimatePresence mode="popLayout">
+                            {filteredConversations.map((conv) => (
+                                <ConversationItem
+                                    key={conv.id}
+                                    conversation={conv}
+                                    currentUserId={profile?.id}
+                                    isSelected={selectedId === conv.id}
+                                    onClick={() => onSelect(conv)}
+                                />
+                            ))}
+                        </AnimatePresence>
+                    </m.div>
                 )}
             </div>
         </div>
@@ -119,11 +129,27 @@ interface ConversationItemProps {
     onClick: () => void
 }
 
-function ConversationItem({ conversation, currentUserId, isSelected, onClick }: ConversationItemProps) {
+function ConversationItem({ conversation, currentUserId, isSelected, onClick }: Omit<ConversationItemProps, 'index'>) {
     const name = getConversationName(conversation, currentUserId)
     const { initials, imageUrl } = getConversationAvatar(conversation, currentUserId)
     const lastMessage = conversation.lastMessage
     const unread = conversation.unreadCount || 0
+    const prevUnreadRef = useRef(unread)
+    const prefersReducedMotion = useReducedMotion()
+    const [shouldPulse, setShouldPulse] = useState(false)
+
+    // Track if unread increased for pulse animation
+    // Using flushSync-free pattern: schedule state update via microtask
+    useEffect(() => {
+        if (unread > prevUnreadRef.current) {
+            // Schedule state update to avoid synchronous setState in effect
+            queueMicrotask(() => setShouldPulse(true))
+            const timeout = setTimeout(() => setShouldPulse(false), 300)
+            prevUnreadRef.current = unread
+            return () => clearTimeout(timeout)
+        }
+        prevUnreadRef.current = unread
+    }, [unread])
 
     // Use reactive timestamp from global clock (single interval for all timestamps)
     const timestamp = useFormattedTimestamp(lastMessage?.created_at, 'message')
@@ -134,11 +160,19 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
     }
 
     return (
-        <button
+        <m.button
+            layout
+            variants={prefersReducedMotion ? undefined : listItemVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            whileHover={prefersReducedMotion ? undefined : { x: 4 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.99 }}
+            transition={springs.fast}
             onClick={handleClick}
             className={cn(
-                'w-full flex items-center gap-3 p-4 transition-all text-left border-l-2',
-                'hover:bg-accent/50 active:bg-accent/70 active:scale-[0.99]',
+                'w-full flex items-center gap-3 p-4 transition-colors text-left border-l-2',
+                'hover:bg-accent/50',
                 'touch-manipulation min-h-[72px]',
                 isSelected
                     ? 'bg-accent border-l-primary'
@@ -181,11 +215,21 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
                     )}>
                         {lastMessage?.content || (lastMessage?.file_name ? '📎 ' + lastMessage.file_name : 'No messages yet')}
                     </p>
-                    {unread > 0 && (
-                        <Badge className="ml-2 bg-primary text-primary-foreground flex-shrink-0 min-w-[22px] h-[22px] justify-center text-xs font-semibold">
-                            {unread > 99 ? '99+' : unread}
-                        </Badge>
-                    )}
+                    <AnimatePresence mode="wait">
+                        {unread > 0 && (
+                            <m.div
+                                key="badge"
+                                variants={prefersReducedMotion ? undefined : badgeVariants}
+                                initial="initial"
+                                animate={shouldPulse ? "pulse" : "animate"}
+                                exit="exit"
+                            >
+                                <Badge className="ml-2 bg-primary text-primary-foreground flex-shrink-0 min-w-[22px] h-[22px] justify-center text-xs font-semibold">
+                                    {unread > 99 ? '99+' : unread}
+                                </Badge>
+                            </m.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
 
@@ -195,7 +239,7 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
                     isSelected ? 'text-primary' : 'text-muted-foreground'
                 )} />
             )}
-        </button>
+        </m.button>
     )
 }
 

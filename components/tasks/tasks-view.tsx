@@ -1,7 +1,11 @@
+'use client'
+
 // Tasks View - Pure presentational component
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { TaskWithUsers, TaskStatus as TaskStatusType } from '@/lib/types';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/constants';
 import { formatDateShort } from '@/lib/utils/date';
+import { taskCardVariants, listContainerVariants } from '@/lib/animations';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,47 +39,64 @@ function PriorityDot({ priority }: { priority: string }) {
     return <span className={`w-2 h-2 rounded-full ${config.dotColor}`} />;
 }
 
-function TaskCard({ task }: { task: TaskWithUsers }) {
+function TaskCard({ task, index }: { task: TaskWithUsers; index: number }) {
+    const prefersReducedMotion = useReducedMotion();
+
     return (
-        <Link href={`/tasks/${task.id}`}>
-            <Card className="bg-card/50 border-border hover:bg-card transition-all cursor-pointer group" data-slot="card">
-                <CardContent className="p-4 lg:p-6">
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2">
-                                <PriorityDot priority={task.priority} />
-                                <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                                    {task.title}
-                                </h3>
-                            </div>
-                            {task.description && (
-                                <p className="text-sm text-muted-foreground line-clamp-1 mb-3">
-                                    {task.description}
-                                </p>
-                            )}
-                            <div className="flex flex-wrap items-center gap-3 text-sm">
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <User className="h-4 w-4" />
-                                    <span>From: {task.assigner?.name}</span>
+        <m.div
+            layout
+            variants={prefersReducedMotion ? undefined : taskCardVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            whileHover={prefersReducedMotion ? undefined : "hover"}
+            whileTap={prefersReducedMotion ? undefined : "tap"}
+            custom={index}
+        >
+            <Link href={`/tasks/${task.id}`}>
+                <Card className="bg-card/50 border-border hover:bg-card transition-colors cursor-pointer group" data-slot="card">
+                    <CardContent className="p-4 lg:p-6">
+                        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <PriorityDot priority={task.priority} />
+                                    <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                                        {task.title}
+                                    </h3>
                                 </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <span>To: {task.assignee?.name}</span>
-                                </div>
-                                {task.deadline && (
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Calendar className="h-4 w-4" />
-                                        <span>{formatDateShort(task.deadline)}</span>
-                                    </div>
+                                {task.description && (
+                                    <p className="text-sm text-muted-foreground line-clamp-1 mb-3">
+                                        {task.description}
+                                    </p>
                                 )}
+                                <div className="flex flex-wrap items-center gap-3 text-sm">
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <User className="h-4 w-4" />
+                                        <span>From: {task.assigner?.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <span>To: {task.assignees?.length === 1
+                                            ? task.assignees[0].name
+                                            : task.assignees?.length
+                                                ? `${task.assignees.length} people`
+                                                : 'Unassigned'}</span>
+                                    </div>
+                                    {task.deadline && (
+                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                            <Calendar className="h-4 w-4" />
+                                            <span>{formatDateShort(task.deadline)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <StatusBadge status={task.status} />
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <StatusBadge status={task.status} />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-        </Link>
+                    </CardContent>
+                </Card>
+            </Link>
+        </m.div>
     );
 }
 
@@ -160,11 +181,18 @@ export function TasksView({
                     </CardContent>
                 </Card>
             ) : (
-                <div className="grid gap-4">
-                    {tasks.map((task) => (
-                        <TaskCard key={task.id} task={task} />
-                    ))}
-                </div>
+                <m.div
+                    className="grid gap-4"
+                    variants={listContainerVariants}
+                    initial="initial"
+                    animate="animate"
+                >
+                    <AnimatePresence mode="popLayout">
+                        {tasks.map((task, index) => (
+                            <TaskCard key={task.id} task={task} index={index} />
+                        ))}
+                    </AnimatePresence>
+                </m.div>
             )}
         </div>
     );

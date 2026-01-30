@@ -256,29 +256,129 @@ export type Database = {
           },
         ]
       }
+      task_assignees: {
+        Row: {
+          assigned_at: string | null
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_assignees_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_message_reactions: {
+        Row: {
+          created_at: string | null
+          emoji: string
+          id: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          emoji: string
+          id?: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          emoji?: string
+          id?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "task_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_message_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_messages: {
         Row: {
+          content: string | null
           created_at: string
+          file_name: string | null
+          file_size: number | null
+          file_type: string | null
+          file_url: string | null
           id: string
+          is_deleted: boolean | null
           message: string
+          reply_to_id: string | null
           sender_id: string
           task_id: string
         }
         Insert: {
+          content?: string | null
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
+          is_deleted?: boolean | null
           message: string
+          reply_to_id?: string | null
           sender_id: string
           task_id: string
         }
         Update: {
+          content?: string | null
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
+          is_deleted?: boolean | null
           message?: string
+          reply_to_id?: string | null
           sender_id?: string
           task_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "task_messages"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "task_messages_sender_id_fkey"
             columns: ["sender_id"]
@@ -341,7 +441,6 @@ export type Database = {
         Row: {
           archived_at: string | null
           assigned_by: string
-          assigned_to: string
           created_at: string
           deadline: string | null
           description: string
@@ -356,7 +455,6 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           assigned_by: string
-          assigned_to: string
           created_at?: string
           deadline?: string | null
           description?: string
@@ -371,7 +469,6 @@ export type Database = {
         Update: {
           archived_at?: string | null
           assigned_by?: string
-          assigned_to?: string
           created_at?: string
           deadline?: string | null
           description?: string
@@ -387,13 +484,6 @@ export type Database = {
           {
             foreignKeyName: "tasks_assigned_by_fkey"
             columns: ["assigned_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tasks_assigned_to_fkey"
-            columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -624,6 +714,10 @@ export type Database = {
         Returns: number
       }
       is_admin: { Args: { user_id: string }; Returns: boolean }
+      is_task_assignee: {
+        Args: { p_task_id: string; p_user_id: string }
+        Returns: boolean
+      }
       user_conversation_ids: { Args: { user_id: string }; Returns: string[] }
     }
     Enums: {

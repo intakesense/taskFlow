@@ -2,12 +2,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
+import { getErrorMessage } from '@/lib/utils/error';
 import {
     getTasks,
     getTaskById,
     createTask,
     updateTask,
     deleteTask,
+    updateTaskAssignees,
+    addTaskAssignee,
+    removeTaskAssignee,
     CreateTaskInput,
     UpdateTaskInput
 } from '@/lib/services/tasks';
@@ -56,8 +60,10 @@ export function useCreateTask() {
             haptics.success();
             queryClient.invalidateQueries({ queryKey: taskKeys.all });
         },
-        onError: () => {
+        onError: (error) => {
             haptics.error();
+            const message = getErrorMessage(error, 'Failed to create task');
+            toast.error(message);
         },
     });
 }
@@ -95,12 +101,13 @@ export function useUpdateTask() {
         },
 
         // Rollback on error
-        onError: (_err, _variables, context) => {
+        onError: (error, _variables, context) => {
             haptics.error();
             if (context?.previousTasks) {
                 queryClient.setQueryData(taskKeys.lists(), context.previousTasks);
             }
-            toast.error('Failed to update task');
+            const message = getErrorMessage(error, 'Failed to update task');
+            toast.error(message);
         },
 
         onSuccess: () => {
@@ -138,12 +145,13 @@ export function useDeleteTask() {
             return { previousTasks };
         },
 
-        onError: (_err, _taskId, context) => {
+        onError: (error, _taskId, context) => {
             haptics.error();
             if (context?.previousTasks) {
                 queryClient.setQueryData(taskKeys.lists(), context.previousTasks);
             }
-            toast.error('Failed to delete task');
+            const message = getErrorMessage(error, 'Failed to delete task');
+            toast.error(message);
         },
 
         onSuccess: () => {
@@ -152,6 +160,71 @@ export function useDeleteTask() {
 
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: taskKeys.all });
+        },
+    });
+}
+
+// Multi-assignee management hooks
+
+export function useUpdateTaskAssignees() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ taskId, userIds }: { taskId: string; userIds: string[] }) =>
+            updateTaskAssignees(taskId, userIds),
+        onMutate: () => {
+            haptics.light();
+        },
+        onSuccess: () => {
+            haptics.success();
+            queryClient.invalidateQueries({ queryKey: taskKeys.all });
+        },
+        onError: (error) => {
+            haptics.error();
+            const message = getErrorMessage(error, 'Failed to update assignees');
+            toast.error(message);
+        },
+    });
+}
+
+export function useAddTaskAssignee() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ taskId, userId }: { taskId: string; userId: string }) =>
+            addTaskAssignee(taskId, userId),
+        onMutate: () => {
+            haptics.light();
+        },
+        onSuccess: () => {
+            haptics.success();
+            queryClient.invalidateQueries({ queryKey: taskKeys.all });
+        },
+        onError: (error) => {
+            haptics.error();
+            const message = getErrorMessage(error, 'Failed to add assignee');
+            toast.error(message);
+        },
+    });
+}
+
+export function useRemoveTaskAssignee() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ taskId, userId }: { taskId: string; userId: string }) =>
+            removeTaskAssignee(taskId, userId),
+        onMutate: () => {
+            haptics.light();
+        },
+        onSuccess: () => {
+            haptics.success();
+            queryClient.invalidateQueries({ queryKey: taskKeys.all });
+        },
+        onError: (error) => {
+            haptics.error();
+            const message = getErrorMessage(error, 'Failed to remove assignee');
+            toast.error(message);
         },
     });
 }

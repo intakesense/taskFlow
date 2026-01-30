@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout'
@@ -23,31 +23,21 @@ import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
 import { toast } from 'sonner'
 import { User as UserType } from '@/lib/types'
 
-// OneSignal SDK types for notification settings
-interface OneSignalInstance {
-    Notifications: {
-        permission: boolean
-        permissionNative: 'default' | 'granted' | 'denied'
-        requestPermission: () => Promise<void>
-    }
-    User: {
-        PushSubscription: {
-            optIn: () => Promise<void>
-            optOut: () => Promise<void>
-            optedIn: boolean
-        }
-    }
+// Client-only mounting hook using useSyncExternalStore (avoids setState in effect)
+const emptySubscribe = () => () => {}
+function useHasMounted() {
+    return useSyncExternalStore(
+        emptySubscribe,
+        () => true,  // Client: mounted
+        () => false  // Server: not mounted
+    )
 }
 
 export default function SettingsPage() {
     const { profile } = useAuth()
-    const [mounted, setMounted] = useState(false)
+    const hasMounted = useHasMounted()
 
-    useEffect(() => {
-        setMounted(true)
-    }, [])
-
-    if (!mounted) {
+    if (!hasMounted) {
         return (
             <DashboardLayout>
                 <div className="p-6 lg:p-8 flex items-center justify-center h-64">

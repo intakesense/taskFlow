@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Search, Check, ChevronRight } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
@@ -29,16 +29,14 @@ export function UserSelector({ selectedUserId, onSelectUser }: UserSelectorProps
 
   const selectedUser = users.find((u) => u.id === selectedUserId)
 
-  const filteredUsers = useMemo(() => {
-    if (!search.trim()) return users
-
-    const searchLower = search.toLowerCase()
-    return users.filter(
-      (user) =>
-        user.name.toLowerCase().includes(searchLower) ||
-        user.email.toLowerCase().includes(searchLower)
-    )
-  }, [users, search])
+  // Filter users based on search - React Compiler optimizes this automatically
+  const filteredUsers = !search.trim()
+    ? users
+    : users.filter(
+        (user) =>
+          user.name.toLowerCase().includes(search.toLowerCase()) ||
+          user.email.toLowerCase().includes(search.toLowerCase())
+      )
 
   const handleSelectUser = (user: User) => {
     onSelectUser(user.id)

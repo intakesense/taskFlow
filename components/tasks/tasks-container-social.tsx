@@ -41,7 +41,7 @@ export function TasksContainerSocial() {
       }
 
       // Type filter
-      if (typeFilter === 'assigned' && task.assigned_to !== effectiveUser?.id) {
+      if (typeFilter === 'assigned' && !task.assignees?.some(a => a.id === effectiveUser?.id)) {
         return false
       }
       if (typeFilter === 'created' && task.assigned_by !== effectiveUser?.id) {
@@ -56,7 +56,7 @@ export function TasksContainerSocial() {
     try {
       await updateTask.mutateAsync({
         id: taskId,
-        input: { status: status as any },
+        input: { status: status as 'pending' | 'in_progress' | 'on_hold' | 'archived' },
       })
       toast.success('Task updated')
     } catch (error) {

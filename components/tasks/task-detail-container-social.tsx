@@ -1,8 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { toast } from 'sonner'
 import {
   useTask,
   useTaskMessages,
@@ -10,6 +8,7 @@ import {
   useUpdateTask,
   useDeleteTask,
   useSendTaskMessage,
+  useSetTaskReaction,
 } from '@/hooks'
 import { TaskDetailChatView } from './task-detail-chat-view'
 import { DashboardLayout } from '@/components/layout'
@@ -20,7 +19,6 @@ interface TaskDetailContainerSocialProps {
 }
 
 export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialProps) {
-  const router = useRouter()
   const { effectiveUser } = useAuth()
 
   // Queries
@@ -34,20 +32,54 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
   const sendMessage = useSendTaskMessage()
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
+  const setReaction = useSetTaskReaction()
 
   // Handlers
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (params: {
+    content?: string
+    fileUrl?: string
+    fileName?: string
+    fileSize?: number
+    fileType?: string
+    replyToId?: string
+  }) => {
     if (!effectiveUser) return
 
     await sendMessage.mutateAsync({
       taskId,
       senderId: effectiveUser.id,
-      message: content,
+      content: params.content,
+      fileUrl: params.fileUrl,
+      fileName: params.fileName,
+      fileSize: params.fileSize,
+      fileType: params.fileType,
+      replyToId: params.replyToId,
+    })
+  }
+
+  const handleReact = async (messageId: string, emoji: string, currentEmoji?: string) => {
+    if (!effectiveUser) return
+
+    await setReaction.mutateAsync({
+      messageId,
+      taskId,
+      userId: effectiveUser.id,
+      emoji,
+      user: {
+        id: effectiveUser.id,
+        name: effectiveUser.name || '',
+        email: effectiveUser.email || '',
+        level: effectiveUser.level || 1,
+        avatar_url: effectiveUser.avatar_url,
+      },
+      currentEmoji,
     })
   }
 
   const handleStatusChange = async (status: string, reason?: string) => {
-    const input: any = { status }
+    const input: { status: import('@/lib/types').TaskStatus; on_hold_reason?: string } = {
+      status: status as import('@/lib/types').TaskStatus
+    }
     if (reason) {
       input.on_hold_reason = reason
     }
@@ -91,10 +123,19 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
         task={task}
         messages={messages}
         currentUserId={effectiveUser.id}
+        currentUser={{
+          id: effectiveUser.id,
+          name: effectiveUser.name || '',
+          email: effectiveUser.email || '',
+          level: effectiveUser.level || 1,
+          avatar_url: effectiveUser.avatar_url,
+        }}
         onSendMessage={handleSendMessage}
         onStatusChange={handleStatusChange}
         onDelete={handleDelete}
+        onReact={handleReact}
         isLoadingMessages={loadingMessages}
+        isSending={sendMessage.isPending}
       />
     </DashboardLayout>
   )

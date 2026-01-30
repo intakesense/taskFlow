@@ -1,9 +1,27 @@
 'use client'
 
-import { useState } from 'react'
-import { File, FileText, FileAudio, FileVideo, Image as ImageIcon, Download } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import Image from 'next/image'
+import { File, FileText, FileAudio, FileVideo, Image as ImageIcon, Download, LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FilePreviewModal } from './file-preview-modal'
+
+// File icon mapping - declared outside component to avoid recreation
+const FILE_ICONS: Record<string, LucideIcon> = {
+  image: ImageIcon,
+  pdf: FileText,
+  video: FileVideo,
+  audio: FileAudio,
+  default: File,
+}
+
+function getFileIconType(fileType: string): keyof typeof FILE_ICONS {
+  if (fileType.startsWith('image/')) return 'image'
+  if (fileType === 'application/pdf') return 'pdf'
+  if (fileType.startsWith('video/')) return 'video'
+  if (fileType.startsWith('audio/')) return 'audio'
+  return 'default'
+}
 
 interface FileAttachmentProps {
   fileUrl: string
@@ -27,15 +45,7 @@ export function FileAttachment({
   const isVideo = fileType.startsWith('video/')
   const isAudio = fileType.startsWith('audio/')
 
-  const getFileIcon = () => {
-    if (isImage) return ImageIcon
-    if (isPDF) return FileText
-    if (isVideo) return FileVideo
-    if (isAudio) return FileAudio
-    return File
-  }
-
-  const FileIcon = getFileIcon()
+  const FileIcon = useMemo(() => FILE_ICONS[getFileIconType(fileType)], [fileType])
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return ''
@@ -63,10 +73,13 @@ export function FileAttachment({
             className
           )}
         >
-          <img
+          <Image
             src={fileUrl}
             alt={fileName}
+            width={400}
+            height={256}
             className="w-full h-auto max-h-64 object-cover rounded-lg"
+            unoptimized
           />
           {/* Overlay on hover */}
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">

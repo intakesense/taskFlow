@@ -1,5 +1,6 @@
 // useNotes - React Query hooks that wrap task notes service
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
     getTaskNotes,
     addNote,
@@ -10,6 +11,7 @@ import {
     CreateNoteInput
 } from '@/lib/services/notes';
 import { Visibility } from '@/lib/types';
+import { getErrorMessage } from '@/lib/utils/error';
 
 // Query keys
 export const noteKeys = {
@@ -39,6 +41,10 @@ export function useCreateNote() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: noteKeys.task(variables.input.task_id) });
         },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to add note');
+            toast.error(message);
+        },
     });
 }
 
@@ -51,6 +57,10 @@ export function useUpdateNote() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: noteKeys.all });
         },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to update note');
+            toast.error(message);
+        },
     });
 }
 
@@ -61,6 +71,10 @@ export function useDeleteNote() {
         mutationFn: deleteNote,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: noteKeys.all });
+        },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to delete note');
+            toast.error(message);
         },
     });
 }

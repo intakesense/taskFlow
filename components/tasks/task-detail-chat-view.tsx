@@ -1,11 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
-  Send,
   ArrowLeft,
   MoreVertical,
   CheckCircle2,
@@ -13,15 +10,15 @@ import {
   Pause,
   Trash2,
   Calendar,
-  Flag,
   Eye,
   User,
-  Paperclip,
   MessageCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { handleError } from '@/lib/utils/error'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { StackedAvatars } from './stacked-avatars'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -39,68 +36,80 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { formatMessageTime } from '@/lib/utils/date'
-import type { TaskWithUsers, TaskMessageWithSender } from '@/lib/types'
-
-const messageSchema = z.object({
-  content: z.string().min(1, 'Message cannot be empty'),
-})
-
-type MessageFormData = z.infer<typeof messageSchema>
+import { listContainerVariants } from '@/lib/animations'
+import { ChatBubble, ChatInput } from '@/components/chat'
+import type { ChatMessage } from '@/components/chat'
+import type { TaskWithUsers, TaskMessageWithSender, UserBasic } from '@/lib/types'
+import { groupTaskReactions, getUserTaskReaction } from '@/hooks/use-task-messages'
 
 interface TaskDetailChatViewProps {
   task: TaskWithUsers
   messages: TaskMessageWithSender[]
   currentUserId: string
-  onSendMessage: (content: string) => Promise<void>
+  currentUser?: UserBasic | null
+  onSendMessage: (params: {
+    content?: string
+    fileUrl?: string
+    fileName?: string
+    fileSize?: number
+    fileType?: string
+    replyToId?: string
+  }) => Promise<void>
   onStatusChange: (status: string, reason?: string) => Promise<void>
   onDelete: () => Promise<void>
+  onReact?: (messageId: string, emoji: string, currentEmoji?: string) => Promise<void>
   isLoadingMessages?: boolean
+  isSending?: boolean
 }
 
 export function TaskDetailChatView({
   task,
   messages,
   currentUserId,
+  currentUser,
   onSendMessage,
   onStatusChange,
   onDelete,
+  onReact,
   isLoadingMessages,
+  isSending,
 }: TaskDetailChatViewProps) {
   const router = useRouter()
+  const prefersReducedMotion = useReducedMotion()
   const [showOnHoldDialog, setShowOnHoldDialog] = useState(false)
   const [onHoldReason, setOnHoldReason] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
+  const [inputValue, setInputValue] = useState('')
+  const [replyingTo, setReplyingTo] = useState<{
+    id: string
+    senderName: string
+    content: string | null
+    fileName?: string | null
+  } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { isSubmitting },
-  } = useForm<MessageFormData>({
-    resolver: zodResolver(messageSchema),
-  })
-
-  const messageContent = watch('content')
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const onSubmit = async (data: MessageFormData) => {
+  const handleSend = useCallback(async () => {
+    if (!inputValue.trim()) return
+
     try {
-      await onSendMessage(data.content)
-      reset()
+      await onSendMessage({
+        content: inputValue.trim(),
+        replyToId: replyingTo?.id,
+      })
+      setInputValue('')
+      setReplyingTo(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to send message'
       toast.error(message)
     }
-  }
+  }, [inputValue, replyingTo, onSendMessage])
 
   const handleStatusChange = async (status: string) => {
     if (status === 'on_hold') {
@@ -112,7 +121,8 @@ export function TaskDetailChatView({
       await onStatusChange(status)
       toast.success('Task status updated')
     } catch (error) {
-      toast.error('Failed to update status')
+      const message = handleError('handleStatusChange', error, 'Failed to update status')
+      toast.error(message)
     }
   }
 
@@ -123,7 +133,8 @@ export function TaskDetailChatView({
       setOnHoldReason('')
       toast.success('Task put on hold')
     } catch (error) {
-      toast.error('Failed to update status')
+      const message = handleError('handleOnHoldSubmit', error, 'Failed to update status')
+      toast.error(message)
     }
   }
 
@@ -135,17 +146,9 @@ export function TaskDetailChatView({
       toast.success('Task deleted')
       router.push('/tasks')
     } catch (error) {
-      toast.error('Failed to delete task')
+      const message = handleError('handleDelete', error, 'Failed to delete task')
+      toast.error(message)
     }
-  }
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
   }
 
   const getPriorityColor = (priority: string) => {
@@ -169,10 +172,44 @@ export function TaskDetailChatView({
   }
 
   const statusInfo = getStatusInfo(task.status)
-  const isAssignedToMe = currentUserId === task.assigned_to
+  const isAssignedToMe = task.assignees?.some(a => a.id === currentUserId) || false
   const isAssignedByMe = currentUserId === task.assigned_by
+  const isParticipant = isAssignedToMe || isAssignedByMe
   const canChangeStatus = isAssignedToMe
   const canDelete = isAssignedByMe
+  const isGroupTask = (task.assignees?.length || 0) > 1
+
+  // Convert TaskMessageWithSender to ChatMessage format
+  const convertToChatMessage = (msg: TaskMessageWithSender): ChatMessage => ({
+    id: msg.id,
+    content: msg.content || msg.message || null,
+    created_at: msg.created_at,
+    sender_id: msg.sender_id,
+    sender: msg.sender,
+    is_deleted: msg.is_deleted,
+    file_url: msg.file_url,
+    file_name: msg.file_name,
+    file_size: msg.file_size,
+    file_type: msg.file_type,
+    reply_to_id: msg.reply_to_id,
+    reactions: msg.reactions?.map(r => ({
+      id: r.id,
+      emoji: r.emoji,
+      user_id: r.user_id,
+      user: r.user,
+    })),
+  })
+
+  const chatMessages: ChatMessage[] = messages.map(convertToChatMessage)
+
+  // Determine which messages should show avatar/name (first in a sequence from same sender)
+  const shouldShowAvatarForMessage = (index: number): boolean => {
+    if (!isGroupTask) return false
+    const message = messages[index]
+    if (message.sender_id === currentUserId) return false
+    const prevMessage = index > 0 ? messages[index - 1] : null
+    return !prevMessage || prevMessage.sender_id !== message.sender_id
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -188,15 +225,23 @@ export function TaskDetailChatView({
             <ArrowLeft className="h-5 w-5" />
           </Button>
 
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
-              {task.assignee ? getInitials(task.assignee.name) : '?'}
-            </AvatarFallback>
-          </Avatar>
+          {task.assignees && task.assignees.length > 0 ? (
+            <StackedAvatars users={task.assignees} max={3} size="md" showTooltip={false} />
+          ) : (
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="bg-muted text-muted-foreground text-sm font-medium">
+                ?
+              </AvatarFallback>
+            </Avatar>
+          )}
 
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-sm truncate">
-              {task.assignee?.name || 'Unassigned'}
+              {task.assignees?.length === 1
+                ? task.assignees[0].name
+                : task.assignees?.length
+                  ? `${task.assignees.length} people`
+                  : 'Unassigned'}
             </div>
             <div className="text-xs text-muted-foreground truncate">
               {task.title}
@@ -320,8 +365,13 @@ export function TaskDetailChatView({
         )}
       </div>
 
-      {/* Messages Area - WhatsApp Style */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      {/* Messages Area - Using shared ChatBubble */}
+      <m.div
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        variants={prefersReducedMotion ? undefined : listContainerVariants}
+        initial="initial"
+        animate="animate"
+      >
         {isLoadingMessages ? (
           <div className="flex items-center justify-center py-8">
             <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -333,49 +383,52 @@ export function TaskDetailChatView({
             <p className="text-xs">Start the conversation</p>
           </div>
         ) : (
-          messages.map((message) => {
-            const isMe = message.sender_id === currentUserId
-            return (
-              <div
-                key={message.id}
-                className={cn('flex gap-2', isMe ? 'flex-row-reverse' : 'flex-row')}
-              >
-                {!isMe && (
-                  <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarFallback className="bg-muted text-xs">
-                      {getInitials(message.sender?.name || 'U')}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-                <div
-                  className={cn(
-                    'max-w-[75%] rounded-2xl px-4 py-2',
-                    isMe
-                      ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                      : 'bg-muted rounded-tl-sm'
-                  )}
-                >
-                  {!isMe && (
-                    <div className="text-xs font-medium mb-1 opacity-70">
-                      {message.sender?.name}
-                    </div>
-                  )}
-                  <p className="text-sm whitespace-pre-wrap break-words">{message.message}</p>
-                  <div
-                    className={cn(
-                      'text-[10px] mt-1',
-                      isMe ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                    )}
-                  >
-                    {formatMessageTime(message.created_at)}
-                  </div>
-                </div>
-              </div>
-            )
-          })
+          <AnimatePresence mode="popLayout">
+            {messages.map((message, index) => {
+              const isMe = message.sender_id === currentUserId
+              const showAvatar = shouldShowAvatarForMessage(index)
+              const showSenderName = showAvatar
+              const chatMessage = convertToChatMessage(message)
+              const groupedReactions = groupTaskReactions(message.reactions, currentUserId)
+              const userCurrentEmoji = getUserTaskReaction(message.reactions, currentUserId)
+
+              return (
+                <ChatBubble
+                  key={message.id}
+                  message={chatMessage}
+                  allMessages={chatMessages}
+                  isOwn={isMe}
+                  currentUser={currentUser}
+                  isGroupChat={isGroupTask}
+                  showAvatar={showAvatar}
+                  showSenderName={showSenderName}
+                  groupedReactions={groupedReactions}
+                  userCurrentEmoji={userCurrentEmoji}
+                  onReact={onReact && isParticipant ? (emoji) => {
+                    onReact(message.id, emoji, userCurrentEmoji)
+                  } : undefined}
+                  onReply={isParticipant ? () => {
+                    setReplyingTo({
+                      id: message.id,
+                      senderName: message.sender?.name || 'Unknown',
+                      content: message.content || message.message,
+                      fileName: message.file_name,
+                    })
+                  } : undefined}
+                  onCopy={() => {
+                    const content = message.content || message.message
+                    if (content) {
+                      navigator.clipboard.writeText(content)
+                      toast.success('Copied to clipboard')
+                    }
+                  }}
+                />
+              )
+            })}
+          </AnimatePresence>
         )}
         <div ref={messagesEndRef} />
-      </div>
+      </m.div>
 
       {/* Quick Actions Bar - Only for assigned user */}
       {canChangeStatus && task.status !== 'archived' && (
@@ -428,40 +481,25 @@ export function TaskDetailChatView({
         </div>
       )}
 
-      {/* Message Input - WhatsApp Style */}
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="flex-shrink-0 px-4 py-3 border-t bg-card"
-      >
-        <div className="flex items-end gap-2">
-          <div className="flex-1 relative">
-            <Textarea
-              {...register('content')}
-              placeholder="Type a message..."
-              className="min-h-[44px] max-h-[120px] resize-none rounded-3xl pr-12 py-3"
-              rows={1}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSubmit(onSubmit)()
-                }
-              }}
-            />
-          </div>
-          <Button
-            type="submit"
-            size="icon"
-            disabled={isSubmitting || !messageContent?.trim()}
-            className="h-11 w-11 rounded-full flex-shrink-0"
-          >
-            {isSubmitting ? (
-              <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </Button>
+      {/* Message Input - Using shared ChatInput (only for participants) */}
+      {isParticipant ? (
+        <ChatInput
+          value={inputValue}
+          onChange={setInputValue}
+          onSend={handleSend}
+          placeholder="Type a message..."
+          isSending={isSending}
+          replyingTo={replyingTo}
+          onCancelReply={() => setReplyingTo(null)}
+          onEmojiSelect={(emoji) => setInputValue(prev => prev + emoji)}
+        />
+      ) : (
+        <div className="flex-shrink-0 px-4 py-3 border-t bg-muted/30">
+          <p className="text-center text-sm text-muted-foreground">
+            Only task participants can send messages
+          </p>
         </div>
-      </form>
+      )}
 
       {/* On Hold Dialog */}
       <Dialog open={showOnHoldDialog} onOpenChange={setShowOnHoldDialog}>

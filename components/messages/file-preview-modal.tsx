@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
@@ -200,17 +201,23 @@ export function FilePreviewModal({
 
           {/* Image Preview */}
           {isImage && !error && (
-            <img
-              src={fileUrl}
-              alt={fileName}
-              onLoad={handleImageLoad}
-              onError={handleImageError}
+            <div
               className={cn(
-                'max-w-full max-h-full object-contain transition-opacity',
+                'relative max-w-full max-h-full transition-opacity',
                 loading ? 'opacity-0' : 'opacity-100'
               )}
-              style={{ transform: `scale(${scale})` }}
-            />
+              style={{ transform: `scale(${scale})`, width: '100%', height: '100%' }}
+            >
+              <Image
+                src={fileUrl}
+                alt={fileName}
+                fill
+                className="object-contain"
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                unoptimized
+              />
+            </div>
           )}
 
           {/* PDF Preview */}

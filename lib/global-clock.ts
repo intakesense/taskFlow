@@ -7,7 +7,7 @@
  * Result: 50 messages = 1 interval = 50 cheap recomputes instead of 50 separate timers
  */
 
-import { useSyncExternalStore, useMemo } from 'react'
+import { useSyncExternalStore } from 'react'
 import { formatMessageTime, formatRelative } from '@/lib/utils/date'
 
 class GlobalClock {
@@ -61,6 +61,9 @@ export function useGlobalTime(): number {
 /**
  * useFormattedTimestamp - Get a formatted timestamp that updates automatically
  * 
+ * React Compiler handles memoization automatically, so we removed useMemo.
+ * The computation is cheap and will be optimized by the compiler.
+ * 
  * @param dateString - ISO date string to format
  * @param formatType - 'message' for chat timestamps or 'relative' for "X ago"
  * @returns Formatted timestamp string that updates with the global clock
@@ -69,14 +72,14 @@ export function useFormattedTimestamp(
     dateString: string | null | undefined,
     formatType: 'message' | 'relative' = 'message'
 ): string {
-    const now = useGlobalTime()
+    // Subscribe to global clock for automatic updates
+    useGlobalTime()
 
-    return useMemo(() => {
-        if (!dateString) return ''
-        return formatType === 'message'
-            ? formatMessageTime(dateString)
-            : formatRelative(dateString)
-    }, [dateString, formatType, now]) // Recomputes when global clock ticks
+    // React Compiler will optimize this - no manual useMemo needed
+    if (!dateString) return ''
+    return formatType === 'message'
+        ? formatMessageTime(dateString)
+        : formatRelative(dateString)
 }
 
 /**

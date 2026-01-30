@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 export type RecordingState = 'idle' | 'recording' | 'paused' | 'stopped'
 
@@ -67,6 +67,17 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): AudioRe
     typeof MediaRecorder !== 'undefined' &&
     !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 
+  // Stop recording timer
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  // Stop recording - declared before startTimer since startTimer references it
+  const stopRecordingRef = useRef<() => void>(() => { })
+
   // Start recording timer
   const startTimer = useCallback(() => {
     startTimeRef.current = Date.now()
@@ -76,18 +87,10 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): AudioRe
 
       // Auto-stop at max duration
       if (elapsed >= maxDuration) {
-        stopRecording()
+        stopRecordingRef.current()
       }
     }, 1000)
   }, [maxDuration])
-
-  // Stop recording timer
-  const stopTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-  }, [])
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -159,8 +162,8 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): AudioRe
       }
 
       // Handle errors
-      mediaRecorder.onerror = (event: Event) => {
-        const error = new Error(`MediaRecorder error: ${(event as any).error?.message || 'Unknown error'}`)
+      mediaRecorder.onerror = (event) => {
+        const error = new Error(`MediaRecorder error: ${(event as ErrorEvent).message || 'Unknown error'}`)
         onError?.(error)
         cleanup()
         setRecordingState('idle')
@@ -188,6 +191,11 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}): AudioRe
       stopTimer()
     }
   }, [recordingState, stopTimer])
+
+  // Update ref in an effect to avoid updating during render
+  useEffect(() => {
+    stopRecordingRef.current = stopRecording
+  })
 
   // Pause recording
   const pauseRecording = useCallback(() => {
