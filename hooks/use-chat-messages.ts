@@ -182,8 +182,11 @@ export function useSendMessage() {
         messageKeys.conversation(variables.conversationId)
       )
 
+      // Generate a stable key that will be preserved when temp message becomes real
+      const stableKey = `${variables.conversationId}-${Date.now()}-${Math.random()}`
+
       // Optimistically update with temp message
-      const optimisticMessage: MessageWithSender = {
+      const optimisticMessage: MessageWithSender & { _stableKey?: string } = {
         id: `temp-${Date.now()}`,
         conversation_id: variables.conversationId,
         sender_id: variables.senderId,
@@ -198,6 +201,7 @@ export function useSendMessage() {
         search_vector: null,
         sender: null, // Will be populated by realtime
         reactions: [], // New messages have no reactions
+        _stableKey: stableKey, // Stable key for React reconciliation
       }
 
       queryClient.setQueryData<MessageWithSender[]>(
@@ -205,7 +209,7 @@ export function useSendMessage() {
         (old = []) => [...old, optimisticMessage]
       )
 
-      return { previousMessages }
+      return { previousMessages, stableKey }
     },
     onError: (err, variables, context) => {
       // Error already logged in service layer
@@ -219,10 +223,10 @@ export function useSendMessage() {
         )
       }
     },
-    onSuccess: (newMessage, variables) => {
+    onSuccess: (newMessage, variables, context) => {
       console.log('✅ Message sent successfully:', newMessage.id)
 
-      // Replace temp message with real one IN-PLACE to prevent flicker
+      // Replace temp message with real one IN-PLACE, preserving stable key
       queryClient.setQueryData<MessageWithSender[]>(
         messageKeys.conversation(variables.conversationId),
         (old = []) => {
@@ -230,15 +234,18 @@ export function useSendMessage() {
           const tempIndex = old.findIndex((msg) => msg.id.startsWith('temp-'))
 
           if (tempIndex !== -1) {
-            // Replace temp message with real one at the same position
+            // Replace temp message with real one at the same position, preserving stable key
             const newMessages = [...old]
-            newMessages[tempIndex] = newMessage
+            newMessages[tempIndex] = {
+              ...newMessage,
+              _stableKey: context?.stableKey, // Preserve the stable key
+            } as MessageWithSender
             return newMessages
           }
 
           // Fallback: if no temp message (shouldn't happen), check for duplicates
           const exists = old.some((msg) => msg.id === newMessage.id)
-          return exists ? old : [...old, newMessage]
+          return exists ? old : [...old, { ...newMessage, _stableKey: context?.stableKey } as MessageWithSender]
         }
       )
 

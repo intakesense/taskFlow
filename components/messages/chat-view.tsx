@@ -311,7 +311,7 @@ export function ChatView({
                     <AnimatePresence mode="popLayout" initial={false}>
                         {messages.map((message) => (
                             <MessageBubble
-                                key={message.id}
+                                key={(message as { _stableKey?: string })._stableKey || message.id}
                                 message={message}
                                 messages={messages}
                                 conversation={conversation}
