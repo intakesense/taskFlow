@@ -251,11 +251,9 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
     }
   }
 
-  // Server already handles auth redirect in page.tsx, so we can skip the loading spinner
-  // The user state will be available immediately after initial render
-  if (!user) {
-    return null // Redirecting...
-  }
+  // Show skeleton while auth is initializing - prevents white flash
+  // Pass loadingConversations=true when auth is still loading to show skeleton
+  const isAuthLoading = !user || !profile
 
   return (
     <DashboardLayout>
@@ -267,7 +265,7 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
         isUserOnline={isUserOnline}
         isMobileView={isMobileView}
         showNewChat={showNewChat}
-        loadingConversations={loadingConversations}
+        loadingConversations={isAuthLoading || loadingConversations}
         loadingMessages={loadingMessages}
         sendingMessage={sendMessage.isPending}
         creatingConversation={createDM.isPending || createGroup.isPending}

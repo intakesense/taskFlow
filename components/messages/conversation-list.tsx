@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Search, Plus, Users, MessageSquare, ListTodo } from 'lucide-react'
 import { haptics } from '@/lib/haptics'
 
@@ -84,7 +85,7 @@ export function ConversationList({
             {/* Conversation List */}
             <div className="flex-1 overflow-y-auto">
                 {isLoading ? (
-                    <div className="p-4 text-center text-muted-foreground">Loading...</div>
+                    <ConversationListSkeleton />
                 ) : filteredConversations.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full p-8 text-center">
                         <MessageSquare className="h-12 w-12 text-muted-foreground/50 mb-4" />
@@ -275,4 +276,24 @@ function getConversationAvatar(conv: ConversationWithMembers, currentUserId?: st
         initials: other?.name?.charAt(0).toUpperCase() || '?',
         imageUrl: other?.avatar_url || undefined,
     }
+}
+
+// Skeleton for loading state - matches conversation item layout
+function ConversationListSkeleton() {
+    return (
+        <div className="p-2 space-y-1">
+            {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-4">
+                    <Skeleton className="h-13 w-13 rounded-full shrink-0" />
+                    <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                            <Skeleton className="h-4 w-28" />
+                            <Skeleton className="h-3 w-12" />
+                        </div>
+                        <Skeleton className="h-3 w-40" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
 }
