@@ -54,18 +54,29 @@ export function ThemeProvider({
     // Load persisted theme on mount
     useEffect(() => {
         const persisted = loadPersistedTheme();
+        let baseTheme = THEME_PRESETS[defaultPreset] || DEFAULT_THEME;
+
         if (persisted) {
             const presetTheme = THEME_PRESETS[persisted.preset];
             if (presetTheme) {
-                setTheme(presetTheme);
+                baseTheme = presetTheme;
                 setModeState(persisted.mode as ThemeMode);
             }
         }
-        // Load custom overrides if preset is custom
+
+        // Always load custom overrides (for settings like chatPattern)
         const customTheme = loadCustomTheme();
-        if (customTheme && theme.preset === 'custom') {
-            setTheme((prev) => mergeTheme(prev, customTheme));
+        if (customTheme) {
+            // Only merge effects (like chatPattern) to preserve preset colors/fonts
+            const mergedTheme = {
+                ...baseTheme,
+                effects: { ...baseTheme.effects, ...customTheme.effects },
+            };
+            setTheme(mergedTheme);
+        } else {
+            setTheme(baseTheme);
         }
+
         setMounted(true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -123,7 +134,16 @@ export function ThemeProvider({
     const setPreset = useCallback((preset: ThemePreset) => {
         const presetTheme = THEME_PRESETS[preset];
         if (presetTheme) {
-            setTheme(presetTheme);
+            // Load any custom effect overrides (like chatPattern)
+            const customTheme = loadCustomTheme();
+            const mergedEffects = customTheme?.effects
+                ? { ...presetTheme.effects, ...customTheme.effects }
+                : presetTheme.effects;
+
+            setTheme({
+                ...presetTheme,
+                effects: mergedEffects,
+            });
             persistTheme(preset, mode);
         }
     }, [mode]);
@@ -135,12 +155,13 @@ export function ThemeProvider({
 
     const updateCustomTheme = useCallback((updates: Partial<ThemeConfig>) => {
         setTheme((prev) => {
-            const merged = mergeTheme(prev, { ...updates, preset: 'custom' });
-            persistCustomTheme(merged);
-            persistTheme('custom', mode);
+            // Merge updates while keeping the current preset
+            const merged = mergeTheme(prev, updates);
+            // Persist custom settings (like chatPattern) separately
+            persistCustomTheme({ effects: merged.effects });
             return merged;
         });
-    }, [mode]);
+    }, []);
 
     const resetTheme = useCallback(() => {
         setTheme(DEFAULT_THEME);

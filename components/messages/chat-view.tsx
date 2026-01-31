@@ -42,6 +42,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getLevelLabel } from '@/lib/services/users'
+import { useThemeContext } from '@/components/providers/theme-provider'
 
 interface ChatViewProps {
     conversation: ConversationWithMembers
@@ -69,6 +70,8 @@ export function ChatView({
     isSending,
 }: ChatViewProps) {
     const { profile } = useAuth()
+    const { theme } = useThemeContext()
+    const chatPattern = theme.effects.chatPattern || 'none'
     const [input, setInput] = useState('')
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const [showVoiceRecorder, setShowVoiceRecorder] = useState(false)
@@ -284,8 +287,10 @@ export function ChatView({
             {/* Messages */}
             <div
                 {...getRootProps()}
+                data-pattern={chatPattern !== 'none' ? chatPattern : undefined}
                 className={cn(
-                    'flex-1 overflow-y-auto p-4 space-y-2 relative',
+                    'flex-1 overflow-y-auto p-4 space-y-2',
+                    chatPattern !== 'none' && 'chat-pattern-bg',
                     isDragActive && 'bg-primary/5'
                 )}
             >

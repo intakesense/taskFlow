@@ -106,10 +106,10 @@ export function MessagesView({
         </div>
       ) : (
         !isMobileView && (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="flex-1 flex items-center justify-center text-muted-foreground bg-muted/30">
             <div className="text-center">
               <MessageCircle className="h-16 w-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg">Select a conversation or user to start messaging</p>
+              <p className="text-lg">Select a conversation to start messaging</p>
             </div>
           </div>
         )

@@ -28,11 +28,9 @@ export interface ThemeColors {
 // Chat background pattern types
 export type ChatPatternType =
     | 'none'
-    | 'doodles'
     | 'dots'
     | 'grid'
     | 'waves'
-    | 'geometric'
     | 'confetti';
 
 export interface ThemeEffects {

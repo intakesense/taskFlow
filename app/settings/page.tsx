@@ -18,7 +18,7 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff, Camera, Trash2, LogOut } from 'lucide-react'
-import { ThemePreset } from '@/lib/theme/types'
+import { ThemePreset, ChatPatternType } from '@/lib/theme/types'
 import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
 import { toast } from 'sonner'
 import { User as UserType } from '@/lib/types'
@@ -53,7 +53,8 @@ export default function SettingsPage() {
 function SettingsContent({ profile }: { profile: UserType | null }) {
     const { refreshProfile, signOut } = useAuth()
     const router = useRouter()
-    const { mode, preset, setMode, setPreset } = useThemeContext()
+    const { mode, preset, theme, setMode, setPreset, updateCustomTheme } = useThemeContext()
+    const chatPattern = theme.effects.chatPattern || 'none'
     const [notificationsEnabled, setNotificationsEnabled] = useState(false)
     const [notificationStatus, setNotificationStatus] = useState<'loading' | 'granted' | 'denied' | 'default'>('loading')
     const [isOneSignalAvailable, setIsOneSignalAvailable] = useState(false)
@@ -176,9 +177,9 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                 <CardDescription>Your account information</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
                                     {/* Avatar with upload */}
-                                    <div className="relative group">
+                                    <div className="relative group shrink-0">
                                         <input
                                             ref={fileInputRef}
                                             type="file"
@@ -212,10 +213,10 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                             )}
                                         </button>
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="text-lg font-semibold">{profile?.name}</p>
-                                        <p className="text-muted-foreground text-sm">{profile?.email}</p>
-                                        <div className="flex gap-2 mt-2">
+                                    <div className="flex-1 text-center sm:text-left min-w-0">
+                                        <p className="text-lg font-semibold truncate">{profile?.name}</p>
+                                        <p className="text-muted-foreground text-sm truncate">{profile?.email}</p>
+                                        <div className="flex justify-center sm:justify-start gap-2 mt-2">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -227,7 +228,7 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                                 ) : (
                                                     <Camera className="h-4 w-4 mr-2" />
                                                 )}
-                                                {profile?.avatar_url ? 'Change Photo' : 'Add Photo'}
+                                                {profile?.avatar_url ? 'Change' : 'Add Photo'}
                                             </Button>
                                             {profile?.avatar_url && (
                                                 <Button
@@ -248,8 +249,8 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                         </div>
                                     </div>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Recommended: Square image, at least 200x200 pixels. Max 5MB.
+                                <p className="text-xs text-muted-foreground text-center sm:text-left">
+                                    Square image, at least 200×200px. Max 5MB.
                                 </p>
                             </CardContent>
                         </Card>
@@ -263,58 +264,83 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                 </CardTitle>
                                 <CardDescription>Customize the look and feel</CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-6">
+                            <CardContent className="space-y-4">
                                 {/* Theme Mode */}
                                 <div className="space-y-2">
-                                    <Label>Theme Mode</Label>
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant={mode === 'light' ? 'default' : 'outline'}
-                                            size="sm"
-                                            onClick={() => setMode('light')}
-                                            className="flex-1"
-                                        >
-                                            <Sun className="h-4 w-4 mr-2" />
-                                            Light
-                                        </Button>
-                                        <Button
-                                            variant={mode === 'dark' ? 'default' : 'outline'}
-                                            size="sm"
-                                            onClick={() => setMode('dark')}
-                                            className="flex-1"
-                                        >
-                                            <Moon className="h-4 w-4 mr-2" />
-                                            Dark
-                                        </Button>
-                                        <Button
-                                            variant={mode === 'system' ? 'default' : 'outline'}
-                                            size="sm"
-                                            onClick={() => setMode('system')}
-                                            className="flex-1"
-                                        >
-                                            <Monitor className="h-4 w-4 mr-2" />
-                                            System
-                                        </Button>
+                                    <Label className="text-sm">Mode</Label>
+                                    <div className="grid grid-cols-3 gap-1.5 rounded-lg bg-muted p-1">
+                                        {[
+                                            { value: 'light', icon: Sun, label: 'Light' },
+                                            { value: 'dark', icon: Moon, label: 'Dark' },
+                                            { value: 'system', icon: Monitor, label: 'Auto' },
+                                        ].map(({ value, icon: Icon, label }) => (
+                                            <button
+                                                key={value}
+                                                onClick={() => setMode(value as 'light' | 'dark' | 'system')}
+                                                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                                    mode === value
+                                                        ? 'bg-background shadow-sm text-foreground'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                <Icon className="h-3.5 w-3.5" />
+                                                {label}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
 
                                 {/* Theme Preset */}
                                 <div className="space-y-2">
-                                    <Label>Theme Style</Label>
-                                    <Select value={preset} onValueChange={(v) => setPreset(v as ThemePreset)}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="modern">Modern (Default)</SelectItem>
-                                            <SelectItem value="glass">Glassmorphism</SelectItem>
-                                            <SelectItem value="neumorphism">Neumorphism</SelectItem>
-                                            <SelectItem value="y2k">Y2K / Retro</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <p className="text-xs text-muted-foreground">
-                                        Choose a visual style that suits your preference
-                                    </p>
+                                    <Label className="text-sm">Style</Label>
+                                    <div className="grid grid-cols-4 gap-1.5 rounded-lg bg-muted p-1">
+                                        {[
+                                            { value: 'modern', label: 'Modern' },
+                                            { value: 'glass', label: 'Glass' },
+                                            { value: 'neumorphism', label: 'Soft' },
+                                            { value: 'y2k', label: 'Retro' },
+                                        ].map(({ value, label }) => (
+                                            <button
+                                                key={value}
+                                                onClick={() => setPreset(value as ThemePreset)}
+                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                                    preset === value
+                                                        ? 'bg-background shadow-sm text-foreground'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Chat Background Pattern */}
+                                <div className="space-y-2">
+                                    <Label className="text-sm">Chat Pattern</Label>
+                                    <div className="grid grid-cols-5 gap-1.5 rounded-lg bg-muted p-1">
+                                        {[
+                                            { value: 'none', label: 'None' },
+                                            { value: 'dots', label: 'Dots' },
+                                            { value: 'grid', label: 'Grid' },
+                                            { value: 'waves', label: 'Waves' },
+                                            { value: 'confetti', label: 'Confetti' },
+                                        ].map(({ value, label }) => (
+                                            <button
+                                                key={value}
+                                                onClick={() => updateCustomTheme({
+                                                    effects: { ...theme.effects, chatPattern: value as ChatPatternType }
+                                                })}
+                                                className={`px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                                    chatPattern === value
+                                                        ? 'bg-background shadow-sm text-foreground'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
