@@ -6,13 +6,17 @@ import { useTasks, useUpdateTask, useDeleteTask } from '@/hooks'
 import { TasksViewSocial } from './tasks-view-social'
 import { DashboardLayout } from '@/components/layout'
 import { toast } from 'sonner'
-import type { TaskStatus } from '@/lib/types'
+import type { TaskStatus, TaskWithUsers } from '@/lib/types'
 
 type FilterType = 'all' | 'assigned' | 'created'
 
-export function TasksContainerSocial() {
+interface TasksContainerSocialProps {
+  initialTasks?: TaskWithUsers[]
+}
+
+export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps) {
   const { effectiveUser } = useAuth()
-  const { data: tasks = [], isLoading } = useTasks()
+  const { data: tasks = [], isLoading } = useTasks({ initialData: initialTasks })
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
 

@@ -30,10 +30,15 @@ export const taskKeys = {
 export type { CreateTaskInput, UpdateTaskInput };
 
 // Hooks
-export function useTasks() {
+interface UseTasksOptions {
+    initialData?: TaskWithUsers[];
+}
+
+export function useTasks(options?: UseTasksOptions) {
     return useQuery({
         queryKey: taskKeys.lists(),
         queryFn: () => getTasks(),
+        initialData: options?.initialData,
         // Use default staleTime from QueryProvider
     });
 }

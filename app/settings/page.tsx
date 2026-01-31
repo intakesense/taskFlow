@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout'
@@ -22,30 +22,18 @@ import { ThemePreset, ChatPatternType } from '@/lib/theme/types'
 import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
 import { toast } from 'sonner'
 import { User as UserType } from '@/lib/types'
+import { useSyncExternalStore } from 'react'
 
-// Client-only mounting hook using useSyncExternalStore (avoids setState in effect)
-const emptySubscribe = () => () => {}
-function useHasMounted() {
-    return useSyncExternalStore(
-        emptySubscribe,
-        () => true,  // Client: mounted
-        () => false  // Server: not mounted
-    )
-}
+// Minimal hydration guard - avoids SSR mismatch without showing spinner
+const emptySubscribe = () => () => { }
+const useIsClient = () => useSyncExternalStore(emptySubscribe, () => true, () => false)
 
 export default function SettingsPage() {
+    const isClient = useIsClient()
     const { profile } = useAuth()
-    const hasMounted = useHasMounted()
 
-    if (!hasMounted) {
-        return (
-            <DashboardLayout>
-                <div className="p-6 lg:p-8 flex items-center justify-center h-64">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-            </DashboardLayout>
-        )
-    }
+    // During SSR, return null briefly - loading.tsx skeleton handles this
+    if (!isClient) return null
 
     return <SettingsContent profile={profile} />
 }
@@ -277,11 +265,10 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                             <button
                                                 key={value}
                                                 onClick={() => setMode(value as 'light' | 'dark' | 'system')}
-                                                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                                                    mode === value
-                                                        ? 'bg-background shadow-sm text-foreground'
-                                                        : 'text-muted-foreground hover:text-foreground'
-                                                }`}
+                                                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mode === value
+                                                    ? 'bg-background shadow-sm text-foreground'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                                    }`}
                                             >
                                                 <Icon className="h-3.5 w-3.5" />
                                                 {label}
@@ -303,11 +290,10 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                             <button
                                                 key={value}
                                                 onClick={() => setPreset(value as ThemePreset)}
-                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                                                    preset === value
-                                                        ? 'bg-background shadow-sm text-foreground'
-                                                        : 'text-muted-foreground hover:text-foreground'
-                                                }`}
+                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${preset === value
+                                                    ? 'bg-background shadow-sm text-foreground'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                                    }`}
                                             >
                                                 {label}
                                             </button>
@@ -331,11 +317,10 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                                 onClick={() => updateCustomTheme({
                                                     effects: { ...theme.effects, chatPattern: value as ChatPatternType }
                                                 })}
-                                                className={`px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
-                                                    chatPattern === value
-                                                        ? 'bg-background shadow-sm text-foreground'
-                                                        : 'text-muted-foreground hover:text-foreground'
-                                                }`}
+                                                className={`px-2 py-1.5 rounded-md text-xs font-medium transition-all ${chatPattern === value
+                                                    ? 'bg-background shadow-sm text-foreground'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                                    }`}
                                             >
                                                 {label}
                                             </button>

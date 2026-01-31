@@ -3,27 +3,16 @@
 import { Sidebar } from '@/components/layout/sidebar'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { BottomNavProvider, useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
-import { useAuth } from '@/lib/auth-context'
-import { Loader2 } from 'lucide-react'
 
 interface DashboardLayoutProps {
     children: React.ReactNode
 }
 
 function DashboardLayoutContent({ children }: DashboardLayoutProps) {
-    const { loading } = useAuth()
     const { visible: bottomNavVisible } = useBottomNavVisibility()
 
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-muted-foreground">Loading...</p>
-                </div>
-            </div>
-        )
-    }
+    // NOTE: Server components handle auth redirect, no need for client-side loading check
+    // Auth providers persist across routes, so auth state is already available
 
     return (
         <div className="min-h-screen bg-background">

@@ -24,7 +24,6 @@ import { ConversationWithMembers } from '@/lib/types'
 import { uploadFile } from '@/lib/services/file-upload'
 import { MessagesView } from './messages-view'
 import { DashboardLayout } from '@/components/layout'
-import { Loader2 } from 'lucide-react'
 
 interface MessagesContainerProps {
   initialConversations?: ConversationWithMembers[]
@@ -32,7 +31,7 @@ interface MessagesContainerProps {
 
 export function MessagesContainer({ initialConversations }: MessagesContainerProps) {
   const router = useRouter()
-  const { user, profile, loading: authLoading } = useAuth()
+  const { user, profile } = useAuth()
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithMembers | null>(null)
   const [showNewChat, setShowNewChat] = useState(false)
   const isMobileView = useMobile()
@@ -51,12 +50,7 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
     isMobileView
   )
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login')
-    }
-  }, [authLoading, user, router])
+  // NOTE: Server handles auth redirect in page.tsx, no need for client-side check
 
   // Hooks - pass initialData from server for instant first paint
   const queryClient = useQueryClient()
@@ -257,17 +251,8 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
     }
   }
 
-  // Loading state
-  if (authLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-96">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </DashboardLayout>
-    )
-  }
-
+  // Server already handles auth redirect in page.tsx, so we can skip the loading spinner
+  // The user state will be available immediately after initial render
   if (!user) {
     return null // Redirecting...
   }

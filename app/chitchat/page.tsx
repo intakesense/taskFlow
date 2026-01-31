@@ -1,20 +1,8 @@
-import { cookies } from 'next/headers'
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+'use client'
+
 import { ChitChatContainer } from '@/components/voice/chitchat-container'
 
-export const metadata = {
-  title: 'ChitChat',
-}
-
-export default async function ChitChatPage() {
-  const supabase = createClient(await cookies())
-
-  const { data: { user }, error } = await supabase.auth.getUser()
-
-  if (error || !user) {
-    redirect('/login')
-  }
-
+export default function ChitChatPage() {
+  // Auth handled by middleware - redirects to /login if not authenticated
   return <ChitChatContainer />
 }
