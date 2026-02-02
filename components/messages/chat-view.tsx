@@ -237,7 +237,7 @@ export function ChatView({
                                 : isSelfChat
                                     ? profile?.avatar_url
                                     : otherUser?.avatar_url,
-                            name: displayName,
+                            name: displayName || 'Unknown',
                             email: conversation.is_group
                                 ? undefined
                                 : isSelfChat
