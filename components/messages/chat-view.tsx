@@ -24,6 +24,7 @@ import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
 import { toast } from 'sonner'
 import { haptics } from '@/lib/haptics'
 import { EmojiPicker } from '@/components/ui/emoji-picker'
+import { ProfilePictureDialog } from './profile-picture-dialog'
 import {
     ArrowLeft,
     Send,
@@ -77,6 +78,12 @@ export function ChatView({
     const [showVoiceRecorder, setShowVoiceRecorder] = useState(false)
     const [isSendingVoice, setIsSendingVoice] = useState(false)
     const [replyingTo, setReplyingTo] = useState<MessageWithSender | null>(null)
+    const [showProfilePicture, setShowProfilePicture] = useState(false)
+    const [selectedProfile, setSelectedProfile] = useState<{
+        avatarUrl?: string | null
+        name: string
+        email?: string | null
+    } | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
@@ -206,6 +213,11 @@ export function ChatView({
         level: profile.level
     } : null
 
+    const handleAvatarClick = useCallback((avatarUrl: string | null | undefined, name: string, email: string | null | undefined) => {
+        setSelectedProfile({ avatarUrl, name, email })
+        setShowProfilePicture(true)
+    }, [])
+
     return (
         <div className="flex flex-col h-full bg-background">
             {/* Header */}
@@ -215,7 +227,26 @@ export function ChatView({
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                 )}
-                <div className="relative">
+                <div
+                    className="relative cursor-pointer"
+                    onClick={() => {
+                        haptics.light()
+                        setSelectedProfile({
+                            avatarUrl: conversation.is_group
+                                ? conversation.avatar_url
+                                : isSelfChat
+                                    ? profile?.avatar_url
+                                    : otherUser?.avatar_url,
+                            name: displayName,
+                            email: conversation.is_group
+                                ? undefined
+                                : isSelfChat
+                                    ? profile?.email
+                                    : otherUser?.email,
+                        })
+                        setShowProfilePicture(true)
+                    }}
+                >
                     <Avatar className="h-10 w-10">
                         {(() => {
                             // For self-chat, use your own avatar
@@ -324,6 +355,7 @@ export function ChatView({
                                 currentUser={currentUser}
                                 isOwn={message.sender_id === profile?.id}
                                 onReply={handleReply}
+                                onAvatarClick={handleAvatarClick}
                             />
                         ))}
                         <TypingBubble key="typing" typingUsers={typingUsers} />
@@ -451,6 +483,23 @@ export function ChatView({
                     </div>
                 </div>
             )}
+
+            {/* Profile Picture Dialog */}
+            {selectedProfile && (
+                <ProfilePictureDialog
+                    open={showProfilePicture}
+                    onOpenChange={(open) => {
+                        setShowProfilePicture(open)
+                        if (!open) {
+                            // Clear selected profile after dialog closes
+                            setTimeout(() => setSelectedProfile(null), 200)
+                        }
+                    }}
+                    avatarUrl={selectedProfile.avatarUrl}
+                    name={selectedProfile.name}
+                    email={selectedProfile.email}
+                />
+            )}
         </div>
     )
 }
@@ -463,6 +512,7 @@ interface MessageBubbleProps {
     currentUser: UserBasic | null
     isOwn: boolean
     onReply: (message: MessageWithSender) => void
+    onAvatarClick?: (avatarUrl: string | null | undefined, name: string, email: string | null | undefined) => void
 }
 
 function MessageBubble({
@@ -473,6 +523,7 @@ function MessageBubble({
     currentUser,
     isOwn,
     onReply,
+    onAvatarClick,
 }: MessageBubbleProps) {
     const [showReactions, setShowReactions] = useState(false)
     const [showMobileActions, setShowMobileActions] = useState(false)
@@ -654,7 +705,18 @@ function MessageBubble({
             {isGroupChat && !isOwn && (
                 <div className="w-8 mr-2 flex-shrink-0 self-end">
                     {showAvatar ? (
-                        <Avatar className="h-8 w-8">
+                        <Avatar
+                            className="h-8 w-8 cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                haptics.light()
+                                onAvatarClick?.(
+                                    message.sender?.avatar_url,
+                                    message.sender?.name || 'Unknown',
+                                    message.sender?.email
+                                )
+                            }}
+                        >
                             {message.sender?.avatar_url && (
                                 <AvatarImage src={message.sender.avatar_url} alt={message.sender?.name || ''} />
                             )}

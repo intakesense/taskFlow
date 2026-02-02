@@ -143,6 +143,7 @@ export default function CreateUserPage() {
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
                                         placeholder="John Doe"
+                                        autoComplete="name"
                                         required
                                     />
                                 </div>
@@ -155,6 +156,7 @@ export default function CreateUserPage() {
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="john@company.com"
+                                        autoComplete="email"
                                         required
                                     />
                                 </div>
@@ -167,6 +169,7 @@ export default function CreateUserPage() {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="Minimum 6 characters"
+                                        autoComplete="new-password"
                                         required
                                         minLength={6}
                                     />

@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Search, Plus, Users, MessageSquare, ListTodo } from 'lucide-react'
 import { haptics } from '@/lib/haptics'
+import { ProfilePictureDialog } from './profile-picture-dialog'
 
 interface ConversationListProps {
     conversations: ConversationWithMembers[]
@@ -36,6 +37,12 @@ export function ConversationList({
 }: ConversationListProps) {
     const { profile } = useAuth()
     const [search, setSearch] = useState('')
+    const [showProfilePicture, setShowProfilePicture] = useState(false)
+    const [selectedProfile, setSelectedProfile] = useState<{
+        avatarUrl?: string | null
+        name: string
+        email?: string | null
+    } | null>(null)
 
     // Filter conversations by search
     const filteredConversations = conversations.filter((conv) => {
@@ -113,12 +120,32 @@ export function ConversationList({
                                     currentUserId={profile?.id}
                                     isSelected={selectedId === conv.id}
                                     onClick={() => onSelect(conv)}
+                                    onAvatarClick={(avatarUrl, name, email) => {
+                                        setSelectedProfile({ avatarUrl, name, email })
+                                        setShowProfilePicture(true)
+                                    }}
                                 />
                             ))}
                         </AnimatePresence>
                     </m.div>
                 )}
             </div>
+
+            {/* Profile Picture Dialog */}
+            {selectedProfile && (
+                <ProfilePictureDialog
+                    open={showProfilePicture}
+                    onOpenChange={(open) => {
+                        setShowProfilePicture(open)
+                        if (!open) {
+                            setTimeout(() => setSelectedProfile(null), 200)
+                        }
+                    }}
+                    avatarUrl={selectedProfile.avatarUrl}
+                    name={selectedProfile.name}
+                    email={selectedProfile.email}
+                />
+            )}
         </div>
     )
 }
@@ -128,9 +155,10 @@ interface ConversationItemProps {
     currentUserId?: string
     isSelected: boolean
     onClick: () => void
+    onAvatarClick?: (avatarUrl: string | null | undefined, name: string, email: string | null | undefined) => void
 }
 
-function ConversationItem({ conversation, currentUserId, isSelected, onClick }: Omit<ConversationItemProps, 'index'>) {
+function ConversationItem({ conversation, currentUserId, isSelected, onClick, onAvatarClick }: Omit<ConversationItemProps, 'index'>) {
     const name = getConversationName(conversation, currentUserId)
     const { initials, imageUrl } = getConversationAvatar(conversation, currentUserId)
     const lastMessage = conversation.lastMessage
@@ -160,6 +188,24 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
         onClick()
     }
 
+    const handleAvatarClick = (e: React.MouseEvent) => {
+        e.stopPropagation() // Prevent conversation selection
+        haptics.light()
+
+        // Get conversation details for profile viewing
+        const otherUser = conversation.members.find(m => m.id !== currentUserId)
+        const isSelfChat = !otherUser && conversation.members.length === 1 && conversation.members[0]?.id === currentUserId
+        const self = conversation.members[0]
+
+        if (conversation.is_group) {
+            onAvatarClick?.(conversation.avatar_url, conversation.name || 'Group', undefined)
+        } else if (isSelfChat && self) {
+            onAvatarClick?.(self.avatar_url, self.name, self.email)
+        } else if (otherUser) {
+            onAvatarClick?.(otherUser.avatar_url, otherUser.name, otherUser.email)
+        }
+    }
+
     return (
         <m.button
             layout
@@ -180,17 +226,19 @@ function ConversationItem({ conversation, currentUserId, isSelected, onClick }: 
                     : 'border-l-transparent'
             )}
         >
-            <Avatar className="h-13 w-13 flex-shrink-0">
-                {imageUrl && <AvatarImage src={imageUrl} alt={name} />}
-                <AvatarFallback className={cn(
-                    'text-base font-medium',
-                    isSelected
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
-                )}>
-                    {initials}
-                </AvatarFallback>
-            </Avatar>
+            <div onClick={handleAvatarClick} className="cursor-pointer">
+                <Avatar className="h-13 w-13 flex-shrink-0">
+                    {imageUrl && <AvatarImage src={imageUrl} alt={name} />}
+                    <AvatarFallback className={cn(
+                        'text-base font-medium',
+                        isSelected
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground'
+                    )}>
+                        {initials}
+                    </AvatarFallback>
+                </Avatar>
+            </div>
 
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">

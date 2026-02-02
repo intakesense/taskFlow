@@ -185,6 +185,7 @@ export function ChatInput({
                             onKeyDown={handleKeyDown}
                             placeholder={placeholder}
                             disabled={disabled}
+                            autoComplete="off"
                             className="w-full h-10 px-4 rounded-full bg-muted border-0 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                         />
                     </div>

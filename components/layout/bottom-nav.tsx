@@ -12,6 +12,7 @@ import {
     MessageSquare,
     ListTodo,
     Users,
+    Headphones,
 } from 'lucide-react'
 import { haptics } from '@/lib/haptics'
 
@@ -24,6 +25,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     { name: 'Messages', href: '/', icon: MessageSquare },
+    { name: 'ChitChat', href: '/chitchat', icon: Headphones },
     { name: 'Tasks', href: '/tasks', icon: ListTodo },
     { name: 'Users', href: '/admin/users', icon: Users, adminOnly: true },
 ]

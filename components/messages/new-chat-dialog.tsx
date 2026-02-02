@@ -142,6 +142,7 @@ export function NewChatDialog({
                         <Input
                             id="groupName"
                             placeholder="Enter group name..."
+                            autoComplete="off"
                             {...register('groupName')}
                         />
                         {errors.groupName && (
@@ -158,6 +159,7 @@ export function NewChatDialog({
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9"
+                        autoComplete="off"
                     />
                 </div>
 
