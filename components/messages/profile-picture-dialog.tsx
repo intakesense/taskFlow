@@ -10,7 +10,7 @@ interface ProfilePictureDialogProps {
   onOpenChange: (open: boolean) => void
   avatarUrl?: string | null
   name: string
-  email?: string
+  email?: string | null
 }
 
 export function ProfilePictureDialog({
