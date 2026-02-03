@@ -14,7 +14,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -240,6 +240,7 @@ function UserRow({ user, isSelected, showCheckbox, onClick, disabled }: UserRowP
                 />
             )}
             <Avatar className="h-10 w-10">
+                {user.avatar_url && <AvatarImage src={user.avatar_url} alt={user.name} />}
                 <AvatarFallback className="bg-primary text-primary-foreground">
                     {user.name.charAt(0).toUpperCase()}
                 </AvatarFallback>
