@@ -11,7 +11,7 @@ const supabase = createClient();
 // Query keys
 export const conversationKeys = {
     all: ['conversations'] as const,
-    list: () => [...conversationKeys.all, 'list'] as const,
+    list: (userId?: string) => [...conversationKeys.all, 'list', userId] as const,
     detail: (id: string) => [...conversationKeys.all, 'detail', id] as const,
 };
 
@@ -296,7 +296,7 @@ export function useConversations(
     options?: { initialData?: ConversationWithMembers[] }
 ) {
     return useQuery({
-        queryKey: conversationKeys.list(),
+        queryKey: conversationKeys.list(userId),
         queryFn: () => fetchConversations(userId!),
         enabled: !!userId,
         initialData: options?.initialData,
@@ -348,7 +348,7 @@ export function useConversationsRealtime(userId: string | undefined) {
         const debouncedInvalidate = () => {
             if (invalidateTimeout) clearTimeout(invalidateTimeout);
             invalidateTimeout = setTimeout(() => {
-                queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
+                queryClient.invalidateQueries({ queryKey: conversationKeys.list(userId) });
             }, 300);
         };
 

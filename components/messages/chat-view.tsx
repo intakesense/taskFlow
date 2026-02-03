@@ -70,7 +70,7 @@ export function ChatView({
     isLoading,
     isSending,
 }: ChatViewProps) {
-    const { profile } = useAuth()
+    const { effectiveUser } = useAuth()
     const { theme } = useThemeContext()
     const chatPattern = theme.effects.chatPattern || 'none'
     const [input, setInput] = useState('')
@@ -151,7 +151,7 @@ export function ChatView({
     }
 
     const handleSendVoiceMessage = async (audioBlob: Blob) => {
-        if (!profile?.id || !conversation?.id) return
+        if (!effectiveUser?.id || !conversation?.id) return
 
         try {
             setIsSendingVoice(true)
@@ -195,9 +195,9 @@ export function ChatView({
         noKeyboard: true,
     })
 
-    const otherUser = conversation.members.find(m => m.id !== profile?.id)
+    const otherUser = conversation.members.find(m => m.id !== effectiveUser?.id)
     // Self-chat: only member is yourself
-    const isSelfChat = !otherUser && conversation.members.length === 1 && conversation.members[0]?.id === profile?.id
+    const isSelfChat = !otherUser && conversation.members.length === 1 && conversation.members[0]?.id === effectiveUser?.id
     const displayName = conversation.is_group
         ? conversation.name
         : isSelfChat
@@ -206,11 +206,11 @@ export function ChatView({
     const hasContent = input.trim().length > 0 || selectedFile !== null
     const showSendButton = hasContent || showVoiceRecorder
 
-    const currentUser = profile ? {
-        id: profile.id,
-        name: profile.name,
-        email: profile.email,
-        level: profile.level
+    const currentUser = effectiveUser ? {
+        id: effectiveUser.id,
+        name: effectiveUser.name,
+        email: effectiveUser.email,
+        level: effectiveUser.level
     } : null
 
     const handleAvatarClick = useCallback((avatarUrl: string | null | undefined, name: string, email: string | null | undefined) => {
@@ -235,13 +235,13 @@ export function ChatView({
                             avatarUrl: conversation.is_group
                                 ? conversation.avatar_url
                                 : isSelfChat
-                                    ? profile?.avatar_url
+                                    ? effectiveUser?.avatar_url
                                     : otherUser?.avatar_url,
                             name: displayName || 'Unknown',
                             email: conversation.is_group
                                 ? undefined
                                 : isSelfChat
-                                    ? profile?.email
+                                    ? effectiveUser?.email
                                     : otherUser?.email,
                         })
                         setShowProfilePicture(true)
@@ -253,7 +253,7 @@ export function ChatView({
                             const avatarUrl = conversation.is_group
                                 ? conversation.avatar_url
                                 : isSelfChat
-                                    ? profile?.avatar_url
+                                    ? effectiveUser?.avatar_url
                                     : otherUser?.avatar_url
                             return avatarUrl ? <AvatarImage src={avatarUrl} alt={displayName || 'Avatar'} /> : null
                         })()}
@@ -351,9 +351,9 @@ export function ChatView({
                                 message={message}
                                 messages={messages}
                                 conversation={conversation}
-                                currentUserId={profile?.id || ''}
+                                currentUserId={effectiveUser?.id || ''}
                                 currentUser={currentUser}
-                                isOwn={message.sender_id === profile?.id}
+                                isOwn={message.sender_id === effectiveUser?.id}
                                 onReply={handleReply}
                                 onAvatarClick={handleAvatarClick}
                             />

@@ -27,6 +27,7 @@ interface MessagesViewProps {
   onCreateDM: (userId: string) => void
   onCreateGroup: (name: string, memberIds: string[]) => void
   onBackToList: () => void
+  currentUserId?: string
   onNewChat: () => void
   onCloseNewChat: () => void
 }
@@ -48,6 +49,7 @@ export function MessagesView({
   onSendMessage,
   onSendFile,
   onTyping,
+  currentUserId,
   onCreateDM,
   onCreateGroup,
   onBackToList,
@@ -121,6 +123,7 @@ export function MessagesView({
         onOpenChange={(open) => !open && onCloseNewChat()}
         onCreateDM={onCreateDM}
         onCreateGroup={onCreateGroup}
+        currentUserId={currentUserId}
       />
     </div>
   )

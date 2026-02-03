@@ -250,7 +250,7 @@ export function useSendMessage() {
       )
 
       // Only invalidate conversation list (for last message preview), not all messages
-      queryClient.invalidateQueries({ queryKey: conversationKeys.list() })
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all })
     },
   })
 }
@@ -271,7 +271,7 @@ export function useMarkAsRead() {
       markAsRead(conversationId, userId),
     onSuccess: () => {
       // Only invalidate conversation list (for unread count)
-      queryClient.invalidateQueries({ queryKey: conversationKeys.list() })
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all })
     },
     onError: (error) => {
       // Don't show toast for this - it's a background operation
@@ -352,15 +352,15 @@ export function useConversationRealtime(
         return
       }
 
-      // OPTIMIZED: Try to get sender from cache first
-      const conversationsData = queryClient.getQueryData<ConversationWithMembers[]>(conversationKeys.list())
+      // Try to get sender from cached conversation members (check all cached conversation lists)
       let sender: UserBasic | null = null
-
-      if (conversationsData) {
-        // Try to find sender in cached conversation members
+      const allCachedConvs = queryClient.getQueriesData<ConversationWithMembers[]>({ queryKey: conversationKeys.all })
+      for (const [, conversationsData] of allCachedConvs) {
+        if (!conversationsData) continue
         const conversation = conversationsData.find((c) => c.id === conversationId)
         if (conversation?.members) {
           sender = conversation.members.find((m: UserBasic) => m.id === newMessage.sender_id) || null
+          if (sender) break
         }
       }
 
@@ -391,7 +391,7 @@ export function useConversationRealtime(
       )
 
       // Update conversation list (for last message preview)
-      queryClient.invalidateQueries({ queryKey: conversationKeys.list() })
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all })
 
       // Notify parent component about new message (for marking as read)
       onNewMessageRef.current?.(newMessage)

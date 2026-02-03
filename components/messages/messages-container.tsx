@@ -31,7 +31,7 @@ interface MessagesContainerProps {
 
 export function MessagesContainer({ initialConversations }: MessagesContainerProps) {
   const router = useRouter()
-  const { user, profile } = useAuth()
+  const { user, profile, effectiveUser } = useAuth()
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithMembers | null>(null)
   const [showNewChat, setShowNewChat] = useState(false)
   const isMobileView = useMobile()
@@ -55,10 +55,10 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
   // Hooks - pass initialData from server for instant first paint
   const queryClient = useQueryClient()
   const { data: conversations = [], isLoading: loadingConversations } = useConversations(
-    profile?.id,
+    effectiveUser?.id,
     { initialData: initialConversations }
   )
-  useConversationsRealtime(profile?.id)
+  useConversationsRealtime(effectiveUser?.id)
 
   // AGGRESSIVE PREFETCHING: Preload ALL conversation messages on mount
   // Since we only have ~20 employees, this is fast and makes switching instant
@@ -113,21 +113,21 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
   // Callback when new messages arrive while chat is open
   const handleNewMessageArrived = useCallback((message: { sender_id: string }) => {
     // Only mark as read if message is from someone else
-    if (selectedConversation?.id && profile?.id && message.sender_id !== profile.id) {
-      debouncedMarkAsRead(selectedConversation.id, profile.id)
+    if (selectedConversation?.id && effectiveUser?.id && message.sender_id !== effectiveUser.id) {
+      debouncedMarkAsRead(selectedConversation.id, effectiveUser.id)
     }
-  }, [selectedConversation?.id, profile?.id, debouncedMarkAsRead])
+  }, [selectedConversation?.id, effectiveUser?.id, debouncedMarkAsRead])
 
   // CONSOLIDATED: Single hook for messages + typing + online status
   const { typingUsers, isUserOnline } = useConversationRealtime(
     selectedConversation?.id,
-    profile?.id,
+    effectiveUser?.id,
     handleNewMessageArrived
   )
 
   // Mark as read when opening a conversation (immediate, not debounced)
   useEffect(() => {
-    if (selectedConversation?.id && profile?.id) {
+    if (selectedConversation?.id && effectiveUser?.id) {
       // Skip if we just marked this conversation as read via the debounced handler
       if (lastMarkedConversationRef.current === selectedConversation.id) {
         lastMarkedConversationRef.current = null
@@ -135,11 +135,11 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
       }
       markAsRead.mutate({
         conversationId: selectedConversation.id,
-        userId: profile.id,
+        userId: effectiveUser.id,
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConversation?.id, profile?.id])
+  }, [selectedConversation?.id, effectiveUser?.id])
 
   // Handlers - use startTransition for non-blocking conversation switching
   const handleSelectConversation = (conv: ConversationWithMembers) => {
@@ -149,11 +149,11 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
   }
 
   const handleSendMessage = (content: string, replyToId?: string) => {
-    if (!selectedConversation || !profile?.id) return
+    if (!selectedConversation || !effectiveUser?.id) return
 
     sendMessage.mutate({
       conversationId: selectedConversation.id,
-      senderId: profile.id,
+      senderId: effectiveUser.id,
       content,
       replyToId,
     }, {
@@ -165,33 +165,33 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
     })
 
     // Clear typing indicator (preserves online status)
-    clearTyping(selectedConversation.id, profile.id)
+    clearTyping(selectedConversation.id, effectiveUser.id)
   }
 
   const handleTyping = () => {
-    if (!selectedConversation || !profile?.id || !profile) return
+    if (!selectedConversation || !effectiveUser?.id) return
     // Pass full user object for Presence
-    setTyping(selectedConversation.id, profile.id, {
-      id: profile.id,
-      name: profile.name,
-      email: profile.email,
-      level: profile.level,
+    setTyping(selectedConversation.id, effectiveUser.id, {
+      id: effectiveUser.id,
+      name: effectiveUser.name,
+      email: effectiveUser.email,
+      level: effectiveUser.level,
     })
   }
 
   const handleSendFile = async (file: File, replyToId?: string) => {
-    if (!selectedConversation || !profile?.id) return
+    if (!selectedConversation || !effectiveUser?.id) return
 
     try {
       toast.loading('Uploading file...', { id: 'file-upload' })
 
       // Upload file to storage
-      const uploadedFile = await uploadFile(file, profile.id)
+      const uploadedFile = await uploadFile(file, effectiveUser.id)
 
       // Send message with file attachment
       await sendMessage.mutateAsync({
         conversationId: selectedConversation.id,
-        senderId: profile.id,
+        senderId: effectiveUser.id,
         fileUrl: uploadedFile.url,
         fileName: file.name,
         fileSize: uploadedFile.size,
@@ -207,9 +207,9 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
   }
 
   const handleCreateDM = async (userId: string) => {
-    if (!profile?.id) return
+    if (!effectiveUser?.id) return
     try {
-      const conv = await createDM.mutateAsync({ userId: profile.id, otherUserId: userId })
+      const conv = await createDM.mutateAsync({ userId: effectiveUser.id, otherUserId: userId })
       setShowNewChat(false)
       toast.success('Conversation started')
 
@@ -228,10 +228,10 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
   }
 
   const handleCreateGroup = async (name: string, memberIds: string[]) => {
-    if (!profile?.id) return
+    if (!effectiveUser?.id) return
     try {
       const conv = await createGroup.mutateAsync({
-        userId: profile.id,
+        userId: effectiveUser.id,
         input: { name, memberIds },
       })
       setShowNewChat(false)
@@ -270,6 +270,7 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
         sendingMessage={sendMessage.isPending}
         creatingConversation={createDM.isPending || createGroup.isPending}
         isPending={isPending}
+        currentUserId={effectiveUser?.id}
         onSelectConversation={handleSelectConversation}
         onSendMessage={handleSendMessage}
         onSendFile={handleSendFile}

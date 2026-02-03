@@ -35,7 +35,7 @@ export function ConversationList({
     isLoading,
     isPending,
 }: ConversationListProps) {
-    const { profile } = useAuth()
+    const { effectiveUser } = useAuth()
     const [search, setSearch] = useState('')
     const [showProfilePicture, setShowProfilePicture] = useState(false)
     const [selectedProfile, setSelectedProfile] = useState<{
@@ -47,7 +47,7 @@ export function ConversationList({
     // Filter conversations by search
     const filteredConversations = conversations.filter((conv) => {
         if (!search) return true
-        const name = getConversationName(conv, profile?.id)
+        const name = getConversationName(conv, effectiveUser?.id)
         return name.toLowerCase().includes(search.toLowerCase())
     })
 
@@ -117,7 +117,7 @@ export function ConversationList({
                                 <ConversationItem
                                     key={conv.id}
                                     conversation={conv}
-                                    currentUserId={profile?.id}
+                                    currentUserId={effectiveUser?.id}
                                     isSelected={selectedId === conv.id}
                                     onClick={() => onSelect(conv)}
                                     onAvatarClick={(avatarUrl, name, email) => {

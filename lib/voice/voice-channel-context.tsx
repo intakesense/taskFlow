@@ -124,10 +124,13 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
       })
 
       callObject.on('left-meeting', () => {
-        setIsConnected(false)
-        setCurrentChannel(null)
-        setRoomUrl(null)
-        callObjectRef.current = null
+        // Only reset state here if we weren't already cleaned up by leaveChannel
+        if (callObjectRef.current) {
+          callObjectRef.current = null
+          setIsConnected(false)
+          setCurrentChannel(null)
+          setRoomUrl(null)
+        }
       })
 
       callObject.on('error', (event) => {
@@ -166,9 +169,13 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
   const leaveChannel = useCallback(async () => {
     if (!callObjectRef.current || !currentChannel || !effectiveUser) return
 
+    // Grab and immediately null the ref so the left-meeting event handler
+    // doesn't race us, and so destroy() is called exactly once.
+    const callObject = callObjectRef.current
+    callObjectRef.current = null
+
     try {
-      await callObjectRef.current.leave()
-      callObjectRef.current.destroy()
+      await callObject.leave()
 
       await voiceChannelService.leaveChannel(currentChannel.id, effectiveUser.id)
 
@@ -181,7 +188,7 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Failed to leave channel:', error)
     } finally {
-      callObjectRef.current = null
+      callObject.destroy()
       setCurrentChannel(null)
       setRoomUrl(null)
       setIsConnected(false)

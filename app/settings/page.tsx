@@ -17,7 +17,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff, Camera, Trash2, LogOut } from 'lucide-react'
+import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff, Camera, Trash2, LogOut, Eye, X } from 'lucide-react'
 import { ThemePreset, ChatPatternType } from '@/lib/theme/types'
 import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
 import { toast } from 'sonner'
@@ -30,16 +30,16 @@ const useIsClient = () => useSyncExternalStore(emptySubscribe, () => true, () =>
 
 export default function SettingsPage() {
     const isClient = useIsClient()
-    const { profile } = useAuth()
+    const { profile, maskedAsUser, effectiveUser } = useAuth()
 
     // During SSR, return null briefly - loading.tsx skeleton handles this
     if (!isClient) return null
 
-    return <SettingsContent profile={profile} />
+    return <SettingsContent profile={profile} maskedAsUser={maskedAsUser} effectiveUser={effectiveUser} />
 }
 
-function SettingsContent({ profile }: { profile: UserType | null }) {
-    const { refreshProfile, signOut } = useAuth()
+function SettingsContent({ profile, maskedAsUser, effectiveUser }: { profile: UserType | null; maskedAsUser: UserType | null; effectiveUser: UserType | null }) {
+    const { refreshProfile, signOut, maskAs } = useAuth()
     const router = useRouter()
     const { mode, preset, theme, setMode, setPreset, updateCustomTheme } = useThemeContext()
     const chatPattern = theme.effects.chatPattern || 'none'
@@ -155,6 +155,24 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                     </div>
 
                     <div className="space-y-6">
+                        {/* Mask-as banner */}
+                        {maskedAsUser && (
+                            <div className="p-3 bg-amber-500/20 border border-amber-500/30 rounded-lg">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-amber-300 text-sm">
+                                        <Eye className="h-4 w-4" />
+                                        <span>Viewing as <strong>{maskedAsUser.name}</strong> — profile shown is read-only</span>
+                                    </div>
+                                    <button
+                                        onClick={() => maskAs(null)}
+                                        className="text-amber-300 hover:text-amber-200 transition-colors"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Profile Card */}
                         <Card data-slot="card">
                             <CardHeader>
@@ -162,12 +180,12 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                     <User className="h-5 w-5" />
                                     Profile
                                 </CardTitle>
-                                <CardDescription>Your account information</CardDescription>
+                                <CardDescription>{maskedAsUser ? `${maskedAsUser.name}'s account information` : 'Your account information'}</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="flex flex-col sm:flex-row items-center gap-4">
-                                    {/* Avatar with upload */}
-                                    <div className="relative group shrink-0">
+                                    {/* Avatar with upload (disabled when masking) */}
+                                    <div className={`relative shrink-0 ${!maskedAsUser ? 'group' : ''}`}>
                                         <input
                                             ref={fileInputRef}
                                             type="file"
@@ -175,71 +193,78 @@ function SettingsContent({ profile }: { profile: UserType | null }) {
                                             onChange={handleAvatarChange}
                                             className="hidden"
                                         />
-                                        {profile?.avatar_url ? (
+                                        {effectiveUser?.avatar_url ? (
                                             <Image
-                                                src={profile.avatar_url}
-                                                alt={profile.name || 'Avatar'}
+                                                src={effectiveUser.avatar_url}
+                                                alt={effectiveUser.name || 'Avatar'}
                                                 width={80}
                                                 height={80}
                                                 className="w-20 h-20 aspect-square rounded-full object-cover border-2 border-border"
                                             />
                                         ) : (
                                             <div className="w-20 h-20 aspect-square rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold border-2 border-border">
-                                                {profile?.name?.charAt(0).toUpperCase() || '?'}
+                                                {effectiveUser?.name?.charAt(0).toUpperCase() || '?'}
                                             </div>
                                         )}
-                                        {/* Overlay on hover */}
-                                        <button
-                                            onClick={handleAvatarClick}
-                                            disabled={isUploadingAvatar}
-                                            className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                        >
-                                            {isUploadingAvatar ? (
-                                                <Loader2 className="h-6 w-6 text-white animate-spin" />
-                                            ) : (
-                                                <Camera className="h-6 w-6 text-white" />
-                                            )}
-                                        </button>
-                                    </div>
-                                    <div className="flex-1 text-center sm:text-left min-w-0">
-                                        <p className="text-lg font-semibold truncate">{profile?.name}</p>
-                                        <p className="text-muted-foreground text-sm truncate">{profile?.email}</p>
-                                        <div className="flex justify-center sm:justify-start gap-2 mt-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
+                                        {/* Overlay on hover — hidden when masking */}
+                                        {!maskedAsUser && (
+                                            <button
                                                 onClick={handleAvatarClick}
                                                 disabled={isUploadingAvatar}
+                                                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                                             >
                                                 {isUploadingAvatar ? (
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    <Loader2 className="h-6 w-6 text-white animate-spin" />
                                                 ) : (
-                                                    <Camera className="h-4 w-4 mr-2" />
+                                                    <Camera className="h-6 w-6 text-white" />
                                                 )}
-                                                {profile?.avatar_url ? 'Change' : 'Add Photo'}
-                                            </Button>
-                                            {profile?.avatar_url && (
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 text-center sm:text-left min-w-0">
+                                        <p className="text-lg font-semibold truncate">{effectiveUser?.name}</p>
+                                        <p className="text-muted-foreground text-sm truncate">{effectiveUser?.email}</p>
+                                        {/* Avatar buttons hidden when masking */}
+                                        {!maskedAsUser && (
+                                            <div className="flex justify-center sm:justify-start gap-2 mt-2">
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    onClick={handleDeleteAvatar}
-                                                    disabled={isDeletingAvatar}
-                                                    className="text-destructive hover:text-destructive"
+                                                    onClick={handleAvatarClick}
+                                                    disabled={isUploadingAvatar}
                                                 >
-                                                    {isDeletingAvatar ? (
+                                                    {isUploadingAvatar ? (
                                                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                                     ) : (
-                                                        <Trash2 className="h-4 w-4 mr-2" />
+                                                        <Camera className="h-4 w-4 mr-2" />
                                                     )}
-                                                    Remove
+                                                    {profile?.avatar_url ? 'Change' : 'Add Photo'}
                                                 </Button>
-                                            )}
-                                        </div>
+                                                {profile?.avatar_url && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={handleDeleteAvatar}
+                                                        disabled={isDeletingAvatar}
+                                                        className="text-destructive hover:text-destructive"
+                                                    >
+                                                        {isDeletingAvatar ? (
+                                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                        ) : (
+                                                            <Trash2 className="h-4 w-4 mr-2" />
+                                                        )}
+                                                        Remove
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                                <p className="text-xs text-muted-foreground text-center sm:text-left">
-                                    Square image, at least 200×200px. Max 5MB.
-                                </p>
+                                {!maskedAsUser && (
+                                    <p className="text-xs text-muted-foreground text-center sm:text-left">
+                                        Square image, at least 200×200px. Max 5MB.
+                                    </p>
+                                )}
                             </CardContent>
                         </Card>
 

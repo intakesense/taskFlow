@@ -41,7 +41,7 @@ const adminNavigation = [
 
 function NavItems({ onClick }: { onClick?: () => void }) {
     const pathname = usePathname()
-    const { profile } = useAuth()
+    const { effectiveUser } = useAuth()
 
     // Get default voice channel for badge
     const { data: defaultChannel } = useQuery({
@@ -83,7 +83,7 @@ function NavItems({ onClick }: { onClick?: () => void }) {
                 )
             })}
 
-            {profile?.is_admin && (
+            {effectiveUser?.is_admin && (
                 <>
                     <div className="pt-4 pb-2">
                         <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">

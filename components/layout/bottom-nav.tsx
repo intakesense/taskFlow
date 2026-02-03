@@ -35,8 +35,8 @@ export function BottomNav() {
     const { profile, maskedAsUser } = useAuth()
     const prefersReducedMotion = useReducedMotion()
 
-    // Filter items based on admin status
-    const visibleItems = navItems.filter(item => !item.adminOnly || profile?.is_admin)
+    // Filter items based on admin status of the effective user (respects masking)
+    const visibleItems = navItems.filter(item => !item.adminOnly || (maskedAsUser ? maskedAsUser.is_admin : profile?.is_admin))
 
     const displayUser = maskedAsUser || profile
     const isSettingsActive = pathname === '/settings'
@@ -130,9 +130,11 @@ export function BottomNav() {
                         animate={isSettingsActive ? 'active' : 'inactive'}
                         className={cn(
                             'h-6 w-6 rounded-full overflow-hidden flex items-center justify-center',
-                            isSettingsActive
-                                ? 'ring-2 ring-primary ring-offset-1 ring-offset-card'
-                                : 'ring-1 ring-border'
+                            maskedAsUser
+                                ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-card'
+                                : isSettingsActive
+                                    ? 'ring-2 ring-primary ring-offset-1 ring-offset-card'
+                                    : 'ring-1 ring-border'
                         )}
                     >
                         {displayUser?.avatar_url ? (
