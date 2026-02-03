@@ -9,6 +9,7 @@ import {
   useDeleteTask,
   useSendTaskMessage,
   useSetTaskReaction,
+  useUpdateTaskAssignees,
 } from '@/hooks'
 import { TaskDetailChatView } from './task-detail-chat-view'
 import { DashboardLayout } from '@/components/layout'
@@ -35,6 +36,7 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
   const setReaction = useSetTaskReaction()
+  const updateAssignees = useUpdateTaskAssignees()
 
   // Handlers
   const handleSendMessage = async (params: {
@@ -153,6 +155,11 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
     await deleteTask.mutateAsync(taskId)
   }
 
+  const handleUpdateAssignees = async (userIds: string[]) => {
+    await updateAssignees.mutateAsync({ taskId, userIds })
+    toast.success('Assignees updated')
+  }
+
   // Loading state
   const loading = loadingTask
 
@@ -195,6 +202,8 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
         onStatusChange={handleStatusChange}
         onDelete={handleDelete}
         onReact={handleReact}
+        onUpdateAssignees={handleUpdateAssignees}
+        updatingAssignees={updateAssignees.isPending}
         isLoadingMessages={loadingMessages}
         isSending={sendMessage.isPending}
       />

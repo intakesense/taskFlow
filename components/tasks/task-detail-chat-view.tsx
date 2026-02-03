@@ -12,14 +12,17 @@ import {
   Calendar,
   Eye,
   User,
+  Users,
   MessageCircle,
   ChevronDown,
+  Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { handleError } from '@/lib/utils/error'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { StackedAvatars } from './stacked-avatars'
+import { MultiUserSelector } from './multi-user-selector'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -65,6 +68,8 @@ interface TaskDetailChatViewProps {
   onStatusChange: (status: string, reason?: string) => Promise<void>
   onDelete: () => Promise<void>
   onReact?: (messageId: string, emoji: string, currentEmoji?: string) => Promise<void>
+  onUpdateAssignees?: (userIds: string[]) => Promise<void>
+  updatingAssignees?: boolean
   isLoadingMessages?: boolean
   isSending?: boolean
 }
@@ -80,6 +85,8 @@ export function TaskDetailChatView({
   onStatusChange,
   onDelete,
   onReact,
+  onUpdateAssignees,
+  updatingAssignees,
   isLoadingMessages,
   isSending,
 }: TaskDetailChatViewProps) {
@@ -89,6 +96,10 @@ export function TaskDetailChatView({
   const [showOnHoldDialog, setShowOnHoldDialog] = useState(false)
   const [onHoldReason, setOnHoldReason] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isEditingAssignees, setIsEditingAssignees] = useState(false)
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>(
+    task.assignees?.map(a => a.id) || []
+  )
   const [inputValue, setInputValue] = useState('')
   const [replyingTo, setReplyingTo] = useState<{
     id: string
@@ -317,11 +328,27 @@ export function TaskDetailChatView({
                   <DropdownMenuSeparator />
                 </>
               )}
+              {isAssignedByMe && task.status !== 'archived' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => {
+                    setSelectedAssigneeIds(task.assignees?.map(a => a.id) || [])
+                    setIsEditingAssignees(true)
+                    setIsExpanded(true)
+                  }}>
+                    <Users className="h-4 w-4 mr-2" />
+                    Edit Assignees
+                  </DropdownMenuItem>
+                </>
+              )}
               {canDelete && (
-                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Task
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Task
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -356,6 +383,71 @@ export function TaskDetailChatView({
                 <Eye className="h-3.5 w-3.5" />
                 <span className="capitalize">{task.visibility.replace('_', ' ')}</span>
               </div>
+            </div>
+
+            {/* Assignees */}
+            <div className="pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Assigned to</span>
+                {isAssignedByMe && task.status !== 'archived' && !isEditingAssignees && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAssigneeIds(task.assignees?.map(a => a.id) || [])
+                      setIsEditingAssignees(true)
+                    }}
+                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/80"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Edit
+                  </button>
+                )}
+              </div>
+              {isEditingAssignees ? (
+                <div className="space-y-2">
+                  <MultiUserSelector
+                    selectedUserIds={selectedAssigneeIds}
+                    onSelectUsers={setSelectedAssigneeIds}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 h-8 text-xs rounded-lg"
+                      onClick={() => {
+                        setSelectedAssigneeIds(task.assignees?.map(a => a.id) || [])
+                        setIsEditingAssignees(false)
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1 h-8 text-xs rounded-lg"
+                      disabled={updatingAssignees || selectedAssigneeIds.length === 0}
+                      onClick={async () => {
+                        if (onUpdateAssignees) {
+                          await onUpdateAssignees(selectedAssigneeIds)
+                          setIsEditingAssignees(false)
+                        }
+                      }}
+                    >
+                      {updatingAssignees ? 'Saving...' : 'Save'}
+                    </Button>
+                  </div>
+                </div>
+              ) : task.assignees && task.assignees.length > 0 ? (
+                <div className="flex items-center gap-2">
+                  <StackedAvatars users={task.assignees} max={4} size="sm" />
+                  <span className="text-sm">
+                    {task.assignees.length === 1
+                      ? task.assignees[0].name
+                      : `${task.assignees[0].name} +${task.assignees.length - 1}`}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">Unassigned</span>
+              )}
             </div>
           </div>
         )}

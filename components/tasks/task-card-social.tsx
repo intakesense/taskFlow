@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { MoreVertical, CheckCircle2, Clock, Calendar } from 'lucide-react'
+import { MoreVertical, CheckCircle2, Clock, Calendar, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -180,6 +180,15 @@ export function TaskCardSocial({
                   View Details
                 </Link>
               </DropdownMenuItem>
+              {/* Edit assignees - only creator */}
+              {isCreatedByMe && task.status !== 'archived' && (
+                <DropdownMenuItem asChild>
+                  <Link href={`/tasks/${task.id}`} className="cursor-pointer">
+                    <Users className="h-4 w-4 mr-2" />
+                    Edit Assignees
+                  </Link>
+                </DropdownMenuItem>
+              )}
               {/* Status changes - only assignee can start/pause/complete */}
               {onStatusChange && isAssignedToMe && task.status !== 'archived' && (
                 <>
