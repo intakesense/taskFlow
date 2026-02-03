@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 import { haptics } from '@/lib/haptics'
 import { EmojiPicker } from '@/components/ui/emoji-picker'
 import { VoiceRecorder } from '@/components/messages/voice-recorder'
+import { MentionPopup } from './mention-popup'
+import { useMentions } from '@/hooks/use-mentions'
 import type { ChatInputProps } from './types'
 
 /**
@@ -26,6 +28,7 @@ export function ChatInput({
     onEmojiSelect,
     replyingTo,
     onCancelReply,
+    users = [],
     className,
 }: ChatInputProps) {
     const [showVoiceRecorder, setShowVoiceRecorder] = useState(false)
@@ -33,6 +36,20 @@ export function ChatInput({
     const [isSendingVoice, setIsSendingVoice] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
+
+    const { mentionPopupOpen, filteredUsers, handleMentionInput, selectMention, closeMentionPopup } =
+        useMentions({ value, onChange, users, inputRef })
+    const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
+    const prevOpenRef = useRef(false)
+    const prevListLenRef = useRef(0)
+    // Reset highlight to top whenever popup opens or list changes
+    if (!mentionPopupOpen) {
+        if (prevOpenRef.current) setMentionActiveIndex(0)
+    } else if (filteredUsers.length !== prevListLenRef.current) {
+        setMentionActiveIndex(0)
+    }
+    prevOpenRef.current = mentionPopupOpen
+    prevListLenRef.current = filteredUsers.length
 
     const hasContent = value.trim().length > 0 || selectedFile !== null
     const showSendButton = hasContent || showVoiceRecorder
@@ -52,6 +69,30 @@ export function ChatInput({
     }, [value, selectedFile, onFileSelect, onSend])
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (mentionPopupOpen) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setMentionActiveIndex(prev => Math.min(prev + 1, filteredUsers.length - 1))
+                return
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setMentionActiveIndex(prev => Math.max(prev - 1, 0))
+                return
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault()
+                if (filteredUsers[mentionActiveIndex]) {
+                    selectMention(filteredUsers[mentionActiveIndex])
+                }
+                return
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                closeMentionPopup()
+                return
+            }
+        }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             handleSend()
@@ -62,7 +103,7 @@ export function ChatInput({
     }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        onChange(e.target.value)
+        handleMentionInput(e.target.value)
         onTyping?.()
     }
 
@@ -75,7 +116,7 @@ export function ChatInput({
     }
 
     const handleEmojiSelect = (emoji: string) => {
-        onChange(value + emoji)
+        handleMentionInput(value + emoji)
         onEmojiSelect?.(emoji)
         inputRef.current?.focus()
         onTyping?.()
@@ -177,6 +218,13 @@ export function ChatInput({
 
                     {/* Text input */}
                     <div className="flex-1 relative">
+                        <MentionPopup
+                            users={filteredUsers}
+                            open={mentionPopupOpen}
+                            activeIndex={mentionActiveIndex}
+                            onSelect={selectMention}
+                            onClose={closeMentionPopup}
+                        />
                         <input
                             ref={inputRef}
                             type="text"

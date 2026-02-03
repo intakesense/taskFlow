@@ -1,7 +1,7 @@
 // Shared Chat Component Types
 // These are abstracted types that work for both conversation messages and task messages
 
-import type { UserBasic, GroupedReaction } from '@/lib/types'
+import type { UserBasic, GroupedReaction, User } from '@/lib/types'
 
 /**
  * Unified chat message interface that both MessageWithSender and TaskMessageWithSender can conform to.
@@ -49,6 +49,8 @@ export interface ChatBubbleProps {
     showAvatar?: boolean
     /** Whether to show sender name above message */
     showSenderName?: boolean
+    /** List of all users, used to render @mention badges in content */
+    users?: User[]
 
     // Feature callbacks - if undefined, feature is disabled
     /** Called when user reacts to the message (with emoji) */
@@ -107,6 +109,9 @@ export interface ChatInputProps {
     } | null
     /** Called when user cancels the reply */
     onCancelReply?: () => void
+
+    /** List of all users, used to power @mention autocomplete */
+    users?: User[]
 
     // Styling
     className?: string

@@ -13,6 +13,7 @@ import { FileAttachment } from '@/components/messages/file-attachment'
 import type { ChatBubbleProps, ChatMessage } from './types'
 import { isEmojiOnlyMessage } from './types'
 import { AudioMessagePlayer } from '@/components/messages/voice-recorder'
+import { renderMentions } from '@/lib/utils/mentions'
 
 // Quick reactions component (inline for simplicity - uses existing logic pattern)
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
@@ -140,6 +141,7 @@ export function ChatBubble({
     onCopy,
     groupedReactions = [],
     userCurrentEmoji,
+    users = [],
     className,
 }: ChatBubbleProps) {
     const [showReactions, setShowReactions] = useState(false)
@@ -413,7 +415,7 @@ export function ChatBubble({
                                         : 'bg-muted text-foreground rounded-bl-sm'
                                 )}
                             >
-                                <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                                <p className="text-sm whitespace-pre-wrap break-words">{renderMentions(message.content, users)}</p>
                                 <div className={cn(
                                     'flex items-center justify-end gap-1 mt-1',
                                     isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
@@ -470,7 +472,7 @@ export function ChatBubble({
                             </div>
                         )}
                         <div className="px-3 py-2">
-                            <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                            <p className="text-sm whitespace-pre-wrap break-words">{renderMentions(message.content, users)}</p>
                             <div className={cn(
                                 'flex items-center justify-end gap-1 mt-1',
                                 isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'

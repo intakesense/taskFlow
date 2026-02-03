@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { m, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useAuth } from '@/lib/auth-context'
-import { ConversationWithMembers, MessageWithSender, UserBasic } from '@/lib/types'
+import { ConversationWithMembers, MessageWithSender, UserBasic, User } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { formatMessageTime } from '@/lib/utils/date'
 import { messageBubbleVariants, replyReferenceVariants } from '@/lib/animations'
@@ -25,6 +25,10 @@ import { toast } from 'sonner'
 import { haptics } from '@/lib/haptics'
 import { EmojiPicker } from '@/components/ui/emoji-picker'
 import { ProfilePictureDialog } from './profile-picture-dialog'
+import { MentionPopup } from '@/components/chat/mention-popup'
+import { useMentions } from '@/hooks/use-mentions'
+import { useUsers } from '@/hooks/use-users'
+import { renderMentions } from '@/lib/utils/mentions'
 import {
     ArrowLeft,
     Send,
@@ -88,6 +92,23 @@ export function ChatView({
     const fileInputRef = useRef<HTMLInputElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
 
+    const { data: allUsers = [] } = useUsers()
+    // Scope mentionable users to this conversation's members only
+    const memberIds = new Set(conversation.members.map(m => m.id))
+    const mentionableUsers = allUsers.filter(u => memberIds.has(u.id))
+    const { mentionPopupOpen, filteredUsers, handleMentionInput, selectMention, closeMentionPopup } =
+        useMentions({ value: input, onChange: setInput, users: mentionableUsers, inputRef })
+    const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
+    const prevMentionOpenRef = useRef(false)
+    const prevMentionListLenRef = useRef(0)
+    if (!mentionPopupOpen) {
+        if (prevMentionOpenRef.current) setMentionActiveIndex(0)
+    } else if (filteredUsers.length !== prevMentionListLenRef.current) {
+        setMentionActiveIndex(0)
+    }
+    prevMentionOpenRef.current = mentionPopupOpen
+    prevMentionListLenRef.current = filteredUsers.length
+
     // Scroll to bottom on new messages
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -122,6 +143,30 @@ export function ChatView({
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (mentionPopupOpen) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setMentionActiveIndex(prev => Math.min(prev + 1, filteredUsers.length - 1))
+                return
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setMentionActiveIndex(prev => Math.max(prev - 1, 0))
+                return
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault()
+                if (filteredUsers[mentionActiveIndex]) {
+                    selectMention(filteredUsers[mentionActiveIndex])
+                }
+                return
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                closeMentionPopup()
+                return
+            }
+        }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             handleSend()
@@ -132,7 +177,7 @@ export function ChatView({
     }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setInput(e.target.value)
+        handleMentionInput(e.target.value)
         onTyping?.()
     }
 
@@ -145,7 +190,7 @@ export function ChatView({
     }
 
     const handleEmojiSelect = (emoji: string) => {
-        setInput(prev => prev + emoji)
+        handleMentionInput(input + emoji)
         inputRef.current?.focus()
         onTyping?.()
     }
@@ -356,6 +401,7 @@ export function ChatView({
                                 isOwn={message.sender_id === effectiveUser?.id}
                                 onReply={handleReply}
                                 onAvatarClick={handleAvatarClick}
+                                users={allUsers}
                             />
                         ))}
                         <TypingBubble key="typing" typingUsers={typingUsers} />
@@ -441,15 +487,24 @@ export function ChatView({
                         >
                             <Paperclip className="h-5 w-5" />
                         </Button>
-                        <Input
-                            ref={inputRef}
-                            placeholder={replyingTo ? "Reply..." : selectedFile ? "Add a message (optional)..." : "Type a message..."}
-                            value={input}
-                            onChange={handleInputChange}
-                            onKeyDown={handleKeyDown}
-                            className="flex-1 h-11 rounded-full px-4 text-[16px]"
-                            disabled={isSendingVoice}
-                        />
+                        <div className="flex-1 relative">
+                            <MentionPopup
+                                users={filteredUsers}
+                                open={mentionPopupOpen}
+                                activeIndex={mentionActiveIndex}
+                                onSelect={selectMention}
+                                onClose={closeMentionPopup}
+                            />
+                            <Input
+                                ref={inputRef}
+                                placeholder={replyingTo ? "Reply..." : selectedFile ? "Add a message (optional)..." : "Type a message..."}
+                                value={input}
+                                onChange={handleInputChange}
+                                onKeyDown={handleKeyDown}
+                                className="flex-1 h-11 rounded-full px-4 text-[16px]"
+                                disabled={isSendingVoice}
+                            />
+                        </div>
 
                         {showSendButton ? (
                             <Button
@@ -513,6 +568,7 @@ interface MessageBubbleProps {
     isOwn: boolean
     onReply: (message: MessageWithSender) => void
     onAvatarClick?: (avatarUrl: string | null | undefined, name: string, email: string | null | undefined) => void
+    users?: User[]
 }
 
 function MessageBubble({
@@ -524,6 +580,7 @@ function MessageBubble({
     isOwn,
     onReply,
     onAvatarClick,
+    users = [],
 }: MessageBubbleProps) {
     const [showReactions, setShowReactions] = useState(false)
     const [showMobileActions, setShowMobileActions] = useState(false)
@@ -851,7 +908,7 @@ function MessageBubble({
                                         : 'bg-muted text-foreground rounded-bl-sm'
                                 )}
                             >
-                                <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                                <p className="text-sm whitespace-pre-wrap break-words">{renderMentions(message.content, users)}</p>
                                 <div className={cn(
                                     'flex items-center justify-end gap-1 mt-1',
                                     isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
@@ -925,7 +982,7 @@ function MessageBubble({
                             </div>
                         )}
                         <div className="px-3 py-2">
-                            <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                            <p className="text-sm whitespace-pre-wrap break-words">{renderMentions(message.content, users)}</p>
                             <div className={cn(
                                 'flex items-center justify-end gap-1 mt-1',
                                 isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'

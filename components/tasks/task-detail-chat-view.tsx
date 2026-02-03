@@ -49,6 +49,7 @@ import type { ChatMessage } from '@/components/chat'
 import type { TaskWithUsers, TaskMessageWithSender, UserBasic } from '@/lib/types'
 import { groupTaskReactions, getUserTaskReaction } from '@/hooks/use-task-messages'
 import { useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
+import { useUsers } from '@/hooks/use-users'
 
 interface TaskDetailChatViewProps {
   task: TaskWithUsers
@@ -108,6 +109,13 @@ export function TaskDetailChatView({
     fileName?: string | null
   } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { data: allUsers = [] } = useUsers()
+  // Scope mentionable users to task participants only (assigner + assignees)
+  const participantIds = new Set([
+    ...(task.assigner ? [task.assigner.id] : []),
+    ...(task.assignees?.map(a => a.id) ?? []),
+  ])
+  const mentionableUsers = allUsers.filter(u => participantIds.has(u.id))
 
   // Hide bottom nav when in task chat view (like message chat view)
   useEffect(() => {
@@ -513,6 +521,7 @@ export function TaskDetailChatView({
                       toast.success('Copied to clipboard')
                     }
                   }}
+                  users={allUsers}
                 />
               )
             })}
@@ -585,6 +594,7 @@ export function TaskDetailChatView({
           onEmojiSelect={(emoji) => setInputValue(prev => prev + emoji)}
           onFileSelect={onSendFile ? (file) => onSendFile(file, replyingTo?.id) : undefined}
           onVoiceMessage={onSendVoiceMessage ? (blob) => onSendVoiceMessage(blob, replyingTo?.id) : undefined}
+          users={mentionableUsers}
         />
       ) : (
         <div className="flex-shrink-0 px-4 py-3 border-t bg-muted/30">
