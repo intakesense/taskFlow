@@ -1,7 +1,8 @@
 'use client'
 
-import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Dialog, DialogContent, DialogClose, DialogTitle } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -22,16 +23,21 @@ export function ProfilePictureDialog({
 }: ProfilePictureDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 overflow-hidden bg-black/95 border-none">
+      <DialogContent showCloseButton={false} aria-describedby={undefined} className="max-w-md p-0 overflow-hidden bg-black/95 border-none">
+        <VisuallyHidden>
+          <DialogTitle>Profile picture: {name}</DialogTitle>
+        </VisuallyHidden>
+
         {/* Close button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onOpenChange(false)}
-          className="absolute top-4 right-4 z-10 text-white hover:bg-white/20 rounded-full"
-        >
-          <X className="h-5 w-5" />
-        </Button>
+        <DialogClose asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-4 right-4 z-20 text-white hover:bg-white/20 rounded-full"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </DialogClose>
 
         {/* Profile info header */}
         <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent z-10">
