@@ -42,8 +42,8 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
     <div
       className={cn(
         'relative bg-muted rounded-xl overflow-hidden h-full w-full',
-        'border-2 transition-all duration-200',
-        isSpeaking ? 'border-green-500 shadow-lg shadow-green-500/20' : 'border-transparent'
+        'transition-shadow duration-300 ease-out',
+        isSpeaking && 'ring-2 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]'
       )}
     >
       {hasScreenShare ? (
@@ -72,10 +72,6 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
             </AvatarFallback>
           </Avatar>
         </div>
-      )}
-
-      {isSpeaking && (
-        <div className="absolute inset-0 border-4 border-green-500 rounded-xl pointer-events-none" />
       )}
 
       <div className={cn(
