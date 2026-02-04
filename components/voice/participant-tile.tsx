@@ -5,6 +5,7 @@ import {
   useVideoTrack,
   useScreenVideoTrack,
   useActiveSpeakerId,
+  useActiveParticipant,
   DailyVideo,
 } from '@daily-co/daily-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -21,13 +22,18 @@ export function ParticipantTile({ sessionId, isLocal }: ParticipantTileProps) {
   const videoTrack = useVideoTrack(sessionId)
   const screenVideoTrack = useScreenVideoTrack(sessionId)
   const activeSpeakerId = useActiveSpeakerId()
+  const activeParticipant = useActiveParticipant()
 
   if (!participant) return null
 
   const hasVideo = videoTrack.state === 'playable'
   const hasScreenShare = screenVideoTrack.state === 'playable'
   const isMuted = !participant.audio
-  const isSpeaking = activeSpeakerId === sessionId
+  // Only show speaking indicator if:
+  // 1. This participant is the active speaker
+  // 2. They have audio enabled (not muted)
+  // 3. The active participant actually exists and has audio
+  const isSpeaking = activeSpeakerId === sessionId && !isMuted && activeParticipant?.audio
 
   const userName = participant.user_name || 'Anonymous'
 

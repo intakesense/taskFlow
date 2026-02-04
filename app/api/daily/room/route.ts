@@ -31,7 +31,7 @@ async function createDailyRoom(roomName: string): Promise<DailyRoom> {
         enable_knocking: false,
         enable_prejoin_ui: false,
         max_participants: 25,
-        exp: Math.floor(Date.now() / 1000) + 86400 * 30,
+        exp: Math.floor(Date.now() / 1000) + 86400, // 24 hours - room cleanup, not session limit
         eject_at_room_exp: true,
       },
     }),

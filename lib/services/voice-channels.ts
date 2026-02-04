@@ -89,12 +89,34 @@ export const voiceChannelService = {
   },
 
   /**
+   * Clean up stale participants (joined more than 15 minutes ago - matches room expiry)
+   * This handles cases where browser was closed without proper cleanup
+   */
+  async cleanupStaleParticipants(channelId: string): Promise<void> {
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+
+    await supabase
+      .from('voice_channel_participants')
+      .delete()
+      .eq('channel_id', channelId)
+      .lt('joined_at', fifteenMinutesAgo)
+  },
+
+  /**
    * Join a voice channel (database record)
    */
   async joinChannel(channelId: string, userId: string): Promise<void> {
+    // First, remove any stale entry for this user (in case browser was closed)
+    await supabase
+      .from('voice_channel_participants')
+      .delete()
+      .eq('channel_id', channelId)
+      .eq('user_id', userId)
+
+    // Then insert fresh entry
     const { error } = await supabase
       .from('voice_channel_participants')
-      .upsert({
+      .insert({
         channel_id: channelId,
         user_id: userId,
         joined_at: new Date().toISOString(),

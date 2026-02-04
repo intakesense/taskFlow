@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import {
   DailyProvider,
   DailyAudio,
@@ -7,6 +8,7 @@ import {
   useLocalSessionId,
 } from '@daily-co/daily-react'
 import { useVoiceChannel } from '@/lib/voice/voice-channel-context'
+import { useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
 import { VoiceControls } from './voice-controls'
 import { ParticipantGrid } from './participant-grid'
 import { Button } from '@/components/ui/button'
@@ -47,6 +49,13 @@ export function VoiceChannelPanel({ className }: VoiceChannelPanelProps) {
     callObject,
     leaveChannel,
   } = useVoiceChannel()
+  const { setVisible } = useBottomNavVisibility()
+
+  // Hide bottom nav when voice channel panel is shown
+  useEffect(() => {
+    setVisible(false)
+    return () => setVisible(true)
+  }, [setVisible])
 
   if (!isConnected && !isConnecting) {
     return null

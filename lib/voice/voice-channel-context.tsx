@@ -107,6 +107,9 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
     setIsConnecting(true)
 
     try {
+      // Clean up any stale participants (from crashed browsers, etc.)
+      await voiceChannelService.cleanupStaleParticipants(channel.id)
+
       const { roomName, roomUrl: url } = await voiceChannelService.getRoom(channel.id)
       setRoomUrl(url)
 
@@ -114,7 +117,7 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
 
       const callObject = DailyIframe.createCallObject({
         audioSource: true,
-        videoSource: false,
+        videoSource: true,  // Enable video device so camera can be toggled on later
       })
 
       callObject.on('joined-meeting', () => {
