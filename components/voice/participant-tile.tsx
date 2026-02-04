@@ -15,9 +15,10 @@ import { cn } from '@/lib/utils'
 interface ParticipantTileProps {
   sessionId: string
   isLocal?: boolean
+  isMobile?: boolean
 }
 
-export function ParticipantTile({ sessionId, isLocal }: ParticipantTileProps) {
+export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTileProps) {
   const participant = useParticipant(sessionId)
   const videoTrack = useVideoTrack(sessionId)
   const screenVideoTrack = useScreenVideoTrack(sessionId)
@@ -40,7 +41,7 @@ export function ParticipantTile({ sessionId, isLocal }: ParticipantTileProps) {
   return (
     <div
       className={cn(
-        'relative aspect-video bg-muted rounded-xl overflow-hidden',
+        'relative bg-muted rounded-xl overflow-hidden h-full w-full',
         'border-2 transition-all duration-200',
         isSpeaking ? 'border-green-500 shadow-lg shadow-green-500/20' : 'border-transparent'
       )}
@@ -56,43 +57,53 @@ export function ParticipantTile({ sessionId, isLocal }: ParticipantTileProps) {
           sessionId={sessionId}
           type="video"
           mirror={isLocal}
-          className="w-full h-full object-cover"
+          className={cn(
+            'w-full h-full',
+            // On mobile, use object-contain to show full camera feed without cropping
+            // On desktop, use object-cover for a cleaner look
+            isMobile ? 'object-contain bg-black' : 'object-cover'
+          )}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-muted">
-          <Avatar className="h-20 w-20">
-            <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
+          <Avatar className={cn('h-20 w-20', isMobile && 'h-16 w-16')}>
+            <AvatarFallback className={cn('text-2xl bg-primary text-primary-foreground', isMobile && 'text-xl')}>
               {userName.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
         </div>
       )}
 
-
       {isSpeaking && (
         <div className="absolute inset-0 border-4 border-green-500 rounded-xl pointer-events-none" />
       )}
 
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+      <div className={cn(
+        'absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent',
+        isMobile ? 'p-2' : 'p-3'
+      )}>
         <div className="flex items-center justify-between">
-          <span className="text-white text-sm font-medium truncate">
+          <span className={cn(
+            'text-white font-medium truncate',
+            isMobile ? 'text-xs' : 'text-sm'
+          )}>
             {userName}
             {isLocal && ' (You)'}
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {hasScreenShare && (
-              <Monitor className="h-4 w-4 text-blue-400" />
+              <Monitor className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4', 'text-blue-400')} />
             )}
             {hasVideo ? (
-              <Video className="h-4 w-4 text-white" />
+              <Video className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4', 'text-white')} />
             ) : (
-              <VideoOff className="h-4 w-4 text-muted-foreground" />
+              <VideoOff className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4', 'text-muted-foreground')} />
             )}
             {isMuted ? (
-              <MicOff className="h-4 w-4 text-red-400" />
+              <MicOff className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4', 'text-red-400')} />
             ) : (
-              <Mic className={cn('h-4 w-4', isSpeaking ? 'text-green-400' : 'text-white')} />
+              <Mic className={cn(isMobile ? 'h-3 w-3' : 'h-4 w-4', isSpeaking ? 'text-green-400' : 'text-white')} />
             )}
           </div>
         </div>

@@ -12,6 +12,7 @@ import {
 import { useVoiceChannel } from '@/lib/voice/voice-channel-context'
 import { useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
 import { useIdleDetection } from '@/hooks/use-idle-detection'
+import { useBreakpoints } from '@/hooks/use-mobile'
 import { VoiceControls } from './voice-controls'
 import { ParticipantGrid } from './participant-grid'
 import { IdleWarningDialog } from './idle-warning-dialog'
@@ -43,6 +44,8 @@ function VoiceChannelContent({
   const localSessionId = useLocalSessionId()
   const activeSpeakerId = useActiveSpeakerId()
   const localParticipant = useLocalParticipant()
+  const { isMobile, isTablet } = useBreakpoints()
+  const isSmallScreen = isMobile || isTablet
 
   // Report activity when local user speaks, toggles video, or screen shares
   useEffect(() => {
@@ -61,14 +64,20 @@ function VoiceChannelContent({
   return (
     <>
       <DailyAudio />
-      <div className="flex-1 p-4 overflow-auto">
+      <div className={cn(
+        'flex-1 overflow-hidden',
+        isSmallScreen ? 'p-1' : 'p-4'
+      )}>
         <ParticipantGrid
           participantIds={participantIds}
           localSessionId={localSessionId}
         />
       </div>
 
-      <div className="border-t p-4 bg-card">
+      <div className={cn(
+        'border-t bg-card',
+        isSmallScreen ? 'p-3 pb-safe' : 'p-4'
+      )}>
         <VoiceControls />
       </div>
 
@@ -91,6 +100,8 @@ export function VoiceChannelPanel({ className }: VoiceChannelPanelProps) {
     leaveChannel,
   } = useVoiceChannel()
   const { setVisible } = useBottomNavVisibility()
+  const { isMobile, isTablet } = useBreakpoints()
+  const isSmallScreen = isMobile || isTablet
 
   // Idle detection: warn after 10 min, auto-leave after 2 more min
   const {
@@ -130,23 +141,30 @@ export function VoiceChannelPanel({ className }: VoiceChannelPanelProps) {
 
   return (
     <div className={cn('flex flex-col h-full bg-background', className)}>
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
-        <div className="flex items-center gap-3">
+      <div className={cn(
+        'flex items-center justify-between border-b bg-card',
+        isSmallScreen ? 'px-3 py-2' : 'px-4 py-3'
+      )}>
+        <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <h2 className="font-semibold">{currentChannel?.name}</h2>
-          <Badge variant="secondary" className="gap-1">
-            <Wifi className="h-3 w-3" />
-            Connected
-          </Badge>
+          <h2 className={cn('font-semibold', isSmallScreen && 'text-sm')}>
+            {currentChannel?.name}
+          </h2>
+          {!isSmallScreen && (
+            <Badge variant="secondary" className="gap-1">
+              <Wifi className="h-3 w-3" />
+              Connected
+            </Badge>
+          )}
         </div>
         <Button
           variant="destructive"
-          size="sm"
+          size={isSmallScreen ? 'sm' : 'sm'}
           onClick={leaveChannel}
-          className="gap-2"
+          className={cn('gap-2', isSmallScreen && 'h-8 px-2')}
         >
           <PhoneOff className="h-4 w-4" />
-          Leave
+          {!isSmallScreen && 'Leave'}
         </Button>
       </div>
 
