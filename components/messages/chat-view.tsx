@@ -264,16 +264,16 @@ export function ChatView({
     }, [])
 
     return (
-        <div className="flex flex-col h-full bg-background">
+        <div className="flex flex-col h-full bg-background overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 p-4 border-b border-border bg-card">
+            <div className="flex-shrink-0 flex items-center gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border bg-card">
                 {onBack && (
-                    <Button variant="ghost" size="icon" onClick={onBack} className="lg:hidden">
+                    <Button variant="ghost" size="icon" onClick={onBack} className="lg:hidden h-9 w-9 flex-shrink-0">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                 )}
                 <div
-                    className="relative cursor-pointer"
+                    className="relative cursor-pointer flex-shrink-0"
                     onClick={() => {
                         haptics.light()
                         setSelectedProfile({
@@ -292,7 +292,7 @@ export function ChatView({
                         setShowProfilePicture(true)
                     }}
                 >
-                    <Avatar className="h-10 w-10">
+                    <Avatar className="h-9 w-9 sm:h-10 sm:w-10">
                         {(() => {
                             // For self-chat, use your own avatar
                             const avatarUrl = conversation.is_group
@@ -314,11 +314,11 @@ export function ChatView({
                         />
                     )}
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground">{displayName}</h3>
+                        <h3 className="font-semibold text-foreground text-sm sm:text-base truncate">{displayName}</h3>
                         {!conversation.is_group && otherUser && (
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 flex-shrink-0">
                                 {getLevelLabel(otherUser.level)}
                             </Badge>
                         )}
@@ -342,7 +342,7 @@ export function ChatView({
                 </div>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
                             <MoreVertical className="h-5 w-5" />
                         </Button>
                     </DropdownMenuTrigger>
@@ -365,7 +365,7 @@ export function ChatView({
                 {...getRootProps()}
                 data-pattern={chatPattern !== 'none' ? chatPattern : undefined}
                 className={cn(
-                    'flex-1 overflow-y-auto p-4 space-y-2',
+                    'flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-2',
                     chatPattern !== 'none' && 'chat-pattern-bg',
                     isDragActive && 'bg-primary/5'
                 )}
@@ -418,27 +418,27 @@ export function ChatView({
                         initial="initial"
                         animate="animate"
                         exit="exit"
-                        className="px-4 py-3 border-t border-border bg-muted/50 flex items-center gap-3 overflow-hidden"
+                        className="px-3 sm:px-4 py-2 sm:py-3 border-t border-border bg-muted/50 flex items-center gap-2 sm:gap-3 overflow-hidden"
                     >
-                        <div className="w-1 h-12 bg-primary rounded-full flex-shrink-0" />
+                        <div className="w-1 h-10 sm:h-12 bg-primary rounded-full flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-primary">
+                            <p className="text-xs sm:text-sm font-medium text-primary truncate">
                                 Replying to {replyingTo.sender?.name || 'Unknown'}
                             </p>
-                            <p className="text-sm text-muted-foreground truncate">
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
                                 {replyingTo.content || (replyingTo.file_name ? `File: ${replyingTo.file_name}` : 'Message')}
                             </p>
                         </div>
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-10 w-10 rounded-full touch-manipulation flex-shrink-0"
+                            className="h-8 w-8 sm:h-10 sm:w-10 rounded-full touch-manipulation flex-shrink-0"
                             onClick={() => {
                                 haptics.light()
                                 setReplyingTo(null)
                             }}
                         >
-                            <X className="h-5 w-5" />
+                            <X className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
                     </m.div>
                 )}
@@ -446,15 +446,17 @@ export function ChatView({
 
             {/* Input */}
             {showVoiceRecorder ? (
-                <VoiceRecorder
-                    onSend={handleSendVoiceMessage}
-                    onCancel={() => setShowVoiceRecorder(false)}
-                    maxDuration={300}
-                />
+                <div className="flex-shrink-0">
+                    <VoiceRecorder
+                        onSend={handleSendVoiceMessage}
+                        onCancel={() => setShowVoiceRecorder(false)}
+                        maxDuration={300}
+                    />
+                </div>
             ) : (
-                <div className="p-3 sm:p-4 border-t border-border bg-card">
+                <div className="flex-shrink-0 p-2 sm:p-4 border-t border-border bg-card">
                     {selectedFile && (
-                        <div className="mb-3">
+                        <div className="mb-2 sm:mb-3">
                             <FilePreview
                                 file={selectedFile}
                                 onRemove={() => setSelectedFile(null)}
@@ -462,7 +464,7 @@ export function ChatView({
                         </div>
                     )}
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2">
                         <input
                             type="file"
                             ref={fileInputRef}
@@ -483,11 +485,11 @@ export function ChatView({
                             }}
                             title="Attach file"
                             disabled={isSending || isSendingVoice}
-                            className="h-11 w-11 rounded-full touch-manipulation flex-shrink-0"
+                            className="h-9 w-9 sm:h-11 sm:w-11 rounded-full touch-manipulation flex-shrink-0"
                         >
-                            <Paperclip className="h-5 w-5" />
+                            <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
-                        <div className="flex-1 relative">
+                        <div className="flex-1 min-w-0 relative">
                             <MentionPopup
                                 users={filteredUsers}
                                 open={mentionPopupOpen}
@@ -501,7 +503,7 @@ export function ChatView({
                                 value={input}
                                 onChange={handleInputChange}
                                 onKeyDown={handleKeyDown}
-                                className="flex-1 h-11 rounded-full px-4 text-[16px]"
+                                className="flex-1 h-9 sm:h-11 rounded-full px-3 sm:px-4 text-[16px]"
                                 disabled={isSendingVoice}
                             />
                         </div>
@@ -512,12 +514,12 @@ export function ChatView({
                                 disabled={(!input.trim() && !selectedFile) || isSending || isSendingVoice}
                                 size="icon"
                                 title="Send"
-                                className="h-11 w-11 rounded-full touch-manipulation flex-shrink-0"
+                                className="h-9 w-9 sm:h-11 sm:w-11 rounded-full touch-manipulation flex-shrink-0"
                             >
                                 {isSending || isSendingVoice ? (
-                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
                                 ) : (
-                                    <Send className="h-5 w-5" />
+                                    <Send className="h-4 w-4 sm:h-5 sm:w-5" />
                                 )}
                             </Button>
                         ) : (
@@ -530,9 +532,9 @@ export function ChatView({
                                 }}
                                 title="Record voice message"
                                 disabled={isSending || isSendingVoice}
-                                className="h-11 w-11 rounded-full touch-manipulation flex-shrink-0"
+                                className="h-9 w-9 sm:h-11 sm:w-11 rounded-full touch-manipulation flex-shrink-0"
                             >
-                                <Mic className="h-5 w-5" />
+                                <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
                             </Button>
                         )}
                     </div>
@@ -819,9 +821,9 @@ function MessageBubble({
                     swipeRef.current = el
                 }}
                 className={cn(
-                    'max-w-[80%] sm:max-w-[70%] relative select-none',
+                    'max-w-[85%] sm:max-w-[70%] min-w-0 relative select-none',
                     // Reduce max-width in groups to account for avatar
-                    isGroupChat && !isOwn && 'max-w-[calc(80%-40px)] sm:max-w-[calc(70%-40px)]'
+                    isGroupChat && !isOwn && 'max-w-[calc(85%-40px)] sm:max-w-[calc(70%-40px)]'
                 )}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}

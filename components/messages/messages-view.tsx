@@ -73,10 +73,10 @@ export function MessagesView({
   }, [isMobileView, selectedConversation, setVisible])
 
   return (
-    <div className="h-screen flex">
+    <div className="h-[100dvh] flex overflow-hidden">
       {/* Conversation List */}
       {showList && (
-        <div className={`${isMobileView ? 'w-full' : 'w-80 border-r border-border'}`}>
+        <div className={`${isMobileView ? 'w-full h-full' : 'w-80 border-r border-border h-full'}`}>
           <ConversationList
             conversations={conversations}
             selectedId={selectedConversation?.id}
@@ -92,7 +92,7 @@ export function MessagesView({
 
       {/* Chat View */}
       {showChat && selectedConversation ? (
-        <div className="flex-1">
+        <div className="flex-1 h-full min-h-0">
           <ChatView
             conversation={selectedConversation}
             messages={messages}

@@ -69,7 +69,7 @@ export function FileAttachment({
         <div
           onClick={() => setShowPreview(true)}
           className={cn(
-            'relative group cursor-pointer rounded-lg overflow-hidden max-w-sm',
+            'relative group cursor-pointer rounded-lg overflow-hidden max-w-full sm:max-w-sm',
             className
           )}
         >
@@ -112,7 +112,7 @@ export function FileAttachment({
         <div
           onClick={() => setShowPreview(true)}
           className={cn(
-            'relative group cursor-pointer rounded-lg overflow-hidden max-w-sm',
+            'relative group cursor-pointer rounded-lg overflow-hidden max-w-full sm:max-w-sm',
             className
           )}
         >
@@ -148,7 +148,7 @@ export function FileAttachment({
       <div
         onClick={() => setShowPreview(true)}
         className={cn(
-          'flex items-center gap-3 p-3 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer max-w-sm',
+          'flex items-center gap-3 p-3 rounded-lg border bg-muted/50 hover:bg-muted transition-colors cursor-pointer max-w-full sm:max-w-sm',
           className
         )}
       >

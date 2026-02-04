@@ -15,16 +15,13 @@ function DashboardLayoutContent({ children }: DashboardLayoutProps) {
     // Auth providers persist across routes, so auth state is already available
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="h-[100dvh] bg-background overflow-hidden">
             {/* Desktop Sidebar */}
             <Sidebar />
 
             {/* Main content */}
-            <main className="lg:pl-64">
-                {/* Add padding-bottom for mobile bottom nav only when visible */}
-                <div className={`min-h-screen ${bottomNavVisible ? 'pb-16' : 'pb-0'} lg:pb-0`}>
-                    {children}
-                </div>
+            <main className={`lg:pl-64 h-full ${bottomNavVisible ? 'pb-16 lg:pb-0' : ''}`}>
+                {children}
             </main>
 
             {/* Mobile Bottom Navigation - hidden when in chat */}

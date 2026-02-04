@@ -6,11 +6,15 @@ import {
   DailyAudio,
   useParticipantIds,
   useLocalSessionId,
+  useActiveSpeakerId,
+  useLocalParticipant,
 } from '@daily-co/daily-react'
 import { useVoiceChannel } from '@/lib/voice/voice-channel-context'
 import { useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
+import { useIdleDetection } from '@/hooks/use-idle-detection'
 import { VoiceControls } from './voice-controls'
 import { ParticipantGrid } from './participant-grid'
+import { IdleWarningDialog } from './idle-warning-dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PhoneOff, Loader2, Wifi } from 'lucide-react'
@@ -20,9 +24,39 @@ interface VoiceChannelPanelProps {
   className?: string
 }
 
-function VoiceChannelContent() {
+interface VoiceChannelContentProps {
+  onActivity: () => void
+  showIdleWarning: boolean
+  idleSecondsRemaining: number
+  onStayConnected: () => void
+  onLeave: () => void
+}
+
+function VoiceChannelContent({
+  onActivity,
+  showIdleWarning,
+  idleSecondsRemaining,
+  onStayConnected,
+  onLeave,
+}: VoiceChannelContentProps) {
   const participantIds = useParticipantIds()
   const localSessionId = useLocalSessionId()
+  const activeSpeakerId = useActiveSpeakerId()
+  const localParticipant = useLocalParticipant()
+
+  // Report activity when local user speaks, toggles video, or screen shares
+  useEffect(() => {
+    if (activeSpeakerId === localSessionId) {
+      onActivity()
+    }
+  }, [activeSpeakerId, localSessionId, onActivity])
+
+  // Report activity when local participant state changes (mute/video/screen)
+  useEffect(() => {
+    if (localParticipant) {
+      onActivity()
+    }
+  }, [localParticipant?.audio, localParticipant?.video, localParticipant?.screen, onActivity])
 
   return (
     <>
@@ -37,6 +71,13 @@ function VoiceChannelContent() {
       <div className="border-t p-4 bg-card">
         <VoiceControls />
       </div>
+
+      <IdleWarningDialog
+        open={showIdleWarning}
+        secondsRemaining={idleSecondsRemaining}
+        onStayConnected={onStayConnected}
+        onLeave={onLeave}
+      />
     </>
   )
 }
@@ -50,6 +91,19 @@ export function VoiceChannelPanel({ className }: VoiceChannelPanelProps) {
     leaveChannel,
   } = useVoiceChannel()
   const { setVisible } = useBottomNavVisibility()
+
+  // Idle detection: warn after 10 min, auto-leave after 2 more min
+  const {
+    showWarning: showIdleWarning,
+    secondsRemaining: idleSecondsRemaining,
+    stayConnected,
+    reportActivity,
+  } = useIdleDetection({
+    idleTimeout: 10 * 60 * 1000, // 10 minutes
+    warningDuration: 2 * 60 * 1000, // 2 minutes to respond
+    enabled: isConnected,
+    onDisconnect: leaveChannel,
+  })
 
   // Hide bottom nav when voice channel panel is shown
   useEffect(() => {
@@ -97,7 +151,13 @@ export function VoiceChannelPanel({ className }: VoiceChannelPanelProps) {
       </div>
 
       <DailyProvider callObject={callObject}>
-        <VoiceChannelContent />
+        <VoiceChannelContent
+          onActivity={reportActivity}
+          showIdleWarning={showIdleWarning}
+          idleSecondsRemaining={idleSecondsRemaining}
+          onStayConnected={stayConnected}
+          onLeave={leaveChannel}
+        />
       </DailyProvider>
     </div>
   )
