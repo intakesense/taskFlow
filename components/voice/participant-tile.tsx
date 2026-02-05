@@ -38,6 +38,9 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
 
   const userName = participant.user_name || 'Anonymous'
 
+  // Show camera PiP when screen sharing with camera on
+  const showCameraPip = hasScreenShare && hasVideo
+
   return (
     <div
       className={cn(
@@ -46,6 +49,7 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
         isSpeaking && 'ring-2 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]'
       )}
     >
+      {/* Main video content */}
       {hasScreenShare ? (
         <DailyVideo
           sessionId={sessionId}
@@ -59,8 +63,6 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
           mirror={isLocal}
           className={cn(
             'w-full h-full',
-            // On mobile, use object-contain to show full camera feed without cropping
-            // On desktop, use object-cover for a cleaner look
             isMobile ? 'object-contain bg-black' : 'object-cover'
           )}
         />
@@ -74,6 +76,27 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
         </div>
       )}
 
+      {/* Camera PiP overlay when screen sharing */}
+      {showCameraPip && (
+        <div
+          className={cn(
+            'absolute rounded-lg overflow-hidden border-2 border-background/50 shadow-lg',
+            'transition-all duration-200',
+            isMobile
+              ? 'bottom-10 right-2 w-16 h-12'
+              : 'bottom-14 right-3 w-28 h-20'
+          )}
+        >
+          <DailyVideo
+            sessionId={sessionId}
+            type="video"
+            mirror={isLocal}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+
+      {/* Status bar */}
       <div className={cn(
         'absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent',
         isMobile ? 'p-2' : 'p-3'
