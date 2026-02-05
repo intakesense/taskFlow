@@ -189,7 +189,7 @@ export function TaskCardSocial({
                   </Link>
                 </DropdownMenuItem>
               )}
-              {/* Status changes - only assignee can start/pause/complete */}
+              {/* Status changes - assignee can start/pause/resume */}
               {onStatusChange && isAssignedToMe && task.status !== 'archived' && (
                 <>
                   <DropdownMenuSeparator />
@@ -201,18 +201,11 @@ export function TaskCardSocial({
                     </DropdownMenuItem>
                   )}
                   {task.status === 'in_progress' && (
-                    <>
-                      <DropdownMenuItem
-                        onClick={() => onStatusChange(task.id, 'on_hold')}
-                      >
-                        Put On Hold
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => onStatusChange(task.id, 'archived')}
-                      >
-                        Mark Complete
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem
+                      onClick={() => onStatusChange(task.id, 'on_hold')}
+                    >
+                      Put On Hold
+                    </DropdownMenuItem>
                   )}
                   {task.status === 'on_hold' && (
                     <DropdownMenuItem
@@ -221,6 +214,27 @@ export function TaskCardSocial({
                       Resume Task
                     </DropdownMenuItem>
                   )}
+                </>
+              )}
+              {/* Creator can mark complete or reopen */}
+              {onStatusChange && isCreatedByMe && task.status === 'in_progress' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => onStatusChange(task.id, 'archived')}
+                  >
+                    Mark Complete
+                  </DropdownMenuItem>
+                </>
+              )}
+              {onStatusChange && isCreatedByMe && task.status === 'archived' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => onStatusChange(task.id, 'in_progress')}
+                  >
+                    Reopen Task
+                  </DropdownMenuItem>
                 </>
               )}
               {/* Delete - only assigner can delete */}
@@ -240,8 +254,8 @@ export function TaskCardSocial({
         </div>
       </div>
 
-      {/* Action Bar - Only show if user can complete */}
-      {isAssignedToMe && task.status !== 'archived' && (
+      {/* Action Bar - Creator can complete in_progress tasks or reopen completed tasks */}
+      {isCreatedByMe && task.status === 'in_progress' && (
         <div className="px-4 pb-3 pt-1 border-t flex items-center">
           <button
             onClick={(e) => {
@@ -252,6 +266,20 @@ export function TaskCardSocial({
           >
             <CheckCircle2 className="h-4 w-4" />
             <span>Mark Complete</span>
+          </button>
+        </div>
+      )}
+      {isCreatedByMe && task.status === 'archived' && (
+        <div className="px-4 pb-3 pt-1 border-t flex items-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onStatusChange?.(task.id, 'in_progress')
+            }}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-blue-500 transition-colors"
+          >
+            <Clock className="h-4 w-4" />
+            <span>Reopen Task</span>
           </button>
         </div>
       )}

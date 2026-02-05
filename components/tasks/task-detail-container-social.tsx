@@ -10,6 +10,8 @@ import {
   useSendTaskMessage,
   useSetTaskReaction,
   useUpdateTaskAssignees,
+  useTaskNotes,
+  useAddTaskNote,
 } from '@/hooks'
 import { TaskDetailChatView } from './task-detail-chat-view'
 import { DashboardLayout } from '@/components/layout'
@@ -27,6 +29,7 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
   // Queries
   const { data: task, isLoading: loadingTask } = useTask(taskId)
   const { data: messages = [], isLoading: loadingMessages } = useTaskMessages(taskId)
+  const { data: notes = [], isLoading: loadingNotes } = useTaskNotes(taskId)
 
   // Realtime
   useTaskMessagesRealtime(taskId)
@@ -37,6 +40,7 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
   const deleteTask = useDeleteTask()
   const setReaction = useSetTaskReaction()
   const updateAssignees = useUpdateTaskAssignees()
+  const addNote = useAddTaskNote()
 
   // Handlers
   const handleSendMessage = async (params: {
@@ -160,6 +164,17 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
     toast.success('Assignees updated')
   }
 
+  const handleAddNote = async (content: string, visibility: string) => {
+    if (!effectiveUser) return
+
+    await addNote.mutateAsync({
+      taskId,
+      addedBy: effectiveUser.id,
+      content,
+      visibility,
+    })
+  }
+
   // Loading state
   const loading = loadingTask
 
@@ -188,6 +203,7 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
       <TaskDetailChatView
         task={task}
         messages={messages}
+        notes={notes}
         currentUserId={effectiveUser.id}
         currentUser={{
           id: effectiveUser.id,
@@ -202,10 +218,13 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
         onStatusChange={handleStatusChange}
         onDelete={handleDelete}
         onReact={handleReact}
+        onAddNote={handleAddNote}
         onUpdateAssignees={handleUpdateAssignees}
         updatingAssignees={updateAssignees.isPending}
         isLoadingMessages={loadingMessages}
+        isLoadingNotes={loadingNotes}
         isSending={sendMessage.isPending}
+        isAddingNote={addNote.isPending}
       />
     </DashboardLayout>
   )

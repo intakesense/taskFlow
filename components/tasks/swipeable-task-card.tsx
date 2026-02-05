@@ -24,9 +24,9 @@ export function SwipeableTaskCard({
   const startX = useRef(0)
   const currentX = useRef(0)
 
-  const isAssignedToMe = task.assignees?.some(a => a.id === currentUserId) || false
   const isAssignedByMe = currentUserId === task.assigned_by
-  const canComplete = isAssignedToMe && task.status !== 'archived'
+  // Only the creator can complete tasks (swipe right to complete)
+  const canComplete = isAssignedByMe && task.status === 'in_progress'
   // Only the person who assigned the task can delete it
   const canDelete = onDelete !== undefined && isAssignedByMe
 

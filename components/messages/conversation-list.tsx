@@ -90,7 +90,7 @@ export function ConversationList({
             </div>
 
             {/* Conversation List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 {isLoading ? (
                     <ConversationListSkeleton />
                 ) : filteredConversations.length === 0 ? (

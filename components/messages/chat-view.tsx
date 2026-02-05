@@ -587,6 +587,7 @@ function MessageBubble({
     const [showReactions, setShowReactions] = useState(false)
     const [showMobileActions, setShowMobileActions] = useState(false)
     const [popupTop, setPopupTop] = useState(80)
+    const [popupLeft, setPopupLeft] = useState<number | undefined>(undefined)
     const longPressTimer = useRef<NodeJS.Timeout | null>(null)
     const setReaction = useSetReaction()
     const bubbleRef = useRef<HTMLDivElement>(null)
@@ -596,8 +597,10 @@ function MessageBubble({
         if (bubbleRef.current) {
             const rect = bubbleRef.current.getBoundingClientRect()
             setPopupTop(Math.max(80, rect.top - 60))
+            // On desktop, position popup relative to the bubble
+            setPopupLeft(isOwn ? undefined : rect.left)
         }
-    }, [])
+    }, [isOwn])
 
     const isVoiceMessage = message.file_type?.startsWith('audio/')
     const groupedReactions = groupReactions(message.reactions, currentUserId)
@@ -863,14 +866,14 @@ function MessageBubble({
                     </div>
                 )}
 
-                {/* Reaction picker popup - positioned to avoid header overlap */}
+                {/* Reaction picker popup - positioned relative to bubble on desktop */}
                 {showReactions && (
                     <div
-                        className={cn(
-                            'fixed z-50',
-                            isOwn ? 'right-4' : 'left-4'
-                        )}
-                        style={{ top: popupTop }}
+                        className="fixed z-50"
+                        style={{
+                            top: popupTop,
+                            ...(isOwn ? { right: 16 } : { left: popupLeft ?? 16 })
+                        }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <QuickReactionsBar

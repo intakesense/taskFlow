@@ -16,6 +16,9 @@ import {
   MessageCircle,
   ChevronDown,
   Pencil,
+  StickyNote,
+  Lock,
+  Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
@@ -46,7 +49,10 @@ import { formatMessageTime } from '@/lib/utils/date'
 import { listContainerVariants } from '@/lib/animations'
 import { ChatBubble, ChatInput } from '@/components/chat'
 import type { ChatMessage } from '@/components/chat'
-import type { TaskWithUsers, TaskMessageWithSender, UserBasic } from '@/lib/types'
+import type { TaskWithUsers, TaskMessageWithSender, TaskNoteWithAuthor, UserBasic, Visibility } from '@/lib/types'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { VISIBILITY_LABELS } from '@/lib/constants'
+import { formatRelative } from '@/lib/utils/date'
 import { groupTaskReactions, getUserTaskReaction } from '@/hooks/use-task-messages'
 import { useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
 import { useUsers } from '@/hooks/use-users'
@@ -54,6 +60,7 @@ import { useUsers } from '@/hooks/use-users'
 interface TaskDetailChatViewProps {
   task: TaskWithUsers
   messages: TaskMessageWithSender[]
+  notes?: TaskNoteWithAuthor[]
   currentUserId: string
   currentUser?: UserBasic | null
   onSendMessage: (params: {
@@ -69,15 +76,19 @@ interface TaskDetailChatViewProps {
   onStatusChange: (status: string, reason?: string) => Promise<void>
   onDelete: () => Promise<void>
   onReact?: (messageId: string, emoji: string, currentEmoji?: string) => Promise<void>
+  onAddNote?: (content: string, visibility: string) => Promise<void>
   onUpdateAssignees?: (userIds: string[]) => Promise<void>
   updatingAssignees?: boolean
   isLoadingMessages?: boolean
+  isLoadingNotes?: boolean
   isSending?: boolean
+  isAddingNote?: boolean
 }
 
 export function TaskDetailChatView({
   task,
   messages,
+  notes = [],
   currentUserId,
   currentUser,
   onSendMessage,
@@ -86,10 +97,13 @@ export function TaskDetailChatView({
   onStatusChange,
   onDelete,
   onReact,
+  onAddNote,
   onUpdateAssignees,
   updatingAssignees,
   isLoadingMessages,
+  isLoadingNotes,
   isSending,
+  isAddingNote,
 }: TaskDetailChatViewProps) {
   const router = useRouter()
   const prefersReducedMotion = useReducedMotion()
@@ -108,6 +122,10 @@ export function TaskDetailChatView({
     content: string | null
     fileName?: string | null
   } | null>(null)
+  const [showNotesPanel, setShowNotesPanel] = useState(false)
+  const [newNoteContent, setNewNoteContent] = useState('')
+  const [newNoteVisibility, setNewNoteVisibility] = useState<Visibility>('private')
+  const [showAddNoteForm, setShowAddNoteForm] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { data: allUsers = [] } = useUsers()
   // Scope mentionable users to task participants only (assigner + assignees)
@@ -183,6 +201,20 @@ export function TaskDetailChatView({
     }
   }
 
+  const handleAddNote = async () => {
+    if (!newNoteContent.trim() || !onAddNote) return
+
+    try {
+      await onAddNote(newNoteContent.trim(), newNoteVisibility)
+      setNewNoteContent('')
+      setNewNoteVisibility('private')
+      setShowAddNoteForm(false)
+    } catch (error) {
+      const message = handleError('handleAddNote', error, 'Failed to add note')
+      toast.error(message)
+    }
+  }
+
   const getPriorityColor = (priority: string) => {
     const colors = {
       low: 'bg-blue-500',
@@ -207,7 +239,9 @@ export function TaskDetailChatView({
   const isAssignedToMe = task.assignees?.some(a => a.id === currentUserId) || false
   const isAssignedByMe = currentUserId === task.assigned_by
   const isParticipant = isAssignedToMe || isAssignedByMe
+  // Assignees can start/pause/resume, but only creator can complete/reopen
   const canChangeStatus = isAssignedToMe
+  const canComplete = isAssignedByMe
   const canDelete = isAssignedByMe
   const isGroupTask = (task.assignees?.length || 0) > 1
 
@@ -244,7 +278,7 @@ export function TaskDetailChatView({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* Unified Header - Clean single header with task info */}
       <div className="flex-shrink-0 bg-card sticky top-0 z-10">
         {/* Main header row */}
@@ -313,6 +347,7 @@ export function TaskDetailChatView({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
+              {/* Assignee status changes: start, pause, resume */}
               {canChangeStatus && task.status !== 'archived' && (
                 <>
                   {task.status === 'pending' && (
@@ -322,16 +357,10 @@ export function TaskDetailChatView({
                     </DropdownMenuItem>
                   )}
                   {task.status === 'in_progress' && (
-                    <>
-                      <DropdownMenuItem onClick={() => handleStatusChange('on_hold')}>
-                        <Pause className="h-4 w-4 mr-2" />
-                        Put On Hold
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleStatusChange('archived')}>
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Mark Complete
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem onClick={() => handleStatusChange('on_hold')}>
+                      <Pause className="h-4 w-4 mr-2" />
+                      Put On Hold
+                    </DropdownMenuItem>
                   )}
                   {task.status === 'on_hold' && (
                     <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>
@@ -342,9 +371,27 @@ export function TaskDetailChatView({
                   <DropdownMenuSeparator />
                 </>
               )}
+              {/* Creator can mark complete or reopen */}
+              {canComplete && task.status === 'in_progress' && (
+                <>
+                  <DropdownMenuItem onClick={() => handleStatusChange('archived')}>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Mark Complete
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {canComplete && task.status === 'archived' && (
+                <>
+                  <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>
+                    <Clock className="h-4 w-4 mr-2" />
+                    Reopen Task
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               {isAssignedByMe && task.status !== 'archived' && (
                 <>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => {
                     setSelectedAssigneeIds(task.assignees?.map(a => a.id) || [])
                     setIsEditingAssignees(true)
@@ -352,6 +399,16 @@ export function TaskDetailChatView({
                   }}>
                     <Users className="h-4 w-4 mr-2" />
                     Edit Assignees
+                  </DropdownMenuItem>
+                </>
+              )}
+              {/* Notes - available to all participants */}
+              {isParticipant && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowNotesPanel(!showNotesPanel)}>
+                    <StickyNote className="h-4 w-4 mr-2" />
+                    {showNotesPanel ? 'Hide Notes' : `Notes (${notes.length})`}
                   </DropdownMenuItem>
                 </>
               )}
@@ -483,7 +540,7 @@ export function TaskDetailChatView({
 
       {/* Messages Area - Using shared ChatBubble */}
       <m.div
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3"
         variants={prefersReducedMotion ? undefined : listContainerVariants}
         initial="initial"
         animate="animate"
@@ -547,11 +604,139 @@ export function TaskDetailChatView({
         <div ref={messagesEndRef} />
       </m.div>
 
-      {/* Quick Actions Bar - Only for assigned user */}
-      {canChangeStatus && task.status !== 'archived' && (
+      {/* Notes Panel - Slide-up panel */}
+      <AnimatePresence>
+        {showNotesPanel && isParticipant && (
+          <m.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex-shrink-0 border-t bg-muted/30 overflow-hidden"
+          >
+            <div className="px-4 py-3">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <StickyNote className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">Notes ({notes.length})</span>
+                </div>
+                {/* Only task creator can add notes */}
+                {isAssignedByMe && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setShowAddNoteForm(!showAddNoteForm)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Note
+                  </Button>
+                )}
+              </div>
+
+              {/* Add Note Form - Only for task creator */}
+              {showAddNoteForm && isAssignedByMe && (
+                <div className="mb-3 p-3 rounded-lg bg-background border space-y-2">
+                  <Textarea
+                    placeholder="Write your note..."
+                    value={newNoteContent}
+                    onChange={(e) => setNewNoteContent(e.target.value)}
+                    className="min-h-[80px] text-sm"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <Select
+                      value={newNoteVisibility}
+                      onValueChange={(v) => setNewNoteVisibility(v as Visibility)}
+                    >
+                      <SelectTrigger className="w-[160px] h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="private">{VISIBILITY_LABELS.private}</SelectItem>
+                        <SelectItem value="supervisor">{VISIBILITY_LABELS.supervisor}</SelectItem>
+                        <SelectItem value="hierarchy_same">{VISIBILITY_LABELS.hierarchy_same}</SelectItem>
+                        <SelectItem value="hierarchy_above">{VISIBILITY_LABELS.hierarchy_above}</SelectItem>
+                        <SelectItem value="all">{VISIBILITY_LABELS.all}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-xs"
+                        onClick={() => {
+                          setShowAddNoteForm(false)
+                          setNewNoteContent('')
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={handleAddNote}
+                        disabled={!newNoteContent.trim() || isAddingNote}
+                      >
+                        {isAddingNote ? 'Adding...' : 'Add'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes List */}
+              <div className="max-h-[200px] overflow-y-auto space-y-2">
+                {isLoadingNotes ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : notes.length === 0 ? (
+                  <p className="text-center text-xs text-muted-foreground py-4">
+                    {isAssignedByMe
+                      ? 'No notes yet. Add one to keep track of important information.'
+                      : 'No notes yet.'}
+                  </p>
+                ) : (
+                  notes.map((note) => (
+                    <div
+                      key={note.id}
+                      className="p-2.5 rounded-lg bg-background border"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium">{note.author?.name || 'Unknown'}</span>
+                        <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted">
+                          {note.visibility === 'private' ? (
+                            <Lock className="h-2.5 w-2.5" />
+                          ) : (
+                            <Eye className="h-2.5 w-2.5" />
+                          )}
+                          {VISIBILITY_LABELS[note.visibility as Visibility]}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">
+                          {formatRelative(note.created_at)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {note.content}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </m.div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Actions Bar - Assignee can start/pause/resume, Creator can complete/reopen */}
+      {/* Only show when at least one action button would be rendered */}
+      {((canChangeStatus && task.status !== 'archived') ||
+        (canComplete && (task.status === 'in_progress' || task.status === 'archived'))) && (
         <div className="flex-shrink-0 px-4 py-2 border-t bg-muted/30">
           <div className="flex gap-2">
-            {task.status === 'pending' && (
+            {/* Assignee actions: start, pause, resume */}
+            {canChangeStatus && task.status === 'pending' && (
               <Button
                 size="sm"
                 variant="outline"
@@ -562,28 +747,18 @@ export function TaskDetailChatView({
                 Start
               </Button>
             )}
-            {task.status === 'in_progress' && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleStatusChange('on_hold')}
-                  className="flex-1 rounded-full"
-                >
-                  <Pause className="h-4 w-4 mr-2" />
-                  Pause
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => handleStatusChange('archived')}
-                  className="flex-1 rounded-full bg-green-500 hover:bg-green-600"
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Complete
-                </Button>
-              </>
+            {canChangeStatus && task.status === 'in_progress' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleStatusChange('on_hold')}
+                className="flex-1 rounded-full"
+              >
+                <Pause className="h-4 w-4 mr-2" />
+                Pause
+              </Button>
             )}
-            {task.status === 'on_hold' && (
+            {canChangeStatus && task.status === 'on_hold' && (
               <Button
                 size="sm"
                 variant="outline"
@@ -592,6 +767,28 @@ export function TaskDetailChatView({
               >
                 <Clock className="h-4 w-4 mr-2" />
                 Resume
+              </Button>
+            )}
+            {/* Creator actions: complete, reopen */}
+            {canComplete && task.status === 'in_progress' && (
+              <Button
+                size="sm"
+                onClick={() => handleStatusChange('archived')}
+                className="flex-1 rounded-full bg-green-500 hover:bg-green-600"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Complete
+              </Button>
+            )}
+            {canComplete && task.status === 'archived' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleStatusChange('in_progress')}
+                className="flex-1 rounded-full"
+              >
+                <Clock className="h-4 w-4 mr-2" />
+                Reopen
               </Button>
             )}
           </div>
