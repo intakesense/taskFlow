@@ -1,6 +1,6 @@
 // useConversations - OPTIMIZED: Fixed N+1 query problem
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { Conversation, ConversationWithMembers, UserBasic, MessageWithSender, ConversationMemberWithUser } from '@/lib/types';
@@ -364,6 +364,11 @@ export function useConversationsRealtime(userId: string | undefined) {
                 { event: '*', schema: 'public', table: 'conversations' },
                 debouncedInvalidate
             )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'conversation_members' },
+                debouncedInvalidate
+            )
             .subscribe();
 
         return () => {
@@ -371,4 +376,215 @@ export function useConversationsRealtime(userId: string | undefined) {
             supabase.removeChannel(channel);
         };
     }, [userId, queryClient]);
+}
+
+// ============================================================================
+// GROUP MANAGEMENT FUNCTIONS
+// ============================================================================
+
+// Update group name
+async function updateGroupName(conversationId: string, name: string): Promise<void> {
+    const { error } = await supabase
+        .from('conversations')
+        .update({ name, updated_at: new Date().toISOString() })
+        .eq('id', conversationId)
+        .eq('is_group', true);
+
+    if (error) {
+        logError('updateGroupName', error);
+        throw new Error(`Failed to update group name: ${error.message}`);
+    }
+}
+
+// Update group avatar
+async function updateGroupAvatar(conversationId: string, avatarUrl: string | null): Promise<void> {
+    const { error } = await supabase
+        .from('conversations')
+        .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+        .eq('id', conversationId)
+        .eq('is_group', true);
+
+    if (error) {
+        logError('updateGroupAvatar', error);
+        throw new Error(`Failed to update group avatar: ${error.message}`);
+    }
+}
+
+// Add members to group (only creator can do this)
+async function addGroupMembers(conversationId: string, memberIds: string[]): Promise<void> {
+    const members = memberIds.map(userId => ({
+        conversation_id: conversationId,
+        user_id: userId,
+    }));
+
+    const { error } = await supabase
+        .from('conversation_members')
+        .insert(members);
+
+    if (error) {
+        logError('addGroupMembers', error);
+        throw new Error(`Failed to add members: ${error.message}`);
+    }
+
+    // Update conversation timestamp
+    await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
+}
+
+// Remove member from group (only creator can do this, or user can leave themselves)
+async function removeGroupMember(conversationId: string, userId: string): Promise<void> {
+    const { error } = await supabase
+        .from('conversation_members')
+        .delete()
+        .eq('conversation_id', conversationId)
+        .eq('user_id', userId);
+
+    if (error) {
+        logError('removeGroupMember', error);
+        throw new Error(`Failed to remove member: ${error.message}`);
+    }
+
+    // Update conversation timestamp
+    await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
+}
+
+// Leave group (user removes themselves)
+async function leaveGroup(conversationId: string, userId: string): Promise<void> {
+    const { error } = await supabase
+        .from('conversation_members')
+        .delete()
+        .eq('conversation_id', conversationId)
+        .eq('user_id', userId);
+
+    if (error) {
+        logError('leaveGroup', error);
+        throw new Error(`Failed to leave group: ${error.message}`);
+    }
+}
+
+// ============================================================================
+// GROUP MANAGEMENT HOOKS
+// ============================================================================
+
+export function useUpdateGroupName() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ conversationId, name }: { conversationId: string; name: string }) =>
+            updateGroupName(conversationId, name),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+            toast.success('Group name updated');
+        },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to update group name');
+            toast.error(message);
+        },
+    });
+}
+
+export function useUpdateGroupAvatar() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ conversationId, avatarUrl }: { conversationId: string; avatarUrl: string | null }) =>
+            updateGroupAvatar(conversationId, avatarUrl),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+            toast.success('Group picture updated');
+        },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to update group picture');
+            toast.error(message);
+        },
+    });
+}
+
+export function useAddGroupMembers() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ conversationId, memberIds }: { conversationId: string; memberIds: string[] }) =>
+            addGroupMembers(conversationId, memberIds),
+        onSuccess: (_, { memberIds }) => {
+            queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+            toast.success(`Added ${memberIds.length} member${memberIds.length > 1 ? 's' : ''}`);
+        },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to add members');
+            toast.error(message);
+        },
+    });
+}
+
+export function useRemoveGroupMember() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ conversationId, userId }: { conversationId: string; userId: string }) =>
+            removeGroupMember(conversationId, userId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+            toast.success('Member removed');
+        },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to remove member');
+            toast.error(message);
+        },
+    });
+}
+
+export function useLeaveGroup() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ conversationId, userId }: { conversationId: string; userId: string }) =>
+            leaveGroup(conversationId, userId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+            toast.success('Left group');
+        },
+        onError: (error) => {
+            const message = getErrorMessage(error, 'Failed to leave group');
+            toast.error(message);
+        },
+    });
+}
+
+// Upload group avatar to storage and update conversation
+export function useUploadGroupAvatar() {
+    const updateAvatar = useUpdateGroupAvatar();
+
+    const uploadAvatar = useCallback(async (conversationId: string, file: File) => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${conversationId}-${Date.now()}.${fileExt}`;
+        const filePath = `group-avatars/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(filePath, file, { upsert: true });
+
+        if (uploadError) {
+            logError('uploadGroupAvatar.upload', uploadError);
+            throw new Error(`Failed to upload image: ${uploadError.message}`);
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(filePath);
+
+        await updateAvatar.mutateAsync({ conversationId, avatarUrl: publicUrl });
+
+        return publicUrl;
+    }, [updateAvatar]);
+
+    return {
+        uploadAvatar,
+        isLoading: updateAvatar.isPending,
+    };
 }

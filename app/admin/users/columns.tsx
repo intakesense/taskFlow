@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { MoreVertical, Pencil, Trash2, Eye, Shield, ArrowUpDown } from 'lucide-react'
 import { getLevelLabel } from '@/hooks'
 
@@ -42,6 +42,9 @@ export const createColumns = (actions: ColumnActions): ColumnDef<User>[] => [
       return (
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
+            {user.avatar_url && (
+              <AvatarImage src={user.avatar_url} alt={user.name} />
+            )}
             <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
               {user.name.charAt(0).toUpperCase()}
             </AvatarFallback>

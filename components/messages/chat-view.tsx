@@ -39,6 +39,7 @@ import {
     X,
     Mic,
     Reply,
+    Settings,
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -48,6 +49,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { getLevelLabel } from '@/lib/services/users'
 import { useThemeContext } from '@/components/providers/theme-provider'
+import { GroupSettingsDialog } from './group-settings-dialog'
 
 interface ChatViewProps {
     conversation: ConversationWithMembers
@@ -83,6 +85,7 @@ export function ChatView({
     const [isSendingVoice, setIsSendingVoice] = useState(false)
     const [replyingTo, setReplyingTo] = useState<MessageWithSender | null>(null)
     const [showProfilePicture, setShowProfilePicture] = useState(false)
+    const [showGroupSettings, setShowGroupSettings] = useState(false)
     const [selectedProfile, setSelectedProfile] = useState<{
         avatarUrl?: string | null
         name: string
@@ -276,20 +279,22 @@ export function ChatView({
                     className="relative cursor-pointer flex-shrink-0"
                     onClick={() => {
                         haptics.light()
-                        setSelectedProfile({
-                            avatarUrl: conversation.is_group
-                                ? conversation.avatar_url
-                                : isSelfChat
+                        if (conversation.is_group) {
+                            // Open group settings for groups
+                            setShowGroupSettings(true)
+                        } else {
+                            // Show profile picture for DMs
+                            setSelectedProfile({
+                                avatarUrl: isSelfChat
                                     ? effectiveUser?.avatar_url
                                     : otherUser?.avatar_url,
-                            name: displayName || 'Unknown',
-                            email: conversation.is_group
-                                ? undefined
-                                : isSelfChat
+                                name: displayName || 'Unknown',
+                                email: isSelfChat
                                     ? effectiveUser?.email
                                     : otherUser?.email,
-                        })
-                        setShowProfilePicture(true)
+                            })
+                            setShowProfilePicture(true)
+                        }
                     }}
                 >
                     <Avatar className="h-9 w-9 sm:h-10 sm:w-10">
@@ -314,7 +319,13 @@ export function ChatView({
                         />
                     )}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div
+                    className={cn("flex-1 min-w-0", conversation.is_group && "cursor-pointer")}
+                    onClick={conversation.is_group ? () => {
+                        haptics.light()
+                        setShowGroupSettings(true)
+                    } : undefined}
+                >
                     <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-foreground text-sm sm:text-base truncate">{displayName}</h3>
                         {!conversation.is_group && otherUser && (
@@ -329,7 +340,7 @@ export function ChatView({
                         </p>
                     ) : conversation.is_group ? (
                         <p className="text-xs text-muted-foreground">
-                            {conversation.members.length} members
+                            {conversation.members.length} members - Tap for group info
                         </p>
                     ) : otherUser && isUserOnline(otherUser.id) ? (
                         <p className="text-xs text-green-600 dark:text-green-500 flex items-center gap-1.5">
@@ -348,14 +359,16 @@ export function ChatView({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                         {conversation.is_group && (
-                            <DropdownMenuItem>
-                                <Users className="mr-2 h-4 w-4" />
-                                View members
+                            <DropdownMenuItem
+                                onClick={() => {
+                                    haptics.light()
+                                    setShowGroupSettings(true)
+                                }}
+                            >
+                                <Settings className="mr-2 h-4 w-4" />
+                                Group settings
                             </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem className="text-destructive">
-                            Leave conversation
-                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
@@ -555,6 +568,16 @@ export function ChatView({
                     avatarUrl={selectedProfile.avatarUrl}
                     name={selectedProfile.name}
                     email={selectedProfile.email}
+                />
+            )}
+
+            {/* Group Settings Dialog */}
+            {conversation.is_group && effectiveUser && (
+                <GroupSettingsDialog
+                    open={showGroupSettings}
+                    onOpenChange={setShowGroupSettings}
+                    conversation={conversation}
+                    currentUserId={effectiveUser.id}
                 />
             )}
         </div>

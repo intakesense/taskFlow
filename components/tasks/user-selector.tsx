@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Search, Check, ChevronRight } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import {
   Dialog,
@@ -83,6 +83,9 @@ export function UserSelector({ selectedUserId, onSelectUser }: UserSelectorProps
         {selectedUser ? (
           <>
             <Avatar className="h-10 w-10">
+              {selectedUser.avatar_url && (
+                <AvatarImage src={selectedUser.avatar_url} alt={selectedUser.name} />
+              )}
               <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
                 {getInitials(selectedUser.name)}
               </AvatarFallback>
@@ -168,6 +171,9 @@ export function UserSelector({ selectedUserId, onSelectUser }: UserSelectorProps
                       )}
                     >
                       <Avatar className="h-11 w-11">
+                        {user.avatar_url && (
+                          <AvatarImage src={user.avatar_url} alt={user.name} />
+                        )}
                         <AvatarFallback
                           className={cn(
                             'text-sm font-medium',

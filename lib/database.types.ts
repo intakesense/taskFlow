@@ -714,7 +714,20 @@ export type Database = {
         Returns: number
       }
       is_admin: { Args: { user_id: string }; Returns: boolean }
+      is_admin_user: { Args: { p_user_id: string }; Returns: boolean }
+      is_group_creator: {
+        Args: { p_conversation_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_group_member: {
+        Args: { p_conversation_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_task_assignee: {
+        Args: { p_task_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_task_creator: {
         Args: { p_task_id: string; p_user_id: string }
         Returns: boolean
       }

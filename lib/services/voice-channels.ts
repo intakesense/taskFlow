@@ -73,7 +73,7 @@ export const voiceChannelService = {
   /**
    * Get Daily meeting token
    */
-  async getToken(roomName: string): Promise<string> {
+  async getToken(roomName: string): Promise<{ token: string; avatarUrl: string | null }> {
     const response = await fetch('/api/daily/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -84,8 +84,8 @@ export const voiceChannelService = {
       throw new Error('Failed to get token')
     }
 
-    const { token } = await response.json()
-    return token
+    const { token, avatarUrl } = await response.json()
+    return { token, avatarUrl }
   },
 
   /**

@@ -8,7 +8,7 @@ import {
   useActiveParticipant,
   DailyVideo,
 } from '@daily-co/daily-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Mic, MicOff, Video, VideoOff, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -37,6 +37,7 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
   const isSpeaking = activeSpeakerId === sessionId && !isMuted && activeParticipant?.audio
 
   const userName = participant.user_name || 'Anonymous'
+  const avatarUrl = (participant.userData as { avatarUrl?: string } | undefined)?.avatarUrl
 
   // Show camera PiP when screen sharing with camera on
   const showCameraPip = hasScreenShare && hasVideo
@@ -69,6 +70,7 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-muted">
           <Avatar className={cn('h-20 w-20', isMobile && 'h-16 w-16')}>
+            {avatarUrl && <AvatarImage src={avatarUrl} alt={userName} />}
             <AvatarFallback className={cn('text-2xl bg-primary text-primary-foreground', isMobile && 'text-xl')}>
               {userName.charAt(0).toUpperCase()}
             </AvatarFallback>

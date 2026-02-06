@@ -55,7 +55,10 @@ export async function POST(request: NextRequest) {
 
     const { token } = await response.json()
 
-    return NextResponse.json({ token })
+    return NextResponse.json({
+      token,
+      avatarUrl: profile?.avatar_url || null,
+    })
   } catch (error) {
     console.error('Token generation error:', error)
     return NextResponse.json(

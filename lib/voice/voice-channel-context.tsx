@@ -113,7 +113,7 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
       const { roomName, roomUrl: url } = await voiceChannelService.getRoom(channel.id)
       setRoomUrl(url)
 
-      const token = await voiceChannelService.getToken(roomName)
+      const { token, avatarUrl } = await voiceChannelService.getToken(roomName)
 
       const callObject = DailyIframe.createCallObject({
         audioSource: true,
@@ -152,6 +152,11 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
 
       await callObject.join({ url, token })
       callObjectRef.current = callObject
+
+      // Set custom user data (including avatar URL) after joining
+      if (avatarUrl) {
+        callObject.setUserData({ avatarUrl })
+      }
 
       await voiceChannelService.joinChannel(channel.id, effectiveUser.id)
 
