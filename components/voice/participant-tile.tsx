@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   useParticipant,
   useVideoTrack,
@@ -9,16 +10,38 @@ import {
   DailyVideo,
 } from '@daily-co/daily-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Mic, MicOff, Video, VideoOff, Monitor } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { Mic, MicOff, Video, VideoOff, Monitor, Pin, PinOff, Maximize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ParticipantTileProps {
   sessionId: string
   isLocal?: boolean
   isMobile?: boolean
+  isPinned?: boolean
+  isFullscreen?: boolean
+  onPin?: (sessionId: string) => void
+  onUnpin?: () => void
+  onFullscreen?: (sessionId: string) => void
 }
 
-export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTileProps) {
+export function ParticipantTile({
+  sessionId,
+  isLocal,
+  isMobile,
+  isPinned,
+  isFullscreen,
+  onPin,
+  onUnpin,
+  onFullscreen,
+}: ParticipantTileProps) {
+  const [showControls, setShowControls] = useState(false)
   const participant = useParticipant(sessionId)
   const videoTrack = useVideoTrack(sessionId)
   const screenVideoTrack = useScreenVideoTrack(sessionId)
@@ -42,13 +65,31 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
   // Show camera PiP when screen sharing with camera on
   const showCameraPip = hasScreenShare && hasVideo
 
+  const handlePinClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isPinned) {
+      onUnpin?.()
+    } else {
+      onPin?.(sessionId)
+    }
+  }
+
+  const handleFullscreenClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onFullscreen?.(sessionId)
+  }
+
   return (
     <div
       className={cn(
-        'relative bg-muted rounded-xl overflow-hidden h-full w-full',
+        'relative bg-muted rounded-xl overflow-hidden h-full w-full group',
         'transition-shadow duration-300 ease-out',
-        isSpeaking && 'ring-2 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]'
+        isSpeaking && 'ring-2 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]',
+        isPinned && 'ring-2 ring-primary'
       )}
+      onMouseEnter={() => setShowControls(true)}
+      onMouseLeave={() => setShowControls(false)}
+      onTouchStart={() => setShowControls(true)}
     >
       {/* Main video content */}
       {hasScreenShare ? (
@@ -95,6 +136,62 @@ export function ParticipantTile({ sessionId, isLocal, isMobile }: ParticipantTil
             mirror={isLocal}
             className="w-full h-full object-cover"
           />
+        </div>
+      )}
+
+      {/* Pin/Fullscreen controls - show on hover/touch */}
+      {(onPin || onFullscreen) && !isFullscreen && (
+        <div
+          className={cn(
+            'absolute top-2 right-2 flex gap-1.5 transition-opacity duration-200 z-10',
+            showControls || isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          )}
+        >
+          <TooltipProvider>
+            {!isPinned && onFullscreen && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className={cn(
+                      'rounded-full bg-black/50 hover:bg-black/70 text-white border-0',
+                      isMobile ? 'h-9 w-9' : 'h-8 w-8'
+                    )}
+                    onClick={handleFullscreenClick}
+                  >
+                    <Maximize2 className={cn(isMobile ? 'h-4 w-4' : 'h-4 w-4')} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Fullscreen</TooltipContent>
+              </Tooltip>
+            )}
+            {onPin && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className={cn(
+                      'rounded-full bg-black/50 hover:bg-black/70 text-white border-0',
+                      isMobile ? 'h-9 w-9' : 'h-8 w-8',
+                      isPinned && 'bg-primary/70 hover:bg-primary/90'
+                    )}
+                    onClick={handlePinClick}
+                  >
+                    {isPinned ? (
+                      <PinOff className={cn(isMobile ? 'h-4 w-4' : 'h-4 w-4')} />
+                    ) : (
+                      <Pin className={cn(isMobile ? 'h-4 w-4' : 'h-4 w-4')} />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {isPinned ? 'Unpin' : 'Pin'}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </TooltipProvider>
         </div>
       )}
 

@@ -141,6 +141,24 @@ export function MessagesContainer({ initialConversations }: MessagesContainerPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversation?.id, effectiveUser?.id])
 
+  // Sync selectedConversation with updated data from conversations query
+  // This ensures the UI updates when members are added/removed, name changes, etc.
+  useEffect(() => {
+    if (!selectedConversation?.id) return
+    const updated = conversations.find(c => c.id === selectedConversation.id)
+    if (updated && updated !== selectedConversation) {
+      // Only update if the data actually changed (compare by reference since React Query returns new objects)
+      const membersChanged = updated.members.length !== selectedConversation.members.length ||
+        updated.members.some((m, i) => m.id !== selectedConversation.members[i]?.id)
+      const nameChanged = updated.name !== selectedConversation.name
+      const avatarChanged = updated.avatar_url !== selectedConversation.avatar_url
+
+      if (membersChanged || nameChanged || avatarChanged) {
+        setSelectedConversation(updated)
+      }
+    }
+  }, [conversations, selectedConversation])
+
   // Handlers - use startTransition for non-blocking conversation switching
   const handleSelectConversation = (conv: ConversationWithMembers) => {
     startTransition(() => {

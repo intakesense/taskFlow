@@ -116,15 +116,16 @@ export function VoiceControls() {
           </Tooltip>
         )}
 
-        {!isSmallScreen && (
-          <DeviceSettingsDialog
-            trigger={
-              <Toggle className="h-12 w-12 rounded-full">
-                <Settings className="h-5 w-5" />
-              </Toggle>
-            }
-          />
-        )}
+        <DeviceSettingsDialog
+          trigger={
+            <Toggle className={cn(
+              'rounded-full',
+              isSmallScreen ? 'h-14 w-14' : 'h-12 w-12'
+            )}>
+              <Settings className={cn(isSmallScreen ? 'h-6 w-6' : 'h-5 w-5')} />
+            </Toggle>
+          }
+        />
 
         <div className={cn(
           'bg-border',
