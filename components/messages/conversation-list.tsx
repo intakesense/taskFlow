@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Search, Plus, Users, MessageSquare, ListTodo } from 'lucide-react'
 import { haptics } from '@/lib/haptics'
+import { AIVoiceChatButton } from '@/components/ai-chat'
 import { ProfilePictureDialog } from './profile-picture-dialog'
 
 interface ConversationListProps {
@@ -74,9 +75,12 @@ export function ConversationList({
                             <p className="lg:hidden text-xs text-muted-foreground">Messages</p>
                         </div>
                     </div>
-                    <Button size="icon" variant="ghost" onClick={onNewChat}>
-                        <Plus className="h-5 w-5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                        <AIVoiceChatButton />
+                        <Button size="icon" variant="ghost" onClick={onNewChat}>
+                            <Plus className="h-5 w-5" />
+                        </Button>
+                    </div>
                 </div>
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -14,6 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_bot_config: {
+        Row: {
+          avatar_url: string | null
+          id: string
+          is_enabled: boolean | null
+          name: string
+          trigger_phrases: string[] | null
+          updated_at: string | null
+          updated_by: string | null
+          voice: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          name?: string
+          trigger_phrases?: string[] | null
+          updated_at?: string | null
+          updated_by?: string | null
+          voice?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          name?: string
+          trigger_phrases?: string[] | null
+          updated_at?: string | null
+          updated_by?: string | null
+          voice?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_bot_config_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_sessions: {
+        Row: {
+          ended_at: string | null
+          host_user_id: string | null
+          id: string
+          started_at: string | null
+          status: string | null
+          transcript: Json | null
+          voice_channel_id: string | null
+        }
+        Insert: {
+          ended_at?: string | null
+          host_user_id?: string | null
+          id?: string
+          started_at?: string | null
+          status?: string | null
+          transcript?: Json | null
+          voice_channel_id?: string | null
+        }
+        Update: {
+          ended_at?: string | null
+          host_user_id?: string | null
+          id?: string
+          started_at?: string | null
+          status?: string | null
+          transcript?: Json | null
+          voice_channel_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_sessions_host_user_id_fkey"
+            columns: ["host_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_sessions_voice_channel_id_fkey"
+            columns: ["voice_channel_id"]
+            isOneToOne: false
+            referencedRelation: "voice_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           key: string
@@ -113,6 +199,73 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_minutes: {
+        Row: {
+          action_items: Json | null
+          attendees: Json
+          conversation_id: string | null
+          created_at: string | null
+          decisions: Json | null
+          discussion_points: Json | null
+          duration_minutes: number | null
+          id: string
+          raw_transcript: string | null
+          session_id: string | null
+          summary: string | null
+          voice_channel_id: string | null
+        }
+        Insert: {
+          action_items?: Json | null
+          attendees?: Json
+          conversation_id?: string | null
+          created_at?: string | null
+          decisions?: Json | null
+          discussion_points?: Json | null
+          duration_minutes?: number | null
+          id?: string
+          raw_transcript?: string | null
+          session_id?: string | null
+          summary?: string | null
+          voice_channel_id?: string | null
+        }
+        Update: {
+          action_items?: Json | null
+          attendees?: Json
+          conversation_id?: string | null
+          created_at?: string | null
+          decisions?: Json | null
+          discussion_points?: Json | null
+          duration_minutes?: number | null
+          id?: string
+          raw_transcript?: string | null
+          session_id?: string | null
+          summary?: string | null
+          voice_channel_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_minutes_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_minutes_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_minutes_voice_channel_id_fkey"
+            columns: ["voice_channel_id"]
+            isOneToOne: false
+            referencedRelation: "voice_channels"
             referencedColumns: ["id"]
           },
         ]

@@ -20,6 +20,7 @@ import {
 import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff, Camera, Trash2, LogOut, Eye, X } from 'lucide-react'
 import { ThemePreset, ChatPatternType } from '@/lib/theme/types'
 import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
+import { AIBotSettings } from '@/components/settings/ai-bot-settings'
 import { toast } from 'sonner'
 import { User as UserType } from '@/lib/types'
 import { useSyncExternalStore } from 'react'
@@ -54,32 +55,88 @@ function SettingsContent({ profile, maskedAsUser, effectiveUser }: { profile: Us
     // Check notification status on mount
     useEffect(() => {
         const checkNotificationStatus = async () => {
-            // Check if we're on production and OneSignal is available
-            if (typeof window !== 'undefined' && 'Notification' in window) {
-                const permission = Notification.permission
-                setNotificationStatus(permission as 'granted' | 'denied' | 'default')
-                setNotificationsEnabled(permission === 'granted')
+            if (typeof window === 'undefined' || !('Notification' in window)) {
+                setNotificationStatus('denied')
+                return
+            }
 
-                // Check if OneSignal is available (production only)
+            const permission = Notification.permission
+            setNotificationStatus(permission as 'granted' | 'denied' | 'default')
+
+            // Use OneSignal's optedIn property if available — it's the source of truth.
+            // A user can have browser permission=granted but be opted OUT in OneSignal
+            // (soft opt-out), or have permission=granted but not yet opted in.
+            if (window.OneSignal?.User?.PushSubscription?.optedIn !== undefined) {
+                setNotificationsEnabled(window.OneSignal.User.PushSubscription.optedIn)
+                setIsOneSignalAvailable(true)
+            } else {
+                // Fall back to browser permission for non-production or before SDK loads
+                setNotificationsEnabled(permission === 'granted')
                 if (window.OneSignalDeferred) {
                     setIsOneSignalAvailable(true)
                 }
-            } else {
-                setNotificationStatus('denied')
             }
         }
         checkNotificationStatus()
+
+        // Listen for real-time subscription changes dispatched by onesignal-init.tsx.
+        // This keeps the toggle in sync when:
+        //   - User accepts/dismisses the permission prompt while Settings is open
+        //   - User revokes permission in browser settings
+        //   - SDK soft-opt-in/out is triggered from another tab
+        const handleSubscriptionChange = (e: Event) => {
+            const { optedIn } = (e as CustomEvent<{ optedIn: boolean }>).detail
+            setNotificationsEnabled(optedIn)
+        }
+        const handlePermissionChange = (e: Event) => {
+            const { granted } = (e as CustomEvent<{ granted: boolean }>).detail
+            setNotificationStatus(granted ? 'granted' : 'denied')
+            if (!granted) setNotificationsEnabled(false)
+        }
+
+        window.addEventListener('onesignal-subscription-change', handleSubscriptionChange)
+        window.addEventListener('onesignal-permission-change', handlePermissionChange)
+
+        return () => {
+            window.removeEventListener('onesignal-subscription-change', handleSubscriptionChange)
+            window.removeEventListener('onesignal-permission-change', handlePermissionChange)
+        }
     }, [])
+
 
     const handleNotificationToggle = useCallback(async () => {
         if (notificationStatus === 'denied') {
-            // Can't programmatically enable - need to guide user to browser settings
-            alert('Notifications are blocked. Please enable them in your browser settings.')
+            // Browser has permanently blocked notifications — must guide user to browser settings
+            toast.error(
+                'Notifications are blocked in your browser. Click the lock icon in the address bar → Notifications → Allow, then refresh.',
+                { duration: 8000 }
+            )
             return
         }
 
+        // Use OneSignal SDK if available (production) — this is the proper API.
+        // optIn/optOut is a soft toggle that doesn't require re-requesting browser permission.
+        if (window.OneSignal?.User?.PushSubscription) {
+            const sub = window.OneSignal.User.PushSubscription
+            try {
+                if (!notificationsEnabled) {
+                    await sub.optIn()
+                    setNotificationsEnabled(true)
+                    toast.success('Push notifications enabled')
+                } else {
+                    await sub.optOut()
+                    setNotificationsEnabled(false)
+                    toast.success('Push notifications disabled')
+                }
+            } catch (err) {
+                console.error('OneSignal opt-in/out failed:', err)
+                toast.error('Failed to update notification preference. Please try again.')
+            }
+            return
+        }
+
+        // Fallback for non-production / before SDK loads
         if (!notificationsEnabled) {
-            // Request permission
             try {
                 const permission = await Notification.requestPermission()
                 setNotificationStatus(permission as 'granted' | 'denied' | 'default')
@@ -88,9 +145,7 @@ function SettingsContent({ profile, maskedAsUser, effectiveUser }: { profile: Us
                 console.error('Failed to request notification permission:', error)
             }
         } else {
-            // Can't programmatically disable browser notifications
-            // Guide user to browser settings
-            alert('To disable notifications, please update your browser settings for this site.')
+            toast.info('To disable, update your browser settings for this site.')
         }
     }, [notificationsEnabled, notificationStatus])
 
@@ -354,6 +409,9 @@ function SettingsContent({ profile, maskedAsUser, effectiveUser }: { profile: Us
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* AI Bot Settings - Admin Only */}
+                        {profile?.is_admin && !maskedAsUser && <AIBotSettings />}
 
                         {/* Notifications Card */}
                         <Card data-slot="card">

@@ -90,22 +90,22 @@ class RealtimeManager {
       this.cleanup()
     }
 
-    // Multiple event handlers to catch all scenarios
+    // Clean up on actual page unload — NOT on tab hide/visibilitychange.
+    // Clearing presence on hide causes CHANNEL_ERROR when the tab comes back;
+    // the per-conversation hook handles reconnect on visibility restore instead.
     window.addEventListener('beforeunload', cleanupHandler)
     window.addEventListener('pagehide', cleanupHandler)
 
-    // Also cleanup on visibility change to hidden (mobile/tab switching)
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden && this.channels.size > 0) {
-        console.log('👁️ Page hidden, maintaining channels but clearing old presence')
-        // Don't cleanup channels, but clear presence tracking
-        this.channels.forEach((channel) => {
-          channel.untrack().catch(() => {})
-        })
-      }
-    })
-
     console.log('✅ Emergency cleanup handlers registered')
+  }
+
+  /**
+   * Tear down a broken channel and create a fresh one.
+   * Called by the hook when CHANNEL_ERROR / TIMED_OUT is received.
+   */
+  reconnectChannel(conversationId: string): RealtimeChannel {
+    this.forceRemoveChannel(conversationId)
+    return this.getOrCreateChannel(conversationId)
   }
 
   /**
@@ -221,7 +221,7 @@ class RealtimeManager {
 
     if (channel) {
       console.warn(`🚨 Force removing channel: ${channelKey}`)
-      channel.untrack().catch(() => {})
+      channel.untrack().catch(() => { })
       supabase.removeChannel(channel)
       this.channels.delete(channelKey)
       this.refCounts.delete(channelKey)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useVoiceChannel } from '@/lib/voice/voice-channel-context'
+import { useAIBotSession } from '@/hooks/use-ai-bot-session'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/toggle'
 import {
@@ -18,6 +19,8 @@ import {
   MonitorOff,
   PhoneOff,
   Settings,
+  Bot,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DeviceSettingsDialog } from './device-settings-dialog'
@@ -28,17 +31,51 @@ export function VoiceControls() {
     isMuted,
     isVideoEnabled,
     isScreenSharing,
+    channelId,
     toggleMute,
     toggleVideo,
     toggleScreenShare,
     leaveChannel,
   } = useVoiceChannel()
 
+  const {
+    isActive: isBotActive,
+    isCurrentUserHost,
+    hostName,
+    activate: activateBot,
+    deactivate: deactivateBot,
+    isActivating,
+    isDeactivating,
+  } = useAIBotSession(channelId)
+
   const { isMobile, isTablet } = useBreakpoints()
   const isSmallScreen = isMobile || isTablet
 
   // Screen sharing is not supported on mobile browsers
   const showScreenShare = !isSmallScreen
+
+  const handleBotToggle = () => {
+    if (isBotActive) {
+      if (isCurrentUserHost) {
+        deactivateBot()
+      }
+      // If not host, the button is disabled - can't toggle
+    } else {
+      activateBot()
+    }
+  }
+
+  const getBotTooltip = () => {
+    if (isActivating) return 'Activating bot...'
+    if (isDeactivating) return 'Deactivating bot...'
+    if (isBotActive) {
+      if (isCurrentUserHost) {
+        return 'Deactivate AI Bot (you are hosting)'
+      }
+      return `AI Bot active (hosted by ${hostName})`
+    }
+    return 'Activate AI Bot'
+  }
 
   return (
     <TooltipProvider>
@@ -115,6 +152,33 @@ export function VoiceControls() {
             </TooltipContent>
           </Tooltip>
         )}
+
+        {/* AI Bot Toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Toggle
+              pressed={isBotActive}
+              onPressedChange={handleBotToggle}
+              disabled={isActivating || isDeactivating || (isBotActive && !isCurrentUserHost)}
+              className={cn(
+                'rounded-full',
+                isSmallScreen ? 'h-14 w-14' : 'h-12 w-12',
+                isBotActive && 'bg-purple-500/20 text-purple-500 hover:bg-purple-500/30',
+                isBotActive && isCurrentUserHost && 'ring-2 ring-purple-500/50',
+                (isBotActive && !isCurrentUserHost) && 'opacity-70 cursor-not-allowed'
+              )}
+            >
+              {isActivating || isDeactivating ? (
+                <Loader2 className={cn(isSmallScreen ? 'h-6 w-6' : 'h-5 w-5', 'animate-spin')} />
+              ) : (
+                <Bot className={cn(isSmallScreen ? 'h-6 w-6' : 'h-5 w-5')} />
+              )}
+            </Toggle>
+          </TooltipTrigger>
+          <TooltipContent>
+            {getBotTooltip()}
+          </TooltipContent>
+        </Tooltip>
 
         <DeviceSettingsDialog
           trigger={

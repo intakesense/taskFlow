@@ -11,7 +11,10 @@ interface MessagePayload {
     conversation_id: string
     sender_id: string
     content: string
-    message_type: string
+    file_url?: string
+    file_name?: string
+    file_type?: string
+    message_type?: string
     created_at: string
   }
   schema: 'public'
@@ -29,56 +32,62 @@ Deno.serve(async (req) => {
     const { record } = payload
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get sender info including avatar
-    const { data: sender } = await supabase
-      .from('users')
-      .select('name, avatar_url')
-      .eq('id', record.sender_id)
-      .single()
+    // FIX M4: Parallel queries instead of sequential waterfall
+    const [senderResult, membersResult] = await Promise.all([
+      supabase
+        .from('users')
+        .select('name, avatar_url')
+        .eq('id', record.sender_id)
+        .single(),
+      supabase
+        .from('conversation_members')
+        .select('user_id')
+        .eq('conversation_id', record.conversation_id)
+        .neq('user_id', record.sender_id),
+    ])
 
-    // Get conversation members (excluding sender)
-    const { data: members } = await supabase
-      .from('conversation_members')
-      .select('user_id')
-      .eq('conversation_id', record.conversation_id)
-      .neq('user_id', record.sender_id)
+    const sender = senderResult.data
+    const members = membersResult.data
 
     if (!members || members.length === 0) {
       return new Response(JSON.stringify({ message: 'No recipients' }), { status: 200 })
     }
 
-    // Get OneSignal player IDs for recipients
-    const userIds = members.map((m) => m.user_id)
-    const { data: recipients } = await supabase
-      .from('users')
-      .select('id, onesignal_player_id')
-      .in('id', userIds)
-      .not('onesignal_player_id', 'is', null)
-
-    if (!recipients || recipients.length === 0) {
-      return new Response(JSON.stringify({ message: 'No push subscribers' }), { status: 200 })
-    }
+    // FIX C2: Target by external_id (Supabase user ID) — no player ID lookup needed.
+    // OneSignal.login(userId) links the external_id. OneSignal delivers to ALL subscribed
+    // devices for each user automatically, including when browser data is cleared.
+    const recipientExternalIds = members.map((m) => m.user_id)
 
     // Build notification content
     const senderName = sender?.name || 'Someone'
-    let messagePreview = record.content
-    if (record.message_type === 'voice') {
-      messagePreview = 'Sent a voice message'
-    } else if (record.message_type === 'image') {
-      messagePreview = 'Sent an image'
-    } else if (record.message_type === 'file') {
-      messagePreview = 'Sent a file'
-    } else if (messagePreview && messagePreview.length > 50) {
-      messagePreview = messagePreview.substring(0, 50) + '...'
+
+    // FIX M3: Proper deep link into the conversation
+    const conversationUrl = `/messages?conversation=${record.conversation_id}`
+
+    // Build message preview
+    let messagePreview: string
+    if (record.file_url && record.file_type?.startsWith('image/')) {
+      messagePreview = '📷 Photo'
+    } else if (record.file_url && record.file_type?.startsWith('video/')) {
+      messagePreview = '🎥 Video'
+    } else if (record.file_url) {
+      messagePreview = `📎 ${record.file_name || 'File'}`
+    } else if (record.message_type === 'voice') {
+      messagePreview = '🎤 Voice message'
+    } else if (record.content && record.content.length > 60) {
+      messagePreview = record.content.substring(0, 60) + '…'
+    } else {
+      messagePreview = record.content || 'New message'
     }
 
-    // Use sender's avatar or default icon
     const notificationIcon = sender?.avatar_url || '/icon.svg'
 
-    // Send notification via OneSignal
+    // FIX C1: Use `include_aliases` instead of deprecated `include_external_user_ids`
+    // FIX M1: collapse_id = conversation_id — rapid messages collapse into one notification
+    // FIX M2: priority:10 (high) + ios_interruption_level:active — cuts through battery-save mode
+    // FIX M6: web_push_topic groups by conversation in notification center
     const response = await fetch('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
       headers: {
@@ -87,39 +96,69 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         app_id: ONESIGNAL_APP_ID,
-        include_external_user_ids: userIds,
+
+        // FIX C1: Correct 2026 targeting — was `include_external_user_ids`
+        include_aliases: {
+          external_id: recipientExternalIds,
+        },
+        target_channel: 'push',
+
+        // Content
         headings: { en: senderName },
         contents: { en: messagePreview },
-        url: `/?conversation=${record.conversation_id}`,
-        // Web notification icons
+
+        // FIX M3: Deep link directly into the conversation
+        url: conversationUrl,
+        web_url: conversationUrl,
+
         chrome_web_icon: notificationIcon,
         firefox_icon: notificationIcon,
-        // Mobile notification settings
-        small_icon: 'ic_notification', // Android small icon (set in OneSignal dashboard)
-        large_icon: notificationIcon,  // Android large icon (sender avatar)
-        ios_attachments: sender?.avatar_url ? { id: sender.avatar_url } : undefined,
-        // Additional data for rich notifications
+        large_icon: notificationIcon,
+        small_icon: 'ic_notification',
+        // Android Chrome notification tray badge icon
+        chrome_web_badge: '/icons/icon-192x192.png',
+
+        // FIX M1: Collapse rapid messages from same conversation into one notification
+        collapse_id: record.conversation_id,
+
+        // FIX M2: High priority delivery — cuts through battery-saving and Focus modes
+        priority: 10,
+        ios_interruption_level: 'active',
+
+        // FIX M6: Group notifications by conversation in notification center (Chrome)
+        web_push_topic: record.conversation_id,
+
+        // Structured data for the service worker / notification click handler
         data: {
           conversation_id: record.conversation_id,
           sender_id: record.sender_id,
           sender_name: senderName,
-          sender_avatar: sender?.avatar_url,
+          sender_avatar: sender?.avatar_url ?? null,
           message_id: record.id,
-          message_type: record.message_type,
+          type: 'chat_message',
         },
       }),
     })
 
+    if (!response.ok) {
+      const errorBody = await response.text()
+      console.error(`OneSignal API error ${response.status}:`, errorBody)
+      return new Response(JSON.stringify({ error: `OneSignal error: ${response.status}`, detail: errorBody }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
     const result = await response.json()
 
-    return new Response(JSON.stringify({ success: true, result }), {
+    return new Response(JSON.stringify({ success: true, recipients: recipientExternalIds.length, result }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
     console.error('Notification error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
+      status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
   }

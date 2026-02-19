@@ -13,9 +13,12 @@ import { useVoiceChannel } from '@/lib/voice/voice-channel-context'
 import { useBottomNavVisibility } from '@/components/layout/bottom-nav-context'
 import { useIdleDetection } from '@/hooks/use-idle-detection'
 import { useBreakpoints } from '@/hooks/use-mobile'
+import { useAIBotSession } from '@/hooks/use-ai-bot-session'
+import { useAuth } from '@/lib/auth-context'
 import { VoiceControls } from './voice-controls'
 import { ParticipantGrid } from './participant-grid'
 import { IdleWarningDialog } from './idle-warning-dialog'
+import { AIVoiceBot } from './ai-voice-bot'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PhoneOff, Loader2, Wifi } from 'lucide-react'
@@ -26,6 +29,7 @@ interface VoiceChannelPanelProps {
 }
 
 interface VoiceChannelContentProps {
+  channelId: string
   onActivity: () => void
   showIdleWarning: boolean
   idleSecondsRemaining: number
@@ -34,6 +38,7 @@ interface VoiceChannelContentProps {
 }
 
 function VoiceChannelContent({
+  channelId,
   onActivity,
   showIdleWarning,
   idleSecondsRemaining,
@@ -46,6 +51,18 @@ function VoiceChannelContent({
   const localParticipant = useLocalParticipant()
   const { isMobile, isTablet } = useBreakpoints()
   const isSmallScreen = isMobile || isTablet
+  const { callObject } = useVoiceChannel()
+  const { effectiveUser } = useAuth()
+
+  // AI Bot session
+  const {
+    isActive: isBotActive,
+    isCurrentUserHost,
+    clientSecret,
+    botName,
+    model,
+    deactivate: deactivateBot,
+  } = useAIBotSession(channelId)
 
   // Report activity when local user speaks, toggles video, or screen shares
   useEffect(() => {
@@ -55,15 +72,32 @@ function VoiceChannelContent({
   }, [activeSpeakerId, localSessionId, onActivity])
 
   // Report activity when local participant state changes (mute/video/screen)
+  const localAudio = localParticipant?.audio
+  const localVideo = localParticipant?.video
+  const localScreen = localParticipant?.screen
   useEffect(() => {
-    if (localParticipant) {
+    if (localAudio !== undefined || localVideo !== undefined || localScreen !== undefined) {
       onActivity()
     }
-  }, [localParticipant?.audio, localParticipant?.video, localParticipant?.screen, onActivity])
+  }, [localAudio, localVideo, localScreen, onActivity])
 
   return (
     <>
       <DailyAudio />
+
+      {/* AI Voice Bot - only runs when current user is hosting and has a client secret */}
+      {isBotActive && isCurrentUserHost && clientSecret && callObject && effectiveUser && (
+        <AIVoiceBot
+          dailyCall={callObject}
+          clientSecret={clientSecret}
+          botName={botName}
+          model={model}
+          userId={effectiveUser.id}
+          userName={effectiveUser.name}
+          onDisconnect={deactivateBot}
+        />
+      )}
+
       <div className={cn(
         'flex-1 overflow-hidden',
         isSmallScreen ? 'p-1' : 'p-4'
@@ -71,6 +105,11 @@ function VoiceChannelContent({
         <ParticipantGrid
           participantIds={participantIds}
           localSessionId={localSessionId}
+          aiBot={isBotActive ? {
+            isInChannel: true,
+            botName,
+            botAvatarUrl: null,
+          } : undefined}
         />
       </div>
 
@@ -170,6 +209,7 @@ export function VoiceChannelPanel({ className }: VoiceChannelPanelProps) {
 
       <DailyProvider callObject={callObject}>
         <VoiceChannelContent
+          channelId={currentChannel?.id || ''}
           onActivity={reportActivity}
           showIdleWarning={showIdleWarning}
           idleSecondsRemaining={idleSecondsRemaining}

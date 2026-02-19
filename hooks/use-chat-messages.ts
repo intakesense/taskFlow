@@ -328,31 +328,29 @@ export function useConversationRealtime(
       return
     }
 
-    console.log(`🔄 Setting up realtime for conversation: ${conversationId}`)
+    console.log(`⚙️ Setting up realtime for conversation: ${conversationId}`)
 
-    // Get or create a single channel for this conversation
-    const channel = realtimeManager.getOrCreateChannel(conversationId)
+    // --- Reconnect state (mutable, lives for the lifetime of this effect) ---
+    let retryCount = 0
+    const MAX_RETRIES = 3
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null
+    let isCleanedup = false
+    // Track whether the last subscribe callback reported an error,
+    // so the visibility-change handler knows whether to force-reconnect
+    // without inspecting private Supabase channel internals.
+    let hadChannelError = false
 
-    // Handler for new messages - NOTE: Uses conversationId from closure
+    // --- Handler for incoming messages ---
     const handleNewMessage = async (payload: { new: Message }) => {
       const newMessage = payload.new
 
-      console.log(`📨 New message received for conversation: ${newMessage.conversation_id}`)
+      // Only process messages for THIS conversation
+      if (newMessage.conversation_id !== conversationId) return
 
-      // IMPORTANT: Only process messages for THIS conversation
-      if (newMessage.conversation_id !== conversationId) {
-        console.warn(`⚠️ Ignoring message for different conversation: ${newMessage.conversation_id}`)
-        return
-      }
+      // Skip own messages — handled optimistically by the mutation's onSuccess
+      if (newMessage.sender_id === currentUserId) return
 
-      // IMPORTANT: Skip messages we sent ourselves - they're handled by mutation's onSuccess
-      // This prevents the disappear/reappear flicker, especially in self-chat
-      if (newMessage.sender_id === currentUserId) {
-        console.log(`⏭️ Skipping own message (handled by mutation): ${newMessage.id}`)
-        return
-      }
-
-      // Try to get sender from cached conversation members (check all cached conversation lists)
+      // Try to resolve sender from React Query cache first (avoids an extra DB round-trip)
       let sender: UserBasic | null = null
       const allCachedConvs = queryClient.getQueriesData<ConversationWithMembers[]>({ queryKey: conversationKeys.all })
       for (const [, conversationsData] of allCachedConvs) {
@@ -364,7 +362,7 @@ export function useConversationRealtime(
         }
       }
 
-      // If not in cache, fetch it (fallback only)
+      // Fallback: fetch sender from DB
       if (!sender) {
         const { data: senderData } = await supabase
           .from('users')
@@ -374,138 +372,157 @@ export function useConversationRealtime(
         sender = senderData as UserBasic
       }
 
-      const messageWithSender: MessageWithSender = {
-        ...newMessage,
-        sender,
-        reactions: [], // New messages via realtime have no reactions yet
-      }
+      const messageWithSender: MessageWithSender = { ...newMessage, sender, reactions: [] }
 
-      // Add to cache without refetching
       queryClient.setQueryData<MessageWithSender[]>(
         messageKeys.conversation(conversationId),
-        (old = []) => {
-          // Prevent duplicates
-          const exists = old.some((msg) => msg.id === messageWithSender.id)
-          return exists ? old : [...old, messageWithSender]
-        }
+        (old = []) => old.some((msg) => msg.id === messageWithSender.id) ? old : [...old, messageWithSender]
       )
-
-      // Update conversation list (for last message preview)
       queryClient.invalidateQueries({ queryKey: conversationKeys.all })
-
-      // Notify parent component about new message (for marking as read)
       onNewMessageRef.current?.(newMessage)
     }
 
-    // Handler for presence sync - extracts BOTH typing and online status
+    // --- Presence helpers ---
     interface PresenceState {
       user_id?: string
       online_at?: string
-      is_typing?: boolean
-      user_name?: string
-      user_email?: string
-      user_level?: number
-      user_avatar_url?: string | null
       typing?: boolean
       user?: UserBasic
-      presence_ref?: string
     }
-    const handlePresenceSync = () => {
-      const state = channel.presenceState()
+
+    // Pure function — takes the current presence state map and returns derived UI state.
+    // Extracted to avoid writing the same parse logic twice.
+    const parsePresenceState = (
+      rawState: Record<string, unknown[]>
+    ): { typing: UserBasic[]; online: Set<string> } => {
       const typing: UserBasic[] = []
       const online = new Set<string>()
+      const fiveMinutesAgo = Date.now() - 5 * 60 * 1000
 
-      Object.values(state).forEach((presences) => {
-        (presences as unknown as PresenceState[]).forEach((presence) => {
-          // Skip if no user_id (shouldn't happen but guard against it)
-          if (!presence.user_id) return
-          // Skip current user
-          if (presence.user_id === currentUserId) return
-
-          // Track online users (anyone with recent online_at)
-          if (presence.online_at) {
-            const onlineAt = new Date(presence.online_at).getTime()
-            const now = Date.now()
-            const fiveMinutesAgo = now - 5 * 60 * 1000
-
-            if (onlineAt > fiveMinutesAgo) {
-              online.add(presence.user_id)
-            }
+      Object.values(rawState).forEach((presences) => {
+        (presences as PresenceState[]).forEach((p) => {
+          if (!p.user_id || p.user_id === currentUserId) return
+          if (p.online_at && new Date(p.online_at).getTime() > fiveMinutesAgo) {
+            online.add(p.user_id)
           }
-
-          // Track typing users (must have typing flag AND user object)
-          if (presence.typing && presence.user) {
-            typing.push(presence.user as UserBasic)
-          }
+          if (p.typing && p.user) typing.push(p.user)
         })
       })
 
-      console.log(`👥 Presence updated for ${conversationId}: ${typing.length} typing, ${online.size} online`)
+      return { typing, online }
+    }
+
+    const syncPresence = (channel: ReturnType<typeof realtimeManager.getOrCreateChannel>) => {
+      const { typing, online } = parsePresenceState(
+        channel.presenceState() as Record<string, unknown[]>
+      )
       setTypingUsers(typing)
       setOnlineUserIds(online)
     }
 
-    // Only configure channel once (first component to mount)
-    if (!realtimeManager.isChannelConfigured(conversationId)) {
-      console.log(`⚙️ Configuring channel for conversation: ${conversationId}`)
+    // --- Channel setup (called on first mount and on each reconnect attempt) ---
+    const setupChannel = () => {
+      if (isCleanedup) return
 
-      // Subscribe to postgres changes for new messages
-      channel.on(
+      // Use the manager's reconnect helper — it force-removes the stale channel
+      // and returns a fresh one via getOrCreateChannel.
+      const ch = realtimeManager.reconnectChannel(conversationId)
+
+      ch.on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
         handleNewMessage
       )
+      ch.on('presence', { event: 'sync' }, () => syncPresence(ch))
 
-      // Subscribe to Presence for typing indicators
-      channel.on('presence', { event: 'sync' }, handlePresenceSync)
+      ch.subscribe((status) => {
+        if (isCleanedup) return
 
-      // Subscribe to the channel
-      channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log(`✅ Subscribed to conversation: ${conversationId}`)
-        } else if (status === 'CHANNEL_ERROR') {
-          logError('realtimeSubscription', { status, conversationId })
-          toast.error('Connection lost. Messages may not update in real-time.')
-        } else if (status === 'TIMED_OUT') {
-          logError('realtimeSubscription', { status: 'TIMED_OUT', conversationId })
-          toast.error('Connection timed out. Please refresh the page.')
+          console.log(`✅ Realtime connected: ${conversationId}`)
+          retryCount = 0
+          hadChannelError = false
+          ch.track({ user_id: currentUserId, online_at: new Date().toISOString() })
+            .catch((err) => logError('presenceTrack', err))
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          hadChannelError = true
+          console.warn(`⚠️ Realtime ${status} (attempt ${retryCount + 1}/${MAX_RETRIES}): ${conversationId}`)
+
+          if (retryCount < MAX_RETRIES) {
+            const delay = Math.pow(2, retryCount + 1) * 1000 // 2s → 4s → 8s
+            retryCount++
+            console.log(`🔄 Reconnecting in ${delay / 1000}s...`)
+            retryTimeout = setTimeout(setupChannel, delay)
+          } else {
+            logError('realtimeSubscription', { status, conversationId })
+            toast.error('Connection lost. Messages may not update in real-time.')
+          }
         }
       })
 
-      // Mark as configured
       realtimeManager.markAsConfigured(conversationId)
-    } else {
-      console.log(`♻️ Reusing existing channel for conversation: ${conversationId}`)
 
-      // Sync presence state immediately when reusing channel
-      handlePresenceSync()
+      // Track own presence
+      ch.track({ user_id: currentUserId, online_at: new Date().toISOString() })
+        .catch((err) => logError('presenceTrack', err))
     }
 
-    // Track own presence when opening conversation (for online status)
-    channel.track({
-      user_id: currentUserId,
-      online_at: new Date().toISOString(),
-      // Note: typing flag will be added by useSetTyping when user types
-    }).catch((err) => {
-      logError('presenceTrack', err)
-    })
+    // --- Initial mount ---
+    if (!realtimeManager.isChannelConfigured(conversationId)) {
+      setupChannel()
+    } else {
+      // Another component is already using this channel — reuse it
+      console.log(`♻️ Reusing existing channel: ${conversationId}`)
+      const ch = realtimeManager.getOrCreateChannel(conversationId)
+      syncPresence(ch)
+      ch.track({ user_id: currentUserId, online_at: new Date().toISOString() })
+        .catch((err) => logError('presenceTrack', err))
+    }
+
+    // --- Reconnect when tab becomes visible again ---
+    // Browsers suspend WebSocket keepalives when a tab is backgrounded;
+    // Supabase can drop the connection. On returning we check if we had an error
+    // and, if so, restart from scratch. If the connection is fine, we simply
+    // re-track presence (it may have expired while hidden).
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible' || isCleanedup) return
+      console.log('👁️ Tab visible — verifying realtime connection')
+
+      // Always refetch messages to catch anything sent while the WebSocket was dead.
+      // This is the key difference vs pure realtime — missed messages are backfilled silently.
+      queryClient.invalidateQueries({ queryKey: messageKeys.conversation(conversationId) })
+
+      if (hadChannelError) {
+        console.log('🔄 Previous error detected — forcing reconnect')
+        if (retryTimeout) clearTimeout(retryTimeout)
+        retryCount = 0
+        setupChannel()
+      } else {
+        // Channel is healthy — just refresh presence (it may have expired while hidden)
+        const ch = realtimeManager.getOrCreateChannel(conversationId)
+        ch.track({ user_id: currentUserId, online_at: new Date().toISOString() })
+          .catch((err) => logError('presenceTrack.visibility', err))
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       console.log(`🔌 Cleaning up conversation: ${conversationId}`)
+      isCleanedup = true
+
+      // Cancel any pending retry
+      if (retryTimeout) clearTimeout(retryTimeout)
+
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
 
       // Clear state
       setTypingUsers([])
       setOnlineUserIds(new Set())
 
       // Clear presence for current user
-      channel.untrack().catch((err) => {
-        logError('presenceUntrack', err)
-      })
+      const ch = realtimeManager.getOrCreateChannel(conversationId)
+      ch.untrack().catch((err) => logError('presenceUntrack', err))
 
       // Release channel (will only remove when ref count reaches 0)
       realtimeManager.releaseChannel(conversationId)

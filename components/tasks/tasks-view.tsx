@@ -10,8 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Search, Calendar, User, Loader2 } from 'lucide-react';
+import { Plus, Search, Calendar, User, Loader2, ClipboardList, UserCheck, PenLine } from 'lucide-react';
 import Link from 'next/link';
 
 // Types
@@ -27,6 +26,21 @@ interface TasksViewProps {
     onStatusFilterChange: (status: TaskStatusType | 'all') => void;
     onTypeFilterChange: (type: FilterType) => void;
 }
+
+// ── Type filter config ──────────────────────────────────────────────
+const TYPE_FILTER_OPTIONS: { value: FilterType; icon: typeof ClipboardList; label: string }[] = [
+    { value: 'all', icon: ClipboardList, label: 'All Tasks' },
+    { value: 'assigned', icon: UserCheck, label: 'Assigned' },
+    { value: 'created', icon: PenLine, label: 'Created' },
+];
+
+// ── Status chip config (dot colors extracted from STATUS_CONFIG) ────
+const STATUS_CHIP_OPTIONS: { value: TaskStatusType | 'all'; label: string; dot?: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'pending', label: 'Pending', dot: 'bg-amber-500' },
+    { value: 'in_progress', label: 'In Progress', dot: 'bg-blue-500' },
+    { value: 'archived', label: 'Completed', dot: 'bg-emerald-500' },
+];
 
 // Subcomponents
 function StatusBadge({ status }: { status: string }) {
@@ -112,58 +126,74 @@ export function TasksView({
     onTypeFilterChange,
 }: TasksViewProps) {
     return (
-        <div className="p-6 lg:p-8 space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="p-6 lg:p-8 space-y-5">
+            {/* ── Header row ─────────────────────────────────────────── */}
+            <div className="flex items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Tasks</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Manage and track all your tasks
+                    <p className="text-muted-foreground text-sm mt-0.5">
+                        Manage and track your work
                     </p>
                 </div>
                 <Link href="/tasks/new">
-                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                        <Plus className="h-4 w-4 mr-2" />
-                        New Task
+                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                        <Plus className="h-4 w-4 mr-1.5" />
+                        New
                     </Button>
                 </Link>
             </div>
 
-            {/* Filters */}
-            <Card className="bg-card/50 border-border" data-slot="card">
-                <CardContent className="p-4">
-                    <div className="flex flex-col lg:flex-row gap-4">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search tasks..."
-                                value={searchQuery}
-                                onChange={(e) => onSearchChange(e.target.value)}
-                                className="pl-9"
-                            />
-                        </div>
+            {/* ── Primary view switcher (segmented control) ──────────── */}
+            <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-1.5 rounded-lg bg-muted p-1">
+                    {TYPE_FILTER_OPTIONS.map(({ value, icon: Icon, label }) => (
+                        <button
+                            key={value}
+                            onClick={() => onTypeFilterChange(value)}
+                            className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${typeFilter === value
+                                    ? 'bg-background shadow-sm text-foreground'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                        >
+                            <Icon className="h-4 w-4" />
+                            <span className="hidden sm:inline">{label}</span>
+                            <span className="sm:hidden">{value === 'all' ? 'All' : value === 'assigned' ? 'Assigned' : 'Created'}</span>
+                        </button>
+                    ))}
+                </div>
 
-                        <Tabs value={typeFilter} onValueChange={(v) => onTypeFilterChange(v as FilterType)}>
-                            <TabsList>
-                                <TabsTrigger value="all">All</TabsTrigger>
-                                <TabsTrigger value="assigned">Assigned to me</TabsTrigger>
-                                <TabsTrigger value="created">Created by me</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
-
-                        <Tabs value={statusFilter} onValueChange={(v) => onStatusFilterChange(v as TaskStatusType | 'all')}>
-                            <TabsList>
-                                <TabsTrigger value="all">All</TabsTrigger>
-                                <TabsTrigger value="pending">Pending</TabsTrigger>
-                                <TabsTrigger value="in_progress">In Progress</TabsTrigger>
-                                <TabsTrigger value="archived">Completed</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
+                {/* ── Search + Status chips row ──────────────────────── */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search tasks..."
+                            value={searchQuery}
+                            onChange={(e) => onSearchChange(e.target.value)}
+                            className="pl-9"
+                        />
                     </div>
-                </CardContent>
-            </Card>
 
-            {/* Task List */}
+                    {/* Status filter chips */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                        {STATUS_CHIP_OPTIONS.map(({ value, label, dot }) => (
+                            <button
+                                key={value}
+                                onClick={() => onStatusFilterChange(value)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all ${statusFilter === value
+                                        ? 'bg-foreground/10 border-foreground/20 text-foreground'
+                                        : 'bg-transparent border-border text-muted-foreground hover:text-foreground hover:border-foreground/20'
+                                    }`}
+                            >
+                                {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Task list ──────────────────────────────────────────── */}
             {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -197,3 +227,4 @@ export function TasksView({
         </div>
     );
 }
+

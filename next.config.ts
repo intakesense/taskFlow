@@ -1,5 +1,19 @@
 import type { NextConfig } from "next";
 
+// Environment variable validation - fail fast at build time
+const requiredEnvVars = [
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY',
+  'OPENAI_API_KEY',
+  'OPENAI_REALTIME_MODEL',
+] as const;
+
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+}
+
 const nextConfig: NextConfig = {
   /* config options here */
 

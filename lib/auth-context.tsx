@@ -11,6 +11,7 @@ interface AuthContextType {
     profile: User | null
     loading: boolean
     signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+    signInWithGoogle: () => Promise<{ error: Error | null }>
     signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>
     signOut: () => Promise<void>
     refreshProfile: () => Promise<void>
@@ -174,6 +175,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: error as Error | null }
     }
 
+    const signInWithGoogle = async () => {
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: `${window.location.origin}/auth/callback`
+            }
+        })
+        return { error: error as Error | null }
+    }
+
     const signUp = async (email: string, password: string, name: string) => {
         const { error } = await supabase.auth.signUp({
             email,
@@ -187,6 +198,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const signOut = async () => {
         setMaskedAsUser(null)
+        // Unlink OneSignal push subscription from this user's external_id before sign-out.
+        // Without this, a different user logging in on the same browser could receive
+        // notifications intended for the previous user.
+        // callOneSignal is safe to call even if OneSignal is not loaded (non-production).
+        if (typeof window !== 'undefined' && window.OneSignal) {
+            try { await window.OneSignal.logout() } catch { /* non-fatal */ }
+        }
         await supabase.auth.signOut()
     }
 
@@ -210,6 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             profile,
             loading,
             signIn,
+            signInWithGoogle,
             signUp,
             signOut,
             refreshProfile,

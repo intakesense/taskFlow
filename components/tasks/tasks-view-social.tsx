@@ -1,16 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Search, Filter, X } from 'lucide-react'
+import { Plus, Search, X, ClipboardList, UserCheck, PenLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { SwipeableTaskCard } from './swipeable-task-card'
 import { CreateTaskDrawer } from './create-task-drawer'
@@ -32,6 +25,21 @@ interface TasksViewSocialProps {
   currentUserId?: string
 }
 
+// ── Primary view config (segmented control) ─────────────────────────
+const TYPE_OPTIONS: { value: FilterType; icon: typeof ClipboardList; label: string; short: string }[] = [
+  { value: 'all', icon: ClipboardList, label: 'All Tasks', short: 'All' },
+  { value: 'assigned', icon: UserCheck, label: 'Assigned', short: 'Assigned' },
+  { value: 'created', icon: PenLine, label: 'Created', short: 'Created' },
+]
+
+// ── Status chip config ───────────────────────────────────────────────
+const STATUS_OPTIONS: { value: TaskStatusType | 'all'; label: string; dot?: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'pending', label: 'Pending', dot: 'bg-amber-500' },
+  { value: 'in_progress', label: 'In Progress', dot: 'bg-blue-500' },
+  { value: 'archived', label: 'Done', dot: 'bg-emerald-500' },
+]
+
 export function TasksViewSocial({
   tasks,
   isLoading,
@@ -46,126 +54,15 @@ export function TasksViewSocial({
   currentUserId,
 }: TasksViewSocialProps) {
   const [showCreateDrawer, setShowCreateDrawer] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
-
-  const filterOptions = [
-    { value: 'all', label: 'All Tasks', emoji: '📋' },
-    { value: 'assigned', label: 'Assigned to me', emoji: '👤' },
-    { value: 'created', label: 'Created by me', emoji: '✍️' },
-  ]
-
-  const statusOptions = [
-    { value: 'all', label: 'All Status', emoji: '🔄' },
-    { value: 'pending', label: 'Not Started', emoji: '⏸️' },
-    { value: 'in_progress', label: 'In Progress', emoji: '⚡' },
-    { value: 'on_hold', label: 'On Hold', emoji: '⏸' },
-    { value: 'archived', label: 'Completed', emoji: '✅' },
-  ]
-
-  const activeFilterCount =
-    (typeFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      {/* Header - Mobile First */}
-      <div className="flex-shrink-0 px-4 py-3 border-b bg-card sticky top-0 z-10">
-        <div className="flex items-center gap-3 mb-3">
-          <h1 className="text-xl font-bold flex-1">Tasks</h1>
+      {/* ── Sticky header ────────────────────────────────────────── */}
+      <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b bg-card sticky top-0 z-10 space-y-3">
 
-          <Sheet open={showFilters} onOpenChange={setShowFilters}>
-            <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  'h-9 w-9 rounded-full relative',
-                  activeFilterCount > 0 && 'bg-primary/10'
-                )}
-              >
-                <Filter className="h-5 w-5" />
-                {activeFilterCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-5 w-5 bg-primary text-primary-foreground rounded-full text-xs flex items-center justify-center font-medium">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[300px] sm:w-[400px]">
-              <SheetHeader>
-                <SheetTitle>Filters</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6 space-y-6">
-                {/* Type Filter */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Show</label>
-                  <div className="space-y-2">
-                    {filterOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => {
-                          onTypeFilterChange(option.value as FilterType)
-                          setShowFilters(false)
-                        }}
-                        className={cn(
-                          'w-full px-4 py-3 rounded-xl text-left transition-all',
-                          'border flex items-center gap-3',
-                          typeFilter === option.value
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background border-border hover:bg-muted'
-                        )}
-                      >
-                        <span className="text-xl">{option.emoji}</span>
-                        <span className="font-medium">{option.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Status Filter */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Status</label>
-                  <div className="space-y-2">
-                    {statusOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => {
-                          onStatusFilterChange(option.value as TaskStatusType | 'all')
-                          setShowFilters(false)
-                        }}
-                        className={cn(
-                          'w-full px-4 py-3 rounded-xl text-left transition-all',
-                          'border flex items-center gap-3',
-                          statusFilter === option.value
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background border-border hover:bg-muted'
-                        )}
-                      >
-                        <span className="text-xl">{option.emoji}</span>
-                        <span className="font-medium">{option.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Clear Filters */}
-                {activeFilterCount > 0 && (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      onTypeFilterChange('all')
-                      onStatusFilterChange('all')
-                      setShowFilters(false)
-                    }}
-                    className="w-full rounded-full"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Clear All Filters
-                  </Button>
-                )}
-              </div>
-            </SheetContent>
-          </Sheet>
-
+        {/* Row 1: Title + New button */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">Tasks</h1>
           <Button
             size="icon"
             onClick={() => setShowCreateDrawer(true)}
@@ -175,59 +72,69 @@ export function TasksViewSocial({
           </Button>
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search tasks..."
-            className="pl-10 rounded-full bg-muted/50 border-0 focus-visible:ring-1"
-          />
-          {searchQuery && (
+        {/* Row 2: Segmented control — primary view switcher */}
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+          {TYPE_OPTIONS.map(({ value, icon: Icon, label, short }) => (
             <button
-              onClick={() => onSearchChange('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              key={value}
+              onClick={() => onTypeFilterChange(value)}
+              className={cn(
+                'flex items-center justify-center gap-1.5 px-2 py-2 rounded-md text-xs font-medium transition-all',
+                typeFilter === value
+                  ? 'bg-background shadow-sm text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
-              <X className="h-4 w-4" />
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">{short}</span>
             </button>
-          )}
+          ))}
         </div>
 
-        {/* Active Filters Pills */}
-        {activeFilterCount > 0 && (
-          <div className="flex gap-2 mt-3">
-            {typeFilter !== 'all' && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs">
-                <span>
-                  {filterOptions.find((o) => o.value === typeFilter)?.label}
-                </span>
-                <button
-                  onClick={() => onTypeFilterChange('all')}
-                  className="hover:bg-primary/20 rounded-full p-0.5"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-            {statusFilter !== 'all' && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs">
-                <span>
-                  {statusOptions.find((o) => o.value === statusFilter)?.label}
-                </span>
-                <button
-                  onClick={() => onStatusFilterChange('all')}
-                  className="hover:bg-primary/20 rounded-full p-0.5"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
+        {/* Row 3: Search + status chips */}
+        <div className="flex gap-2">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search tasks..."
+              className="pl-9 rounded-full bg-muted/50 border-0 focus-visible:ring-1 h-9"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => onSearchChange('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
             )}
           </div>
-        )}
+
+          {/* Status chips — horizontal scroll */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-shrink-0 max-w-[55%]">
+            {STATUS_OPTIONS.map(({ value, label, dot }) => (
+              <button
+                key={value}
+                onClick={() => onStatusFilterChange(value)}
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all',
+                  statusFilter === value
+                    ? 'bg-foreground/10 border-foreground/20 text-foreground'
+                    : 'bg-transparent border-border text-muted-foreground hover:text-foreground hover:border-foreground/20'
+                )}
+              >
+                {dot && <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', dot)} />}
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Task Feed */}
+      {/* ── Task feed ────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">

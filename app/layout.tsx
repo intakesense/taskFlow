@@ -8,6 +8,7 @@ import { RealtimeHealthMonitor } from "@/components/realtime-health-monitor";
 import { ServiceWorkerRegister } from "@/components/pwa";
 import { OneSignalInit } from "@/components/pwa/onesignal-init";
 import { Toaster } from "@/components/ui/sonner";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -62,6 +63,7 @@ export default function RootLayout({
                 <AuthProvider>
                   <VoiceChannelProvider>
                     {children}
+
                     <Toaster />
                     <RealtimeHealthMonitor />
                     <ServiceWorkerRegister />

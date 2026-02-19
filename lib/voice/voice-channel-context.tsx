@@ -166,6 +166,9 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
       )
 
       setCurrentChannel(channel)
+
+      // Note: AI Bot is now activated manually via the bot button in voice controls
+      // The user can click the bot button to activate it when they want
     } catch (error) {
       console.error('Failed to join channel:', error)
       toast.error('Failed to join voice channel')
@@ -191,6 +194,16 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
         await voiceChannelService.endSession(sessionIdRef.current)
         sessionIdRef.current = null
       }
+
+      // Deactivate bot if this user was hosting it
+      // This is a fire-and-forget - the bot session hook also handles this
+      fetch('/api/ai/bot/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId: currentChannel.id }),
+      }).catch(() => {
+        // Silently ignore - the user may not be the host
+      })
 
       toast.success(`Left ${currentChannel.name}`)
     } catch (error) {

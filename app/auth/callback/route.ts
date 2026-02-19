@@ -28,23 +28,26 @@ export async function GET(request: Request) {
         // Exchange the auth code for a session
         const { error } = await supabase.auth.exchangeCodeForSession(code)
 
-        if (!error) {
-            // Successful authentication - redirect to the intended destination
-            const forwardedHost = request.headers.get('x-forwarded-host')
-            const isLocalEnv = process.env.NODE_ENV === 'development'
+        if (error) {
+            console.error('Auth callback error:', error.message)
+            return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
+        }
 
-            if (isLocalEnv) {
-                // Use localhost for development
-                return NextResponse.redirect(`${origin}${next}`)
-            } else if (forwardedHost) {
-                // Use forwarded host for production behind proxy/load balancer
-                return NextResponse.redirect(`https://${forwardedHost}${next}`)
-            } else {
-                return NextResponse.redirect(`${origin}${next}`)
-            }
+        // Successful authentication - redirect to the intended destination
+        const forwardedHost = request.headers.get('x-forwarded-host')
+        const isLocalEnv = process.env.NODE_ENV === 'development'
+
+        if (isLocalEnv) {
+            // Use localhost for development
+            return NextResponse.redirect(`${origin}${next}`)
+        } else if (forwardedHost) {
+            // Use forwarded host for production behind proxy/load balancer
+            return NextResponse.redirect(`https://${forwardedHost}${next}`)
+        } else {
+            return NextResponse.redirect(`${origin}${next}`)
         }
     }
 
-    // If there's no code or an error occurred, redirect to login with error
-    return NextResponse.redirect(`${origin}/login?error=auth_callback_error`)
+    // If there's no code, redirect to login with error
+    return NextResponse.redirect(`${origin}/login?error=no_code_provided`)
 }

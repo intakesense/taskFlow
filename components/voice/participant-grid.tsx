@@ -2,21 +2,32 @@
 
 import { useState, useCallback } from 'react'
 import { ParticipantTile } from './participant-tile'
+import { AIBotTile } from './ai-bot-tile'
 import { cn } from '@/lib/utils'
 import { useBreakpoints } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import { X, Minimize2 } from 'lucide-react'
 
+interface AIBotInfo {
+  isInChannel: boolean
+  botName: string
+  botAvatarUrl: string | null
+}
+
 interface ParticipantGridProps {
   participantIds: string[]
   localSessionId: string | null
+  aiBot?: AIBotInfo
 }
 
-export function ParticipantGrid({ participantIds, localSessionId }: ParticipantGridProps) {
+export function ParticipantGrid({ participantIds, localSessionId, aiBot }: ParticipantGridProps) {
   const { isMobile, isTablet } = useBreakpoints()
   const isSmallScreen = isMobile || isTablet
   const [pinnedSessionId, setPinnedSessionId] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // Check if bot should be shown (in channel but not in Daily.co participants)
+  const showAIBot = aiBot?.isInChannel ?? false
 
   const handlePin = useCallback((sessionId: string) => {
     setPinnedSessionId(sessionId)
@@ -42,7 +53,8 @@ export function ParticipantGrid({ participantIds, localSessionId }: ParticipantG
     return 0
   })
 
-  const count = sortedIds.length
+  // Total count includes AI bot if present
+  const count = sortedIds.length + (showAIBot ? 1 : 0)
 
   // Reset pinned participant if they leave
   if (pinnedSessionId && !participantIds.includes(pinnedSessionId)) {
@@ -203,6 +215,14 @@ export function ParticipantGrid({ participantIds, localSessionId }: ParticipantG
           onFullscreen={handleFullscreen}
         />
       ))}
+      {/* Show AI bot tile if bot is in channel */}
+      {showAIBot && aiBot && (
+        <AIBotTile
+          botName={aiBot.botName}
+          botAvatarUrl={aiBot.botAvatarUrl}
+          isMobile={isSmallScreen}
+        />
+      )}
     </div>
   )
 }

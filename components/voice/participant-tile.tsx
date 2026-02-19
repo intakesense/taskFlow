@@ -17,8 +17,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Mic, MicOff, Video, VideoOff, Monitor, Pin, PinOff, Maximize2 } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Monitor, Pin, PinOff, Maximize2, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+
+// AI Bot user ID - matches the fixed UUID in the database
+const AI_BOT_USER_ID = '00000000-0000-0000-0000-000000000001'
 
 interface ParticipantTileProps {
   sessionId: string
@@ -61,6 +65,7 @@ export function ParticipantTile({
 
   const userName = participant.user_name || 'Anonymous'
   const avatarUrl = (participant.userData as { avatarUrl?: string } | undefined)?.avatarUrl
+  const isBot = participant.user_id === AI_BOT_USER_ID
 
   // Show camera PiP when screen sharing with camera on
   const showCameraPip = hasScreenShare && hasVideo
@@ -84,8 +89,10 @@ export function ParticipantTile({
       className={cn(
         'relative bg-muted rounded-xl overflow-hidden h-full w-full group',
         'transition-shadow duration-300 ease-out',
-        isSpeaking && 'ring-2 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]',
-        isPinned && 'ring-2 ring-primary'
+        isSpeaking && !isBot && 'ring-2 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]',
+        isSpeaking && isBot && 'ring-2 ring-purple-500 shadow-[0_0_20px_rgba(147,51,234,0.4)]',
+        isPinned && 'ring-2 ring-primary',
+        isBot && !isSpeaking && !isPinned && 'ring-1 ring-purple-500/50'
       )}
       onMouseEnter={() => setShowControls(true)}
       onMouseLeave={() => setShowControls(false)}
@@ -110,10 +117,14 @@ export function ParticipantTile({
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-muted">
-          <Avatar className={cn('h-20 w-20', isMobile && 'h-16 w-16')}>
+          <Avatar className={cn('h-20 w-20', isMobile && 'h-16 w-16', isBot && 'ring-2 ring-purple-500')}>
             {avatarUrl && <AvatarImage src={avatarUrl} alt={userName} />}
-            <AvatarFallback className={cn('text-2xl bg-primary text-primary-foreground', isMobile && 'text-xl')}>
-              {userName.charAt(0).toUpperCase()}
+            <AvatarFallback className={cn(
+              'text-2xl bg-primary text-primary-foreground',
+              isMobile && 'text-xl',
+              isBot && 'bg-purple-600'
+            )}>
+              {isBot ? <Bot className="h-8 w-8" /> : userName.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
         </div>
@@ -201,13 +212,26 @@ export function ParticipantTile({
         isMobile ? 'p-2' : 'p-3'
       )}>
         <div className="flex items-center justify-between">
-          <span className={cn(
-            'text-white font-medium truncate',
-            isMobile ? 'text-xs' : 'text-sm'
-          )}>
-            {userName}
-            {isLocal && ' (You)'}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={cn(
+              'text-white font-medium truncate',
+              isMobile ? 'text-xs' : 'text-sm'
+            )}>
+              {userName}
+              {isLocal && ' (You)'}
+            </span>
+            {isBot && (
+              <Badge
+                variant="secondary"
+                className={cn(
+                  'bg-purple-600 text-white border-0 flex-shrink-0',
+                  isMobile ? 'text-[10px] px-1 py-0' : 'text-xs px-1.5 py-0'
+                )}
+              >
+                AI
+              </Badge>
+            )}
+          </div>
 
           <div className="flex items-center gap-1.5">
             {hasScreenShare && (
