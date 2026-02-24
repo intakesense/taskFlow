@@ -3,12 +3,12 @@
 import { useState, useMemo } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { useTasks, useUpdateTask, useDeleteTask } from '@/hooks'
-import { TasksViewSocial } from './tasks-view-social'
+import { useAssignableUsers } from '@/hooks/use-users'
+import { TasksViewSocial, type FilterType } from './tasks-view-social'
+import { TeamView } from './team-view'
 import { DashboardLayout } from '@/components/layout'
 import { toast } from 'sonner'
 import type { TaskStatus, TaskWithUsers } from '@/lib/types'
-
-type FilterType = 'all' | 'assigned' | 'created'
 
 interface TasksContainerSocialProps {
   initialTasks?: TaskWithUsers[]
@@ -17,13 +17,14 @@ interface TasksContainerSocialProps {
 export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps) {
   const { effectiveUser } = useAuth()
   const { data: tasks = [], isLoading } = useTasks({ initialData: initialTasks })
+  const { data: assignableUsers = [], isLoading: isLoadingUsers } = useAssignableUsers(effectiveUser?.level)
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
-  const [typeFilter, setTypeFilter] = useState<FilterType>('all')
+  const [typeFilter, setTypeFilter] = useState<FilterType>('team')
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
@@ -81,21 +82,50 @@ export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps
     }
   }
 
+  // Group tasks by assignee for team view
+  const tasksByAssignee = useMemo(() => {
+    const map = new Map<string, TaskWithUsers[]>()
+    for (const task of tasks) {
+      if (task.status === 'archived') continue
+      for (const assignee of task.assignees || []) {
+        const existing = map.get(assignee.id) || []
+        existing.push(task)
+        map.set(assignee.id, existing)
+      }
+    }
+    return map
+  }, [tasks])
+
   return (
     <DashboardLayout>
-      <TasksViewSocial
-        tasks={filteredTasks}
-        isLoading={isLoading}
-        searchQuery={searchQuery}
-        statusFilter={statusFilter}
-        typeFilter={typeFilter}
-        onSearchChange={setSearchQuery}
-        onStatusFilterChange={setStatusFilter}
-        onTypeFilterChange={setTypeFilter}
-        onStatusChange={handleStatusChange}
-        onDelete={handleDelete}
-        currentUserId={effectiveUser?.id}
-      />
+      {typeFilter === 'team' ? (
+        <TeamView
+          users={assignableUsers}
+          tasksByAssignee={tasksByAssignee}
+          isLoading={isLoading || isLoadingUsers}
+          searchQuery={searchQuery}
+          statusFilter={statusFilter}
+          typeFilter={typeFilter}
+          onSearchChange={setSearchQuery}
+          onStatusFilterChange={setStatusFilter}
+          onTypeFilterChange={setTypeFilter}
+          currentUserId={effectiveUser?.id}
+        />
+      ) : (
+        <TasksViewSocial
+          tasks={filteredTasks}
+          isLoading={isLoading}
+          searchQuery={searchQuery}
+          statusFilter={statusFilter}
+          typeFilter={typeFilter}
+          onSearchChange={setSearchQuery}
+          onStatusFilterChange={setStatusFilter}
+          onTypeFilterChange={setTypeFilter}
+          onStatusChange={handleStatusChange}
+          onDelete={handleDelete}
+          currentUserId={effectiveUser?.id}
+        />
+      )}
     </DashboardLayout>
   )
 }

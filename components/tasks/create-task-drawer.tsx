@@ -25,11 +25,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { MultiUserSelector } from './multi-user-selector'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface CreateTaskDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialSelectedUserIds?: string[]
 }
 
 const taskFormSchema = z.object({
@@ -42,11 +43,18 @@ const taskFormSchema = z.object({
 
 type TaskFormData = z.infer<typeof taskFormSchema>
 
-export function CreateTaskDrawer({ open, onOpenChange }: CreateTaskDrawerProps) {
+export function CreateTaskDrawer({ open, onOpenChange, initialSelectedUserIds }: CreateTaskDrawerProps) {
   const router = useRouter()
   const { effectiveUser } = useAuth()
   const createTask = useCreateTask()
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
+
+  // Sync with initialSelectedUserIds when drawer opens
+  useEffect(() => {
+    if (open && initialSelectedUserIds?.length) {
+      setSelectedUserIds(initialSelectedUserIds)
+    }
+  }, [open, initialSelectedUserIds])
 
   const {
     register,

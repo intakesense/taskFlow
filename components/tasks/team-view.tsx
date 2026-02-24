@@ -5,14 +5,16 @@ import { Plus, Search, X, ClipboardList, UserCheck, PenLine, Users2 } from 'luci
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { SwipeableTaskCard } from './swipeable-task-card'
+import { EmployeeCard } from './employee-card'
 import { CreateTaskDrawer } from './create-task-drawer'
-import type { TaskWithUsers, TaskStatus as TaskStatusType } from '@/lib/types'
+import type { User, TaskWithUsers, TaskStatus as TaskStatusType } from '@/lib/types'
+import type { FilterType } from './tasks-view-social'
 
-export type FilterType = 'team' | 'created' | 'assigned' | 'all'
+const BOT_USER_ID = '00000000-0000-0000-0000-000000000001'
 
-interface TasksViewSocialProps {
-  tasks: TaskWithUsers[]
+interface TeamViewProps {
+  users: User[]
+  tasksByAssignee: Map<string, TaskWithUsers[]>
   isLoading: boolean
   searchQuery: string
   statusFilter: TaskStatusType | 'all'
@@ -20,12 +22,9 @@ interface TasksViewSocialProps {
   onSearchChange: (query: string) => void
   onStatusFilterChange: (status: TaskStatusType | 'all') => void
   onTypeFilterChange: (type: FilterType) => void
-  onStatusChange?: (taskId: string, status: string) => void
-  onDelete?: (taskId: string) => void
   currentUserId?: string
 }
 
-// ── Primary view config (segmented control) ─────────────────────────
 const TYPE_OPTIONS: { value: FilterType; icon: typeof ClipboardList; label: string; short: string }[] = [
   { value: 'team', icon: Users2, label: 'Team', short: 'Team' },
   { value: 'created', icon: PenLine, label: 'Created', short: 'Created' },
@@ -33,16 +32,15 @@ const TYPE_OPTIONS: { value: FilterType; icon: typeof ClipboardList; label: stri
   { value: 'all', icon: ClipboardList, label: 'All Tasks', short: 'All' },
 ]
 
-// ── Status chip config ───────────────────────────────────────────────
 const STATUS_OPTIONS: { value: TaskStatusType | 'all'; label: string; dot?: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'pending', label: 'Pending', dot: 'bg-amber-500' },
   { value: 'in_progress', label: 'In Progress', dot: 'bg-blue-500' },
-  { value: 'archived', label: 'Done', dot: 'bg-emerald-500' },
 ]
 
-export function TasksViewSocial({
-  tasks,
+export function TeamView({
+  users,
+  tasksByAssignee,
   isLoading,
   searchQuery,
   statusFilter,
@@ -50,17 +48,45 @@ export function TasksViewSocial({
   onSearchChange,
   onStatusFilterChange,
   onTypeFilterChange,
-  onStatusChange,
-  onDelete,
   currentUserId,
-}: TasksViewSocialProps) {
+}: TeamViewProps) {
   const [showCreateDrawer, setShowCreateDrawer] = useState(false)
+  const [preselectedUserId, setPreselectedUserId] = useState<string | null>(null)
+
+  // Filter users by search (exclude bot user)
+  const filteredUsers = users.filter(user => {
+    if (user.id === BOT_USER_ID) return false
+    if (!searchQuery.trim()) return true
+    const query = searchQuery.toLowerCase()
+    return user.name.toLowerCase().includes(query)
+  })
+
+  // Filter tasks by status and get filtered task map
+  const getFilteredTasks = (userId: string): TaskWithUsers[] => {
+    const tasks = tasksByAssignee.get(userId) || []
+    if (statusFilter === 'all') return tasks
+    return tasks.filter(t => t.status === statusFilter)
+  }
+
+  // When status filter is active, only show users with matching tasks
+  const displayUsers = statusFilter === 'all'
+    ? filteredUsers
+    : filteredUsers.filter(user => getFilteredTasks(user.id).length > 0)
+
+  const handleAssignTask = (userId: string) => {
+    setPreselectedUserId(userId)
+    setShowCreateDrawer(true)
+  }
+
+  const handleDrawerClose = (open: boolean) => {
+    setShowCreateDrawer(open)
+    if (!open) setPreselectedUserId(null)
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      {/* ── Sticky header ────────────────────────────────────────── */}
+      {/* Sticky header */}
       <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b bg-card sticky top-0 z-10 space-y-3">
-
         {/* Row 1: Title + New button */}
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Tasks</h1>
@@ -73,7 +99,7 @@ export function TasksViewSocial({
           </Button>
         </div>
 
-        {/* Row 2: Segmented control — primary view switcher */}
+        {/* Row 2: Segmented control */}
         <div className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1">
           {TYPE_OPTIONS.map(({ value, icon: Icon, label, short }) => (
             <button
@@ -95,13 +121,12 @@ export function TasksViewSocial({
 
         {/* Row 3: Search + status chips */}
         <div className="flex gap-2">
-          {/* Search */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search tasks..."
+              placeholder="Search team..."
               className="pl-9 rounded-full bg-muted/50 border-0 focus-visible:ring-1 h-9"
             />
             {searchQuery && (
@@ -114,7 +139,6 @@ export function TasksViewSocial({
             )}
           </div>
 
-          {/* Status chips — horizontal scroll */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-shrink-0 max-w-[55%]">
             {STATUS_OPTIONS.map(({ value, label, dot }) => (
               <button
@@ -135,44 +159,51 @@ export function TasksViewSocial({
         </div>
       </div>
 
-      {/* ── Task feed ────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      {/* Team list */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : tasks.length === 0 ? (
+        ) : displayUsers.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-6xl mb-4">📋</div>
-            <h3 className="text-lg font-semibold mb-2">No tasks yet</h3>
+            <div className="text-6xl mb-4">👥</div>
+            <h3 className="text-lg font-semibold mb-2">
+              {searchQuery ? 'No team members found' : 'No team members'}
+            </h3>
             <p className="text-sm text-muted-foreground mb-4">
               {searchQuery
-                ? 'No tasks match your search'
-                : 'Create your first task to get started'}
+                ? `No one matches "${searchQuery}"`
+                : "You don't have any team members at your level or below."}
             </p>
-            <Button
-              onClick={() => setShowCreateDrawer(true)}
-              className="rounded-full"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Task
-            </Button>
+            {searchQuery && (
+              <Button
+                variant="outline"
+                onClick={() => onSearchChange('')}
+                className="rounded-full"
+              >
+                Clear Search
+              </Button>
+            )}
           </div>
         ) : (
-          tasks.map((task) => (
-            <SwipeableTaskCard
-              key={task.id}
-              task={task}
-              onStatusChange={onStatusChange}
-              onDelete={onDelete}
-              currentUserId={currentUserId}
+          displayUsers.map(user => (
+            <EmployeeCard
+              key={user.id}
+              user={user}
+              tasks={getFilteredTasks(user.id)}
+              isSelf={user.id === currentUserId}
+              onAssignTask={handleAssignTask}
             />
           ))
         )}
       </div>
 
-      {/* Create Task Drawer */}
-      <CreateTaskDrawer open={showCreateDrawer} onOpenChange={setShowCreateDrawer} />
+      <CreateTaskDrawer
+        open={showCreateDrawer}
+        onOpenChange={handleDrawerClose}
+        initialSelectedUserIds={preselectedUserId ? [preselectedUserId] : undefined}
+      />
     </div>
   )
 }
