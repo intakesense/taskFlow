@@ -29,9 +29,9 @@ interface SidebarProps {
 
 // Navigation - Tasks, Messages, and ChitChat
 const navigation = [
-    { name: 'Messages', href: '/', icon: MessageSquare, showBadge: false },
-    { name: 'ChitChat', href: '/chitchat', icon: Headphones, showBadge: true },
     { name: 'Tasks', href: '/tasks', icon: ListTodo, showBadge: false },
+    { name: 'Messages', href: '/chat', icon: MessageSquare, showBadge: false },
+    { name: 'ChitChat', href: '/chitchat', icon: Headphones, showBadge: true },
 ]
 
 // Admin-only navigation
@@ -54,8 +54,9 @@ function NavItems({ onClick }: { onClick?: () => void }) {
     return (
         <nav className="flex-1 px-3 py-4 space-y-1">
             {navigation.map((item) => {
-                const isActive = item.href === '/'
-                    ? pathname === item.href
+                // Tasks (/tasks) is also active when on root (/)
+                const isActive = item.href === '/tasks'
+                    ? pathname === '/' || pathname === '/tasks' || pathname.startsWith('/tasks/')
                     : pathname === item.href || pathname.startsWith(item.href + '/')
                 return (
                     <Link
