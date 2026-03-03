@@ -6,6 +6,7 @@ import { useTasks, useUpdateTask, useDeleteTask } from '@/hooks'
 import { useAssignableUsers } from '@/hooks/use-users'
 import { TasksViewSocial, type FilterType } from './tasks-view-social'
 import { TeamView } from './team-view'
+import { KanbanView } from './kanban'
 import { DashboardLayout } from '@/components/layout'
 import { toast } from 'sonner'
 import type { TaskStatus, TaskWithUsers } from '@/lib/types'
@@ -24,7 +25,7 @@ export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
-  const [typeFilter, setTypeFilter] = useState<FilterType>('team')
+  const [typeFilter, setTypeFilter] = useState<FilterType>('all')
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
@@ -96,36 +97,66 @@ export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps
     return map
   }, [tasks])
 
-  return (
-    <DashboardLayout>
-      {typeFilter === 'team' ? (
-        <TeamView
-          users={assignableUsers}
-          tasksByAssignee={tasksByAssignee}
-          isLoading={isLoading || isLoadingUsers}
-          searchQuery={searchQuery}
-          statusFilter={statusFilter}
-          typeFilter={typeFilter}
-          onSearchChange={setSearchQuery}
-          onStatusFilterChange={setStatusFilter}
-          onTypeFilterChange={setTypeFilter}
-          currentUserId={effectiveUser?.id}
-        />
-      ) : (
-        <TasksViewSocial
-          tasks={filteredTasks}
-          isLoading={isLoading}
-          searchQuery={searchQuery}
-          statusFilter={statusFilter}
-          typeFilter={typeFilter}
-          onSearchChange={setSearchQuery}
-          onStatusFilterChange={setStatusFilter}
-          onTypeFilterChange={setTypeFilter}
-          onStatusChange={handleStatusChange}
-          onDelete={handleDelete}
-          currentUserId={effectiveUser?.id}
-        />
-      )}
-    </DashboardLayout>
-  )
+  // Filter tasks for kanban (search only, no status filter - columns handle that)
+  const kanbanTasks = useMemo(() => {
+    if (!searchQuery) return tasks
+    const query = searchQuery.toLowerCase()
+    return tasks.filter(
+      task =>
+        task.title.toLowerCase().includes(query) ||
+        task.description?.toLowerCase().includes(query)
+    )
+  }, [tasks, searchQuery])
+
+  const renderView = () => {
+    switch (typeFilter) {
+      case 'all':
+        return (
+          <KanbanView
+            tasks={kanbanTasks}
+            isLoading={isLoading}
+            searchQuery={searchQuery}
+            typeFilter={typeFilter}
+            currentUserId={effectiveUser?.id}
+            onSearchChange={setSearchQuery}
+            onTypeFilterChange={setTypeFilter}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDelete}
+          />
+        )
+      case 'team':
+        return (
+          <TeamView
+            users={assignableUsers}
+            tasksByAssignee={tasksByAssignee}
+            isLoading={isLoading || isLoadingUsers}
+            searchQuery={searchQuery}
+            statusFilter={statusFilter}
+            typeFilter={typeFilter}
+            onSearchChange={setSearchQuery}
+            onStatusFilterChange={setStatusFilter}
+            onTypeFilterChange={setTypeFilter}
+            currentUserId={effectiveUser?.id}
+          />
+        )
+      default:
+        return (
+          <TasksViewSocial
+            tasks={filteredTasks}
+            isLoading={isLoading}
+            searchQuery={searchQuery}
+            statusFilter={statusFilter}
+            typeFilter={typeFilter}
+            onSearchChange={setSearchQuery}
+            onStatusFilterChange={setStatusFilter}
+            onTypeFilterChange={setTypeFilter}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDelete}
+            currentUserId={effectiveUser?.id}
+          />
+        )
+    }
+  }
+
+  return <DashboardLayout>{renderView()}</DashboardLayout>
 }

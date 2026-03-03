@@ -1,8 +1,10 @@
 // useTasks - React Query hooks with OPTIMISTIC UPDATES for instant UI feedback
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { getErrorMessage } from '@/lib/utils/error';
+import { createClient } from '@/lib/supabase/client';
 import {
     getTasks,
     getTaskById,
@@ -16,6 +18,8 @@ import {
     UpdateTaskInput
 } from '@/lib/services/tasks';
 import type { TaskWithUsers } from '@/lib/types';
+
+const supabase = createClient();
 
 // Query keys
 export const taskKeys = {
@@ -35,11 +39,39 @@ interface UseTasksOptions {
 }
 
 export function useTasks(options?: UseTasksOptions) {
+    const queryClient = useQueryClient();
+
+    // Subscribe to real-time task updates
+    useEffect(() => {
+        const channel = supabase
+            .channel('tasks-realtime')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'tasks' },
+                () => {
+                    // Invalidate and refetch when any task changes
+                    queryClient.invalidateQueries({ queryKey: taskKeys.all });
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'task_assignees' },
+                () => {
+                    // Also refetch when assignees change
+                    queryClient.invalidateQueries({ queryKey: taskKeys.all });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [queryClient]);
+
     return useQuery({
         queryKey: taskKeys.lists(),
         queryFn: () => getTasks(),
         initialData: options?.initialData,
-        // Use default staleTime from QueryProvider
     });
 }
 

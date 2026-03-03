@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { MoreVertical, CheckCircle2, Clock, Calendar, Users } from 'lucide-react'
+import { MoreVertical, CheckCircle2, Clock, Timer, PauseCircle, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { StackedAvatars } from './stacked-avatars'
 import { cn } from '@/lib/utils'
-import { formatRelative } from '@/lib/utils/date'
-import type { TaskWithUsers } from '@/lib/types'
+import { formatCompactDuration, getDurationMs, DURATION_THRESHOLDS } from '@/lib/utils/date'
+import type { TaskWithUsers, TaskStatus } from '@/lib/types'
 
 interface TaskCardSocialProps {
   task: TaskWithUsers
@@ -57,8 +57,34 @@ export function TaskCardSocial({
   const statusInfo = getStatusInfo(task.status)
   const StatusIcon = statusInfo.icon
 
-  const isOverdue =
-    task.deadline && new Date(task.deadline) < new Date() && task.status !== 'archived'
+  // Get status-specific time info
+  const getStatusTimeInfo = () => {
+    const status = task.status as TaskStatus
+    switch (status) {
+      case 'pending':
+        return { timestamp: task.created_at, icon: Clock }
+      case 'in_progress':
+        return {
+          timestamp: task.started_at,
+          icon: Timer,
+          isWarning: task.started_at && getDurationMs(task.started_at) > DURATION_THRESHOLDS.IN_PROGRESS_WARNING,
+        }
+      case 'on_hold':
+        return {
+          timestamp: task.on_hold_at,
+          icon: PauseCircle,
+          isWarning: task.on_hold_at && getDurationMs(task.on_hold_at) > DURATION_THRESHOLDS.ON_HOLD_WARNING,
+        }
+      case 'archived':
+        return { timestamp: task.archived_at, icon: CheckCircle2 }
+      default:
+        return null
+    }
+  }
+
+  const timeInfo = getStatusTimeInfo()
+  const formattedTime = timeInfo?.timestamp ? formatCompactDuration(timeInfo.timestamp) : ''
+  const TimeIcon = timeInfo?.icon || Clock
 
   // Get assignee names for display
   const assigneeNames = task.assignees?.map(a => a.name) || []
@@ -145,18 +171,18 @@ export function TaskCardSocial({
                 <span className="capitalize">{task.priority}</span>
               </div>
 
-              {/* Deadline */}
-              {task.deadline && (
+              {/* Status Time */}
+              {formattedTime && (
                 <div
                   className={cn(
                     'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs',
-                    isOverdue
-                      ? 'bg-red-500/10 text-red-500'
+                    timeInfo?.isWarning
+                      ? 'bg-amber-500/10 text-amber-500'
                       : 'bg-muted text-muted-foreground'
                   )}
                 >
-                  <Calendar className="h-3 w-3" />
-                  {formatRelative(task.deadline)}
+                  <TimeIcon className="h-3 w-3" />
+                  {formattedTime}
                 </div>
               )}
             </div>

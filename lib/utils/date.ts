@@ -89,3 +89,40 @@ export function isApproaching(deadlineString: string | null): boolean {
   const hoursUntil = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60)
   return hoursUntil > 0 && hoursUntil <= 24
 }
+
+/**
+ * Format a compact duration for status time display
+ * Examples: "now", "5m", "2h", "3d", "2w"
+ */
+export function formatCompactDuration(dateString: string | null): string {
+  if (!dateString) return ''
+
+  const ms = Date.now() - new Date(dateString).getTime()
+  if (ms < 0) return '' // Future date, shouldn't happen
+
+  const minutes = Math.floor(ms / 60000)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  const weeks = Math.floor(days / 7)
+
+  if (weeks > 0) return `${weeks}w`
+  if (days > 0) return `${days}d`
+  if (hours > 0) return `${hours}h`
+  if (minutes > 0) return `${minutes}m`
+  return 'now'
+}
+
+/**
+ * Get the duration in milliseconds from a date string
+ * Used for threshold comparisons (e.g., warning colors)
+ */
+export function getDurationMs(dateString: string | null): number {
+  if (!dateString) return 0
+  return Date.now() - new Date(dateString).getTime()
+}
+
+// Duration thresholds for warning colors (in milliseconds)
+export const DURATION_THRESHOLDS = {
+  IN_PROGRESS_WARNING: 3 * 24 * 60 * 60 * 1000, // 3 days
+  ON_HOLD_WARNING: 1 * 24 * 60 * 60 * 1000,     // 1 day
+}

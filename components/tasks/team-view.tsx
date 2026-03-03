@@ -26,10 +26,10 @@ interface TeamViewProps {
 }
 
 const TYPE_OPTIONS: { value: FilterType; icon: typeof ClipboardList; label: string; short: string }[] = [
-  { value: 'team', icon: Users2, label: 'Team', short: 'Team' },
+  { value: 'all', icon: ClipboardList, label: 'All Tasks', short: 'All' },
   { value: 'created', icon: PenLine, label: 'Created', short: 'Created' },
   { value: 'assigned', icon: UserCheck, label: 'Assigned', short: 'Assigned' },
-  { value: 'all', icon: ClipboardList, label: 'All Tasks', short: 'All' },
+  { value: 'team', icon: Users2, label: 'Team', short: 'Team' },
 ]
 
 const STATUS_OPTIONS: { value: TaskStatusType | 'all'; label: string; dot?: string }[] = [

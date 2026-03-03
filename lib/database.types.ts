@@ -598,8 +598,10 @@ export type Database = {
           deadline: string | null
           description: string
           id: string
+          on_hold_at: string | null
           on_hold_reason: string | null
           priority: string
+          started_at: string | null
           status: string
           title: string
           updated_at: string
@@ -612,8 +614,10 @@ export type Database = {
           deadline?: string | null
           description?: string
           id?: string
+          on_hold_at?: string | null
           on_hold_reason?: string | null
           priority?: string
+          started_at?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -626,8 +630,10 @@ export type Database = {
           deadline?: string | null
           description?: string
           id?: string
+          on_hold_at?: string | null
           on_hold_reason?: string | null
           priority?: string
+          started_at?: string | null
           status?: string
           title?: string
           updated_at?: string

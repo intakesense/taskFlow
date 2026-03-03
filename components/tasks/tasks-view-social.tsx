@@ -9,7 +9,7 @@ import { SwipeableTaskCard } from './swipeable-task-card'
 import { CreateTaskDrawer } from './create-task-drawer'
 import type { TaskWithUsers, TaskStatus as TaskStatusType } from '@/lib/types'
 
-export type FilterType = 'team' | 'created' | 'assigned' | 'all'
+export type FilterType = 'all' | 'created' | 'assigned' | 'team'
 
 interface TasksViewSocialProps {
   tasks: TaskWithUsers[]
@@ -27,10 +27,10 @@ interface TasksViewSocialProps {
 
 // ── Primary view config (segmented control) ─────────────────────────
 const TYPE_OPTIONS: { value: FilterType; icon: typeof ClipboardList; label: string; short: string }[] = [
-  { value: 'team', icon: Users2, label: 'Team', short: 'Team' },
+  { value: 'all', icon: ClipboardList, label: 'All Tasks', short: 'All' },
   { value: 'created', icon: PenLine, label: 'Created', short: 'Created' },
   { value: 'assigned', icon: UserCheck, label: 'Assigned', short: 'Assigned' },
-  { value: 'all', icon: ClipboardList, label: 'All Tasks', short: 'All' },
+  { value: 'team', icon: Users2, label: 'Team', short: 'Team' },
 ]
 
 // ── Status chip config ───────────────────────────────────────────────

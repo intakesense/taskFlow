@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { Calendar, Clock, CheckCircle2 } from 'lucide-react'
+import { Clock, CheckCircle2, Timer, PauseCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatRelative } from '@/lib/utils/date'
+import { formatCompactDuration, getDurationMs, DURATION_THRESHOLDS } from '@/lib/utils/date'
 import type { TaskWithUsers, TaskStatus, TaskPriority } from '@/lib/types'
 
 interface TaskMiniCardProps {
@@ -26,7 +26,35 @@ const PRIORITY_COLOR: Record<TaskPriority, string> = {
 export function TaskMiniCard({ task }: TaskMiniCardProps) {
   const status = STATUS_CONFIG[task.status as TaskStatus] || STATUS_CONFIG.pending
   const StatusIcon = status.icon
-  const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'archived'
+
+  // Get status-specific time info
+  const getStatusTimeInfo = () => {
+    const taskStatus = task.status as TaskStatus
+    switch (taskStatus) {
+      case 'pending':
+        return { timestamp: task.created_at, icon: Clock }
+      case 'in_progress':
+        return {
+          timestamp: task.started_at,
+          icon: Timer,
+          isWarning: task.started_at && getDurationMs(task.started_at) > DURATION_THRESHOLDS.IN_PROGRESS_WARNING,
+        }
+      case 'on_hold':
+        return {
+          timestamp: task.on_hold_at,
+          icon: PauseCircle,
+          isWarning: task.on_hold_at && getDurationMs(task.on_hold_at) > DURATION_THRESHOLDS.ON_HOLD_WARNING,
+        }
+      case 'archived':
+        return { timestamp: task.archived_at, icon: CheckCircle2 }
+      default:
+        return null
+    }
+  }
+
+  const timeInfo = getStatusTimeInfo()
+  const formattedTime = timeInfo?.timestamp ? formatCompactDuration(timeInfo.timestamp) : ''
+  const TimeIcon = timeInfo?.icon || Clock
 
   return (
     <Link
@@ -52,14 +80,14 @@ export function TaskMiniCard({ task }: TaskMiniCardProps) {
             </span>
           </div>
         </div>
-        {/* Deadline */}
-        {task.deadline && (
+        {/* Status Time */}
+        {formattedTime && (
           <span className={cn(
             'text-[10px] font-medium whitespace-nowrap flex items-center gap-1',
-            isOverdue ? 'text-red-500' : 'text-muted-foreground'
+            timeInfo?.isWarning ? 'text-amber-500' : 'text-muted-foreground'
           )}>
-            <Calendar className="h-2.5 w-2.5" />
-            {formatRelative(task.deadline)}
+            <TimeIcon className="h-2.5 w-2.5" />
+            {formattedTime}
           </span>
         )}
       </div>
