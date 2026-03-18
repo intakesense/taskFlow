@@ -184,10 +184,24 @@ export function OneSignalInit() {
             : null
 
         if (target) {
+          // Determine button label based on notification type
+          const getActionLabel = () => {
+            switch (notifType) {
+              case 'chat_message':
+                return 'View Chat'
+              case 'task_progress':
+                return 'View Progress'
+              case 'task_progress_comment':
+                return 'View Comment'
+              default:
+                return 'View Task'
+            }
+          }
+
           toast(body || title, {
             description: body ? title : undefined,
             action: {
-              label: notifType === 'chat_message' ? 'View Chat' : 'View Task',
+              label: getActionLabel(),
               onClick: () => router.push(target),
             },
             duration: 6000,

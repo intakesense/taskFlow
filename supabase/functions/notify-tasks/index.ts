@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const ONESIGNAL_APP_ID = Deno.env.get('ONESIGNAL_APP_ID')!
 const ONESIGNAL_REST_API_KEY = Deno.env.get('ONESIGNAL_REST_API_KEY')!
 
-type NotificationType = 'task_assigned' | 'task_status_changed' | 'task_message'
+type NotificationType = 'task_assigned' | 'task_status_changed' | 'task_message' | 'task_progress' | 'task_progress_comment'
 
 interface BasePayload {
     type: 'INSERT' | 'UPDATE'
@@ -154,15 +154,32 @@ Deno.serve(async (req) => {
             extraData = { task_id: taskId, new_status: record.status }
         }
 
-        // ── Handle task chat message ─────────────────────────────────────────────
+        // ── Handle task messages (chat, progress, progress comments) ─────────────
         else if (payload.table === 'task_messages' && payload.type === 'INSERT') {
-            notificationType = 'task_message'
-            const record = payload.record as { task_id: string; user_id: string; content: string; file_url?: string }
+            const record = payload.record as {
+                task_id: string
+                sender_id: string
+                content: string
+                file_url?: string
+                type?: 'message' | 'progress'
+                reply_to_id?: string | null
+            }
             taskId = record.task_id
+            const messageType = record.type || 'message'
+            const isProgressComment = messageType === 'progress' && !!record.reply_to_id
+
+            // Determine notification type
+            if (isProgressComment) {
+                notificationType = 'task_progress_comment'
+            } else if (messageType === 'progress') {
+                notificationType = 'task_progress'
+            } else {
+                notificationType = 'task_message'
+            }
 
             // Parallel: fetch sender + task + assignees simultaneously
             const [senderResult, taskResult, assigneesResult] = await Promise.all([
-                supabase.from('users').select('name').eq('id', record.user_id).single(),
+                supabase.from('users').select('name').eq('id', record.sender_id).single(),
                 supabase.from('tasks').select('title, assigned_by').eq('id', taskId).single(),
                 supabase.from('task_assignees').select('user_id').eq('task_id', taskId),
             ])
@@ -174,17 +191,31 @@ Deno.serve(async (req) => {
             recipientUserIds = [
                 ...(assignees?.map((a) => a.user_id) || []),
                 task?.assigned_by,
-            ].filter((id): id is string => !!id && id !== record.user_id)
+            ].filter((id): id is string => !!id && id !== record.sender_id)
                 .filter((id, i, arr) => arr.indexOf(id) === i)
 
-            const messagePreview = record.file_url
-                ? '📎 Sent an attachment'
-                : record.content?.substring(0, 60) + (record.content?.length > 60 ? '…' : '')
+            // Format notification based on type
+            if (isProgressComment) {
+                // Progress comment notification
+                const commentPreview = record.content?.substring(0, 50) + (record.content?.length > 50 ? '…' : '')
+                title = `💬 ${sender?.name || 'Someone'} commented`
+                body = `On "${task?.title || 'Task'}": ${commentPreview || 'New comment'}`
+            } else if (messageType === 'progress') {
+                // Progress update notification
+                const progressPreview = record.content?.substring(0, 60) + (record.content?.length > 60 ? '…' : '')
+                title = `📊 Progress Update`
+                body = `${sender?.name || 'Someone'} on "${task?.title || 'Task'}": ${progressPreview || 'Posted an update'}`
+            } else {
+                // Regular chat message
+                const messagePreview = record.file_url
+                    ? '📎 Sent an attachment'
+                    : record.content?.substring(0, 60) + (record.content?.length > 60 ? '…' : '')
+                title = `${sender?.name || 'Someone'} in "${task?.title || 'Task'}"`
+                body = messagePreview || 'New message'
+            }
 
-            title = `${sender?.name || 'Someone'} in "${task?.title || 'Task'}"`
-            body = messagePreview || 'New message'
             url = `/tasks/${taskId}`
-            extraData = { task_id: taskId }
+            extraData = { task_id: taskId, message_type: messageType }
         }
 
         else {

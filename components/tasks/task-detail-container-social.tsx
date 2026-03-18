@@ -12,6 +12,10 @@ import {
   useUpdateTaskAssignees,
   useTaskNotes,
   useAddTaskNote,
+  useTaskProgressByDate,
+  useCreateProgressUpdate,
+  useAddProgressComment,
+  useTaskProgressRealtime,
 } from '@/hooks'
 import { TaskDetailChatView } from './task-detail-chat-view'
 import { DashboardLayout } from '@/components/layout'
@@ -30,9 +34,11 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
   const { data: task, isLoading: loadingTask } = useTask(taskId)
   const { data: messages = [], isLoading: loadingMessages } = useTaskMessages(taskId)
   const { data: notes = [], isLoading: loadingNotes } = useTaskNotes(taskId)
+  const { data: progressByDate = [], isLoading: loadingProgress } = useTaskProgressByDate(taskId)
 
   // Realtime
   useTaskMessagesRealtime(taskId)
+  useTaskProgressRealtime(taskId)
 
   // Mutations
   const sendMessage = useSendTaskMessage()
@@ -41,6 +47,8 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
   const setReaction = useSetTaskReaction()
   const updateAssignees = useUpdateTaskAssignees()
   const addNote = useAddTaskNote()
+  const createProgress = useCreateProgressUpdate()
+  const addProgressComment = useAddProgressComment()
 
   // Handlers
   const handleSendMessage = async (params: {
@@ -175,6 +183,42 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
     })
   }
 
+  const handleCreateProgress = async (content: string) => {
+    if (!effectiveUser) return
+
+    await createProgress.mutateAsync({
+      taskId,
+      senderId: effectiveUser.id,
+      content,
+      sender: {
+        id: effectiveUser.id,
+        name: effectiveUser.name || '',
+        email: effectiveUser.email || '',
+        level: effectiveUser.level || 1,
+        avatar_url: effectiveUser.avatar_url,
+      },
+    })
+    toast.success('Progress update posted')
+  }
+
+  const handleAddProgressComment = async (progressId: string, content: string) => {
+    if (!effectiveUser) return
+
+    await addProgressComment.mutateAsync({
+      progressId,
+      taskId,
+      senderId: effectiveUser.id,
+      content,
+      sender: {
+        id: effectiveUser.id,
+        name: effectiveUser.name || '',
+        email: effectiveUser.email || '',
+        level: effectiveUser.level || 1,
+        avatar_url: effectiveUser.avatar_url,
+      },
+    })
+  }
+
   // Loading state
   const loading = loadingTask
 
@@ -204,6 +248,7 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
         task={task}
         messages={messages}
         notes={notes}
+        progressByDate={progressByDate}
         currentUserId={effectiveUser.id}
         currentUser={{
           id: effectiveUser.id,
@@ -220,11 +265,16 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
         onReact={handleReact}
         onAddNote={handleAddNote}
         onUpdateAssignees={handleUpdateAssignees}
+        onCreateProgress={handleCreateProgress}
+        onAddProgressComment={handleAddProgressComment}
         updatingAssignees={updateAssignees.isPending}
         isLoadingMessages={loadingMessages}
         isLoadingNotes={loadingNotes}
+        isLoadingProgress={loadingProgress}
         isSending={sendMessage.isPending}
         isAddingNote={addNote.isPending}
+        isCreatingProgress={createProgress.isPending}
+        isAddingProgressComment={addProgressComment.isPending}
       />
     </DashboardLayout>
   )

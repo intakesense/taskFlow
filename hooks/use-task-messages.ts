@@ -195,6 +195,7 @@ export function useSendTaskMessage() {
         sender_id: variables.senderId,
         message: variables.content || '',
         content: variables.content || null,
+        type: 'message',
         file_url: variables.fileUrl || null,
         file_name: variables.fileName || null,
         file_size: variables.fileSize || null,

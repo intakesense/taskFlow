@@ -21,6 +21,7 @@ export type UserLevel = number; // 1 = highest authority (L1, L2, L3...)
 export type TaskStatus = 'pending' | 'in_progress' | 'on_hold' | 'archived';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type Visibility = 'private' | 'supervisor' | 'hierarchy_same' | 'hierarchy_above' | 'all';
+export type TaskMessageType = 'message' | 'progress';
 
 // Extended types with relations
 // Basic user info from joined queries (partial User)
@@ -63,6 +64,28 @@ export interface TaskMessageWithSender extends TaskMessage {
 
 export interface TaskNoteWithAuthor extends TaskNote {
     author: UserBasic | null;
+}
+
+// Progress update with nested comments
+export interface ProgressUpdateWithComments extends TaskMessageWithSender {
+    comments: TaskMessageWithSender[];
+    commentCount: number;
+}
+
+// Grouped progress updates by date for timeline display
+export interface ProgressUpdatesByDate {
+    date: string; // ISO date string (e.g., "2026-03-05")
+    dateLabel: string; // Formatted label (e.g., "MON 5 MAR")
+    updates: ProgressUpdateWithComments[];
+}
+
+// Progress update with task info for all-tasks feed
+export interface ProgressUpdateWithTask extends TaskMessageWithSender {
+    task: {
+        id: string;
+        title: string;
+        status: string;
+    };
 }
 
 // Extended types with relations (not in database, computed from joins)

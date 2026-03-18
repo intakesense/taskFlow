@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { SwipeableTaskCard } from './swipeable-task-card'
 import { CreateTaskDrawer } from './create-task-drawer'
+import { ProgressFeedSheet } from './progress-feed-sheet'
 import type { TaskWithUsers, TaskStatus as TaskStatusType } from '@/lib/types'
 
 export type FilterType = 'all' | 'created' | 'assigned' | 'team'
@@ -61,16 +62,19 @@ export function TasksViewSocial({
       {/* ── Sticky header ────────────────────────────────────────── */}
       <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b bg-card sticky top-0 z-10 space-y-3">
 
-        {/* Row 1: Title + New button */}
+        {/* Row 1: Title + Action buttons */}
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">Tasks</h1>
-          <Button
-            size="icon"
-            onClick={() => setShowCreateDrawer(true)}
-            className="h-9 w-9 rounded-full"
-          >
-            <Plus className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <ProgressFeedSheet />
+            <Button
+              size="icon"
+              onClick={() => setShowCreateDrawer(true)}
+              className="h-9 w-9 rounded-full"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Row 2: Segmented control — primary view switcher */}

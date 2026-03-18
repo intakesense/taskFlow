@@ -158,6 +158,7 @@ export const STALE_TIME = {
 // Realtime channel names
 export const CHANNELS = {
   TASK_MESSAGES: (taskId: string) => `task-messages:${taskId}`,
+  TASK_PROGRESS: (taskId: string) => `task-progress:${taskId}`,
   CONVERSATION_MESSAGES: (convId: string) => `messages-${convId}`,
   TYPING: (convId: string) => `typing-${convId}`,
   CONVERSATIONS: 'conversations-changes',

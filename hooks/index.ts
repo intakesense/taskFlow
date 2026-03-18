@@ -17,6 +17,15 @@ export {
   QUICK_REACTIONS as TASK_QUICK_REACTIONS
 } from './use-task-messages';
 export { useTaskNotes, useAddTaskNote, useDeleteTaskNote, taskNoteKeys } from './use-task-notes';
+export {
+  useTaskProgress,
+  useTaskProgressByDate,
+  useAllProgressFeed,
+  useCreateProgressUpdate,
+  useAddProgressComment,
+  useTaskProgressRealtime,
+  taskProgressKeys
+} from './use-task-progress';
 
 // Users
 export { useUsers, useUser, useAssignableUsers, useUpdateUser, useDeleteUser, getLevelLabel, getLevelColor, userKeys } from './use-users';

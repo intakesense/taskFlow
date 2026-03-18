@@ -495,6 +495,7 @@ export type Database = {
           reply_to_id: string | null
           sender_id: string
           task_id: string
+          type: string
         }
         Insert: {
           content?: string | null
@@ -509,6 +510,7 @@ export type Database = {
           reply_to_id?: string | null
           sender_id: string
           task_id: string
+          type?: string
         }
         Update: {
           content?: string | null
@@ -523,6 +525,7 @@ export type Database = {
           reply_to_id?: string | null
           sender_id?: string
           task_id?: string
+          type?: string
         }
         Relationships: [
           {

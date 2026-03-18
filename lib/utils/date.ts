@@ -126,3 +126,27 @@ export const DURATION_THRESHOLDS = {
   IN_PROGRESS_WARNING: 3 * 24 * 60 * 60 * 1000, // 3 days
   ON_HOLD_WARNING: 1 * 24 * 60 * 60 * 1000,     // 1 day
 }
+
+/**
+ * Format date for progress timeline header (e.g., "MON 5 MAR")
+ */
+export function formatProgressDate(dateString: string): string {
+  const date = new Date(dateString)
+  return format(date, 'EEE d MMM').toUpperCase()
+}
+
+/**
+ * Format time for progress entry (e.g., "13:10")
+ */
+export function formatProgressTime(dateString: string): string {
+  const date = new Date(dateString)
+  return format(date, 'HH:mm')
+}
+
+/**
+ * Get ISO date string (YYYY-MM-DD) for grouping progress updates by date
+ */
+export function getDateKey(dateString: string): string {
+  const date = new Date(dateString)
+  return format(date, 'yyyy-MM-dd')
+}
