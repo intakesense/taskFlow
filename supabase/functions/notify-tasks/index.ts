@@ -1,7 +1,17 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const ONESIGNAL_APP_ID = Deno.env.get('ONESIGNAL_APP_ID')!
-const ONESIGNAL_REST_API_KEY = Deno.env.get('ONESIGNAL_REST_API_KEY')!
+// Firebase Admin SDK credentials
+function getFirebaseConfig() {
+  const projectId = Deno.env.get('FIREBASE_PROJECT_ID')
+  const clientEmail = Deno.env.get('FIREBASE_CLIENT_EMAIL')
+  const privateKey = Deno.env.get('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n')
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error('Missing Firebase configuration')
+  }
+
+  return { projectId, clientEmail, privateKey }
+}
 
 type NotificationType = 'task_assigned' | 'task_status_changed' | 'task_message' | 'task_progress' | 'task_progress_comment'
 
@@ -13,8 +23,92 @@ interface BasePayload {
     schema: 'public'
 }
 
-/** Send a push notification via OneSignal using External ID targeting (2026 API). */
-async function sendPushNotification(params: {
+interface FCMMessage {
+  token: string
+  notification: { title: string; body: string }
+  data?: Record<string, string>
+  android?: { priority: 'high' | 'normal'; notification?: { channelId?: string; icon?: string; tag?: string } }
+  apns?: { payload: { aps: { sound?: string; badge?: number; 'thread-id'?: string } } }
+  webpush?: { notification?: { icon?: string; badge?: string; tag?: string }; fcmOptions?: { link?: string } }
+}
+
+// Get OAuth2 access token for FCM v1 API
+async function getAccessToken(): Promise<string> {
+  const { clientEmail, privateKey: privateKeyPem } = getFirebaseConfig()
+  const now = Math.floor(Date.now() / 1000)
+  const header = { alg: 'RS256', typ: 'JWT' }
+  const payload = {
+    iss: clientEmail,
+    sub: clientEmail,
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+  }
+
+  const encoder = new TextEncoder()
+  const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const unsignedToken = `${headerB64}.${payloadB64}`
+
+  const privateKey = await crypto.subtle.importKey(
+    'pkcs8',
+    pemToArrayBuffer(privateKeyPem),
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', privateKey, encoder.encode(unsignedToken))
+  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+
+  const jwt = `${unsignedToken}.${signatureB64}`
+
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  })
+
+  const tokenData = await tokenResponse.json()
+  return tokenData.access_token
+}
+
+function pemToArrayBuffer(pem: string): ArrayBuffer {
+  const b64 = pem
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s/g, '')
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+async function sendFCMMessage(accessToken: string, message: FCMMessage): Promise<boolean> {
+  const { projectId } = getFirebaseConfig()
+  const response = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message }),
+    }
+  )
+  return response.ok
+}
+
+/** Send push notifications via FCM to all user devices */
+async function sendPushNotification(
+  supabase: ReturnType<typeof createClient>,
+  params: {
     recipientUserIds: string[]
     title: string
     body: string
@@ -22,229 +116,236 @@ async function sendPushNotification(params: {
     notificationType: NotificationType
     collapseId: string
     data?: Record<string, unknown>
-}): Promise<void> {
-    const { recipientUserIds, title, body, url, notificationType, collapseId, data } = params
+  }
+): Promise<number> {
+  const { recipientUserIds, title, body, url, notificationType, collapseId, data } = params
 
-    // FIX C1: Use `include_aliases` instead of deprecated `include_external_user_ids`
-    // FIX C3: No player ID lookup — target by external_id (Supabase user ID). OneSignal
-    // delivers to ALL subscribed devices for each user — no saved player ID needed.
-    const response = await fetch('https://onesignal.com/api/v1/notifications', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`,
+  // Fetch device tokens for all recipients
+  const { data: tokens } = await supabase
+    .from('device_tokens')
+    .select('token, platform, user_id')
+    .in('user_id', recipientUserIds)
+
+  if (!tokens || tokens.length === 0) {
+    return 0
+  }
+
+  const accessToken = await getAccessToken()
+
+  const results = await Promise.allSettled(
+    tokens.map((t) => {
+      const message: FCMMessage = {
+        token: t.token,
+        notification: { title, body },
+        data: {
+          type: notificationType,
+          deepLink: url,
+          ...Object.fromEntries(
+            Object.entries(data || {}).map(([k, v]) => [k, String(v)])
+          ),
         },
-        body: JSON.stringify({
-            app_id: ONESIGNAL_APP_ID,
-
-            // FIX C1: Correct 2026 targeting
-            include_aliases: {
-                external_id: recipientUserIds,
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'tasks',
+            icon: 'ic_notification',
+            tag: collapseId,
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default',
+              badge: 1,
+              'thread-id': collapseId,
             },
-            target_channel: 'push',
-
-            headings: { en: title },
-            contents: { en: body },
-            url,
-            web_url: url,
-
-            chrome_web_icon: '/icon.svg',
-            firefox_icon: '/icon.svg',
-            chrome_web_badge: '/icons/icon-192x192.png',
-
-            // FIX M1 (tasks): Collapse multiple updates on the same task into one notification
-            collapse_id: collapseId,
-
-            // FIX M2: High priority — cuts through battery-saving and Focus modes
-            priority: 10,
-            ios_interruption_level: 'active',
-
-            // Group task notifications in notification center (Chrome)
-            web_push_topic: collapseId,
-
-            data: {
-                type: notificationType,
-                ...data,
-            },
-        }),
+          },
+        },
+        webpush: {
+          notification: {
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            tag: collapseId,
+          },
+          fcmOptions: {
+            link: url,
+          },
+        },
+      }
+      return sendFCMMessage(accessToken, message)
     })
+  )
 
-    if (!response.ok) {
-        const errorBody = await response.text()
-        throw new Error(`OneSignal API error ${response.status}: ${errorBody}`)
-    }
+  return results.filter((r) => r.status === 'fulfilled' && r.value).length
 }
 
 Deno.serve(async (req) => {
-    try {
-        const payload: BasePayload = await req.json()
+  try {
+    const payload: BasePayload = await req.json()
 
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-        let notificationType: NotificationType
-        let recipientUserIds: string[] = []
-        let title = ''
-        let body = ''
-        let url = '/tasks'
-        let taskId = ''
-        let extraData: Record<string, unknown> = {}
-
-        // ── Handle task assignment ──────────────────────────────────────────────
-        if (payload.table === 'task_assignees' && payload.type === 'INSERT') {
-            notificationType = 'task_assigned'
-            const record = payload.record as { task_id: string; user_id: string }
-            recipientUserIds = [record.user_id]
-            taskId = record.task_id
-
-            // Note: genuinely sequential — assigner's user ID lives inside the task record,
-            // so we must fetch the task first before we can look up the assigner's name.
-            const { data: task } = await supabase
-                .from('tasks')
-                .select('id, title, assigned_by')
-                .eq('id', taskId)
-                .single()
-
-            const { data: assigner } = task?.assigned_by
-                ? await supabase.from('users').select('name').eq('id', task.assigned_by).single()
-                : { data: null }
-
-            title = '📋 New Task Assigned'
-            body = `${assigner?.name || 'Someone'} assigned you: ${task?.title || 'New task'}`
-            url = `/tasks/${taskId}`
-            extraData = { task_id: taskId }
-        }
-
-        // ── Handle task status change ────────────────────────────────────────────
-        else if (payload.table === 'tasks' && payload.type === 'UPDATE') {
-            const record = payload.record as { id: string; title: string; status: string; assigned_by: string }
-            const oldRecord = payload.old_record as { status: string } | undefined
-
-            // Only notify on actual status changes
-            if (!oldRecord || oldRecord.status === record.status) {
-                return new Response(JSON.stringify({ message: 'No status change' }), { status: 200 })
-            }
-
-            notificationType = 'task_status_changed'
-            taskId = record.id
-
-            const { data: assignees } = await supabase
-                .from('task_assignees')
-                .select('user_id')
-                .eq('task_id', taskId)
-
-            // Notify assignees + creator, deduped
-            recipientUserIds = [
-                ...(assignees?.map((a) => a.user_id) || []),
-                record.assigned_by,
-            ].filter((id, i, arr) => !!id && arr.indexOf(id) === i)
-
-            const statusLabels: Record<string, string> = {
-                pending: 'Pending',
-                in_progress: 'In Progress',
-                on_hold: 'On Hold',
-                completed: 'Completed ✅',
-                archived: 'Archived',
-            }
-
-            title = '📋 Task Updated'
-            body = `"${record.title}" is now ${statusLabels[record.status] || record.status}`
-            url = `/tasks/${taskId}`
-            extraData = { task_id: taskId, new_status: record.status }
-        }
-
-        // ── Handle task messages (chat, progress, progress comments) ─────────────
-        else if (payload.table === 'task_messages' && payload.type === 'INSERT') {
-            const record = payload.record as {
-                task_id: string
-                sender_id: string
-                content: string
-                file_url?: string
-                type?: 'message' | 'progress'
-                reply_to_id?: string | null
-            }
-            taskId = record.task_id
-            const messageType = record.type || 'message'
-            const isProgressComment = messageType === 'progress' && !!record.reply_to_id
-
-            // Determine notification type
-            if (isProgressComment) {
-                notificationType = 'task_progress_comment'
-            } else if (messageType === 'progress') {
-                notificationType = 'task_progress'
-            } else {
-                notificationType = 'task_message'
-            }
-
-            // Parallel: fetch sender + task + assignees simultaneously
-            const [senderResult, taskResult, assigneesResult] = await Promise.all([
-                supabase.from('users').select('name').eq('id', record.sender_id).single(),
-                supabase.from('tasks').select('title, assigned_by').eq('id', taskId).single(),
-                supabase.from('task_assignees').select('user_id').eq('task_id', taskId),
-            ])
-
-            const sender = senderResult.data
-            const task = taskResult.data
-            const assignees = assigneesResult.data
-
-            recipientUserIds = [
-                ...(assignees?.map((a) => a.user_id) || []),
-                task?.assigned_by,
-            ].filter((id): id is string => !!id && id !== record.sender_id)
-                .filter((id, i, arr) => arr.indexOf(id) === i)
-
-            // Format notification based on type
-            if (isProgressComment) {
-                // Progress comment notification
-                const commentPreview = record.content?.substring(0, 50) + (record.content?.length > 50 ? '…' : '')
-                title = `💬 ${sender?.name || 'Someone'} commented`
-                body = `On "${task?.title || 'Task'}": ${commentPreview || 'New comment'}`
-            } else if (messageType === 'progress') {
-                // Progress update notification
-                const progressPreview = record.content?.substring(0, 60) + (record.content?.length > 60 ? '…' : '')
-                title = `📊 Progress Update`
-                body = `${sender?.name || 'Someone'} on "${task?.title || 'Task'}": ${progressPreview || 'Posted an update'}`
-            } else {
-                // Regular chat message
-                const messagePreview = record.file_url
-                    ? '📎 Sent an attachment'
-                    : record.content?.substring(0, 60) + (record.content?.length > 60 ? '…' : '')
-                title = `${sender?.name || 'Someone'} in "${task?.title || 'Task'}"`
-                body = messagePreview || 'New message'
-            }
-
-            url = `/tasks/${taskId}`
-            extraData = { task_id: taskId, message_type: messageType }
-        }
-
-        else {
-            return new Response(JSON.stringify({ message: 'Ignored' }), { status: 200 })
-        }
-
-        if (recipientUserIds.length === 0) {
-            return new Response(JSON.stringify({ message: 'No recipients' }), { status: 200 })
-        }
-
-        await sendPushNotification({
-            recipientUserIds,
-            title,
-            body,
-            url,
-            notificationType,
-            collapseId: taskId, // Collapse multiple task updates into one notification
-            data: extraData,
-        })
-
-        return new Response(
-            JSON.stringify({ success: true, recipients: recipientUserIds.length }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-        )
-    } catch (error) {
-        console.error('Task notification error:', error)
-        return new Response(JSON.stringify({ error: (error as Error).message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        })
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Missing Supabase configuration')
     }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+
+    let notificationType: NotificationType
+    let recipientUserIds: string[] = []
+    let title = ''
+    let body = ''
+    let url = '/tasks'
+    let taskId = ''
+    let extraData: Record<string, unknown> = {}
+
+    // Handle task assignment
+    if (payload.table === 'task_assignees' && payload.type === 'INSERT') {
+      notificationType = 'task_assigned'
+      const record = payload.record as { task_id: string; user_id: string }
+      recipientUserIds = [record.user_id]
+      taskId = record.task_id
+
+      const { data: task } = await supabase
+        .from('tasks')
+        .select('id, title, assigned_by')
+        .eq('id', taskId)
+        .single()
+
+      const { data: assigner } = task?.assigned_by
+        ? await supabase.from('users').select('name').eq('id', task.assigned_by).single()
+        : { data: null }
+
+      title = 'New Task Assigned'
+      body = `${assigner?.name || 'Someone'} assigned you: ${task?.title || 'New task'}`
+      url = `/tasks/${taskId}`
+      extraData = { task_id: taskId }
+    }
+
+    // Handle task status change
+    else if (payload.table === 'tasks' && payload.type === 'UPDATE') {
+      const record = payload.record as { id: string; title: string; status: string; assigned_by: string }
+      const oldRecord = payload.old_record as { status: string } | undefined
+
+      if (!oldRecord || oldRecord.status === record.status) {
+        return new Response(JSON.stringify({ message: 'No status change' }), { status: 200 })
+      }
+
+      notificationType = 'task_status_changed'
+      taskId = record.id
+
+      const { data: assignees } = await supabase
+        .from('task_assignees')
+        .select('user_id')
+        .eq('task_id', taskId)
+
+      recipientUserIds = [
+        ...(assignees?.map((a) => a.user_id) || []),
+        record.assigned_by,
+      ].filter((id, i, arr) => !!id && arr.indexOf(id) === i)
+
+      const statusLabels: Record<string, string> = {
+        pending: 'Pending',
+        in_progress: 'In Progress',
+        on_hold: 'On Hold',
+        completed: 'Completed',
+        archived: 'Archived',
+      }
+
+      title = 'Task Updated'
+      body = `"${record.title}" is now ${statusLabels[record.status] || record.status}`
+      url = `/tasks/${taskId}`
+      extraData = { task_id: taskId, new_status: record.status }
+    }
+
+    // Handle task messages
+    else if (payload.table === 'task_messages' && payload.type === 'INSERT') {
+      const record = payload.record as {
+        task_id: string
+        sender_id: string
+        content: string
+        file_url?: string
+        type?: 'message' | 'progress'
+        reply_to_id?: string | null
+      }
+      taskId = record.task_id
+      const messageType = record.type || 'message'
+      const isProgressComment = messageType === 'progress' && !!record.reply_to_id
+
+      if (isProgressComment) {
+        notificationType = 'task_progress_comment'
+      } else if (messageType === 'progress') {
+        notificationType = 'task_progress'
+      } else {
+        notificationType = 'task_message'
+      }
+
+      const [senderResult, taskResult, assigneesResult] = await Promise.all([
+        supabase.from('users').select('name').eq('id', record.sender_id).single(),
+        supabase.from('tasks').select('title, assigned_by').eq('id', taskId).single(),
+        supabase.from('task_assignees').select('user_id').eq('task_id', taskId),
+      ])
+
+      const sender = senderResult.data
+      const task = taskResult.data
+      const assignees = assigneesResult.data
+
+      recipientUserIds = [
+        ...(assignees?.map((a) => a.user_id) || []),
+        task?.assigned_by,
+      ].filter((id): id is string => !!id && id !== record.sender_id)
+        .filter((id, i, arr) => arr.indexOf(id) === i)
+
+      if (isProgressComment) {
+        const commentPreview = record.content?.substring(0, 50) + (record.content?.length > 50 ? '...' : '')
+        title = `${sender?.name || 'Someone'} commented`
+        body = `On "${task?.title || 'Task'}": ${commentPreview || 'New comment'}`
+      } else if (messageType === 'progress') {
+        const progressPreview = record.content?.substring(0, 60) + (record.content?.length > 60 ? '...' : '')
+        title = 'Progress Update'
+        body = `${sender?.name || 'Someone'} on "${task?.title || 'Task'}": ${progressPreview || 'Posted an update'}`
+      } else {
+        const messagePreview = record.file_url
+          ? 'Sent an attachment'
+          : record.content?.substring(0, 60) + (record.content?.length > 60 ? '...' : '')
+        title = `${sender?.name || 'Someone'} in "${task?.title || 'Task'}"`
+        body = messagePreview || 'New message'
+      }
+
+      url = `/tasks/${taskId}`
+      extraData = { task_id: taskId, message_type: messageType }
+    }
+
+    else {
+      return new Response(JSON.stringify({ message: 'Ignored' }), { status: 200 })
+    }
+
+    if (recipientUserIds.length === 0) {
+      return new Response(JSON.stringify({ message: 'No recipients' }), { status: 200 })
+    }
+
+    const sent = await sendPushNotification(supabase, {
+      recipientUserIds,
+      title,
+      body,
+      url,
+      notificationType,
+      collapseId: taskId,
+      data: extraData,
+    })
+
+    return new Response(
+      JSON.stringify({ success: true, recipients: recipientUserIds.length, sent }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  } catch (error) {
+    console.error('Task notification error:', error)
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
 })

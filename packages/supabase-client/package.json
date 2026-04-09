@@ -1,0 +1,28 @@
+{
+  "name": "@taskflow/supabase-client",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./web": "./src/web.ts",
+    "./native": "./src/native.ts"
+  },
+  "dependencies": {
+    "@taskflow/core": "workspace:*",
+    "@supabase/supabase-js": "^2.90.1",
+    "@supabase/ssr": "^0.8.0"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  },
+  "peerDependencies": {
+    "expo-secure-store": ">=14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "expo-secure-store": {
+      "optional": true
+    }
+  }
+}

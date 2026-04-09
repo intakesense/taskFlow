@@ -1,0 +1,25 @@
+{
+  "name": "@taskflow/core",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts",
+    "./types/database": "./src/types/database.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./schemas/*": "./src/schemas/*.ts",
+    "./utils": "./src/utils/index.ts",
+    "./utils/*": "./src/utils/*.ts",
+    "./services": "./src/services/index.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "date-fns": "^4.1.0",
+    "zod": "4.0.8"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

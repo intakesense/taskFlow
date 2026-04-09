@@ -1,0 +1,287 @@
+import {
+  MoreVertical,
+  CheckCircle2,
+  Clock,
+  Timer,
+  PauseCircle,
+  Users,
+} from 'lucide-react';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  cn,
+} from '@taskflow/ui';
+import {
+  formatCompactDuration,
+  getDurationMs,
+  DURATION_THRESHOLDS,
+  type TaskWithUsers,
+  type TaskStatus,
+} from '@taskflow/core';
+import { StackedAvatars } from './stacked-avatars';
+import { useNavigation } from '../../providers/navigation-context';
+
+interface TaskCardSocialProps {
+  task: TaskWithUsers;
+  onStatusChange?: (taskId: string, status: string) => void;
+  onDelete?: (taskId: string) => void;
+  currentUserId?: string;
+}
+
+export function TaskCardSocial({
+  task,
+  onStatusChange,
+  onDelete,
+  currentUserId,
+}: TaskCardSocialProps) {
+  const { navigate } = useNavigation();
+
+  const isAssignedToMe = task.assignees?.some((a) => a.id === currentUserId) || false;
+  const isCreatedByMe = currentUserId === task.assigned_by;
+
+  const getPriorityColor = (priority: string) => {
+    const colors = {
+      low: 'bg-blue-500',
+      medium: 'bg-yellow-500',
+      high: 'bg-orange-500',
+      urgent: 'bg-red-500',
+    };
+    return colors[priority as keyof typeof colors] || 'bg-gray-500';
+  };
+
+  const getStatusInfo = (status: string) => {
+    const info = {
+      pending: { label: 'Not Started', color: 'text-muted-foreground', icon: Clock },
+      in_progress: { label: 'In Progress', color: 'text-blue-500', icon: Clock },
+      on_hold: { label: 'On Hold', color: 'text-yellow-500', icon: Clock },
+      archived: { label: 'Completed', color: 'text-green-500', icon: CheckCircle2 },
+    };
+    return info[status as keyof typeof info] || info.pending;
+  };
+
+  const statusInfo = getStatusInfo(task.status);
+  const StatusIcon = statusInfo.icon;
+
+  const getStatusTimeInfo = () => {
+    const status = task.status as TaskStatus;
+    switch (status) {
+      case 'pending':
+        return { timestamp: task.created_at, icon: Clock };
+      case 'in_progress':
+        return {
+          timestamp: task.started_at,
+          icon: Timer,
+          isWarning:
+            task.started_at &&
+            getDurationMs(task.started_at) > DURATION_THRESHOLDS.IN_PROGRESS_WARNING,
+        };
+      case 'on_hold':
+        return {
+          timestamp: task.on_hold_at,
+          icon: PauseCircle,
+          isWarning:
+            task.on_hold_at &&
+            getDurationMs(task.on_hold_at) > DURATION_THRESHOLDS.ON_HOLD_WARNING,
+        };
+      case 'archived':
+        return { timestamp: task.archived_at, icon: CheckCircle2 };
+      default:
+        return null;
+    }
+  };
+
+  const timeInfo = getStatusTimeInfo();
+  const formattedTime = timeInfo?.timestamp ? formatCompactDuration(timeInfo.timestamp) : '';
+  const TimeIcon = timeInfo?.icon || Clock;
+
+  const assigneeNames = task.assignees?.map((a) => a.name) || [];
+  const assigneeDisplay =
+    assigneeNames.length === 0
+      ? 'Unassigned'
+      : assigneeNames.length === 1
+        ? assigneeNames[0]
+        : `${assigneeNames[0]} +${assigneeNames.length - 1}`;
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('[role="menuitem"]') || target.closest('a')) {
+      return;
+    }
+    navigate(`/tasks/${task.id}`);
+  };
+
+  return (
+    <div
+      onClick={handleCardClick}
+      className={cn(
+        'bg-card rounded-2xl border transition-all cursor-pointer',
+        'hover:shadow-md active:scale-[0.99]',
+        isAssignedToMe && 'border-primary/20 bg-primary/5'
+      )}
+    >
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 pt-0.5">
+            {task.assignees && task.assignees.length > 0 ? (
+              <StackedAvatars users={task.assignees} max={3} size="md" />
+            ) : (
+              <StackedAvatars users={task.assigner ? [task.assigner] : []} max={1} size="md" />
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-base mb-1 line-clamp-2">{task.title}</h3>
+
+            <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
+              <span className="truncate">
+                {isAssignedToMe ? (
+                  <>From {task.assigner?.name}</>
+                ) : isCreatedByMe ? (
+                  <>To {assigneeDisplay}</>
+                ) : (
+                  <>{assigneeDisplay}</>
+                )}
+              </span>
+            </div>
+
+            {task.description && (
+              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{task.description}</p>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-muted text-xs',
+                  statusInfo.color
+                )}
+              >
+                <StatusIcon className="h-3 w-3" />
+                {statusInfo.label}
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-muted text-xs">
+                <span className={cn('w-1.5 h-1.5 rounded-full', getPriorityColor(task.priority))} />
+                <span className="capitalize">{task.priority}</span>
+              </div>
+
+              {formattedTime && (
+                <div
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs',
+                    timeInfo?.isWarning
+                      ? 'bg-amber-500/10 text-amber-500'
+                      : 'bg-muted text-muted-foreground'
+                  )}
+                >
+                  <TimeIcon className="h-3 w-3" />
+                  {formattedTime}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full flex-shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => navigate(`/tasks/${task.id}`)}>
+                View Details
+              </DropdownMenuItem>
+              {isCreatedByMe && task.status !== 'archived' && (
+                <DropdownMenuItem onClick={() => navigate(`/tasks/${task.id}`)}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Edit Assignees
+                </DropdownMenuItem>
+              )}
+              {onStatusChange && isAssignedToMe && task.status !== 'archived' && (
+                <>
+                  <DropdownMenuSeparator />
+                  {task.status === 'pending' && (
+                    <DropdownMenuItem onClick={() => onStatusChange(task.id, 'in_progress')}>
+                      Start Task
+                    </DropdownMenuItem>
+                  )}
+                  {task.status === 'in_progress' && (
+                    <DropdownMenuItem onClick={() => onStatusChange(task.id, 'on_hold')}>
+                      Put On Hold
+                    </DropdownMenuItem>
+                  )}
+                  {task.status === 'on_hold' && (
+                    <DropdownMenuItem onClick={() => onStatusChange(task.id, 'in_progress')}>
+                      Resume Task
+                    </DropdownMenuItem>
+                  )}
+                </>
+              )}
+              {onStatusChange && isCreatedByMe && task.status === 'in_progress' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onStatusChange(task.id, 'archived')}>
+                    Mark Complete
+                  </DropdownMenuItem>
+                </>
+              )}
+              {onStatusChange && isCreatedByMe && task.status === 'archived' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onStatusChange(task.id, 'in_progress')}>
+                    Reopen Task
+                  </DropdownMenuItem>
+                </>
+              )}
+              {onDelete && isCreatedByMe && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onDelete(task.id)} className="text-destructive">
+                    Delete Task
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {isCreatedByMe && task.status === 'in_progress' && (
+        <div className="px-4 pb-3 pt-1 border-t flex items-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onStatusChange?.(task.id, 'archived');
+            }}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-green-500 transition-colors"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            <span>Mark Complete</span>
+          </button>
+        </div>
+      )}
+      {isCreatedByMe && task.status === 'archived' && (
+        <div className="px-4 pb-3 pt-1 border-t flex items-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onStatusChange?.(task.id, 'in_progress');
+            }}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-blue-500 transition-colors"
+          >
+            <Clock className="h-4 w-4" />
+            <span>Reopen Task</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
