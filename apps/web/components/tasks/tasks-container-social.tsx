@@ -6,7 +6,7 @@ import { useTasks, useChangeTaskStatus, useDeleteTask } from '@/hooks'
 import { useAssignableUsers } from '@/hooks/use-users'
 import { TasksViewSocial, type FilterType } from './tasks-view-social'
 import { TeamView } from './team-view'
-import { KanbanView } from './kanban'
+import { KanbanView, CreateTaskDrawer, ProgressFeedSheet } from '@taskflow/features'
 import { DashboardLayout } from '@/components/layout'
 import { toast } from 'sonner'
 import type { TaskStatus, TaskWithUsers } from '@/lib/types'
@@ -14,6 +14,7 @@ import type { TaskStatus, TaskWithUsers } from '@/lib/types'
 export function TasksContainerSocial() {
   const { effectiveUser } = useAuth()
   const { tasks, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useTasks()
+  const [showCreateDrawer, setShowCreateDrawer] = useState(false)
   const { data: assignableUsers = [], isLoading: isLoadingUsers } = useAssignableUsers(effectiveUser?.level)
   const changeStatus = useChangeTaskStatus()
   const deleteTask = useDeleteTask()
@@ -108,20 +109,25 @@ export function TasksContainerSocial() {
     switch (typeFilter) {
       case 'all':
         return (
-          <KanbanView
-            tasks={kanbanTasks}
-            isLoading={isLoading}
-            hasMore={hasNextPage ?? false}
-            isFetchingMore={isFetchingNextPage}
-            searchQuery={searchQuery}
-            typeFilter={typeFilter}
-            currentUserId={effectiveUser?.id}
-            onSearchChange={setSearchQuery}
-            onTypeFilterChange={setTypeFilter}
-            onStatusChange={handleStatusChange}
-            onDelete={handleDelete}
-            onLoadMore={fetchNextPage}
-          />
+          <>
+            <KanbanView
+              tasks={kanbanTasks}
+              isLoading={isLoading}
+              hasMore={hasNextPage ?? false}
+              isFetchingMore={isFetchingNextPage}
+              searchQuery={searchQuery}
+              typeFilter={typeFilter}
+              currentUserId={effectiveUser?.id}
+              onSearchChange={setSearchQuery}
+              onTypeFilterChange={setTypeFilter}
+              onStatusChange={handleStatusChange}
+              onDelete={handleDelete}
+              onLoadMore={fetchNextPage}
+              onCreateTask={() => setShowCreateDrawer(true)}
+              renderProgressFeed={() => <ProgressFeedSheet />}
+            />
+            <CreateTaskDrawer open={showCreateDrawer} onOpenChange={setShowCreateDrawer} />
+          </>
         )
       case 'team':
         return (

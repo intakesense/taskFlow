@@ -39,6 +39,8 @@ import type { FilterType } from '../types';
 interface KanbanViewProps {
   tasks: TaskWithUsers[];
   isLoading: boolean;
+  hasMore?: boolean;
+  isFetchingMore?: boolean;
   searchQuery: string;
   typeFilter: FilterType;
   currentUserId?: string;
@@ -46,6 +48,7 @@ interface KanbanViewProps {
   onTypeFilterChange: (type: FilterType) => void;
   onStatusChange: (taskId: string, status: string, onHoldReason?: string) => void;
   onDelete?: (taskId: string) => void;
+  onLoadMore?: () => void;
   onCreateTask?: () => void;
   renderProgressFeed?: () => React.ReactNode;
 }
@@ -71,6 +74,8 @@ const measuring = {
 export function KanbanView({
   tasks,
   isLoading,
+  hasMore,
+  isFetchingMore,
   searchQuery,
   typeFilter,
   currentUserId,
@@ -78,6 +83,7 @@ export function KanbanView({
   onTypeFilterChange,
   onStatusChange,
   onDelete,
+  onLoadMore,
   onCreateTask,
   renderProgressFeed,
 }: KanbanViewProps) {
@@ -277,6 +283,13 @@ export function KanbanView({
               {activeTask && <KanbanCardOverlay task={activeTask} />}
             </DragOverlay>
           </DndContext>
+          {hasMore && (
+            <div className="flex justify-center pb-6">
+              <Button variant="outline" size="sm" onClick={onLoadMore} disabled={isFetchingMore}>
+                {isFetchingMore ? 'Loading...' : 'Load more'}
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <KanbanMobile
