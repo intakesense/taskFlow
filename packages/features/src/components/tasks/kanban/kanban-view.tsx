@@ -1,19 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  closestCenter,
+  KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
+  MeasuringStrategy,
   type DragStartEvent,
   type DragEndEvent,
   type DragOverEvent,
 } from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Plus, Search, X, ClipboardList, UserCheck, PenLine, Users2 } from 'lucide-react';
-import { Button, Input, cn } from '@taskflow/ui';
+import {
+  Button,
+  Input,
+  Textarea,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  cn,
+} from '@taskflow/ui';
 import { KANBAN_COLUMNS, type TaskWithUsers, type TaskStatus } from '@taskflow/core';
 import { useMediaQuery } from '../../../hooks/use-media-query';
 import { KanbanColumn } from './kanban-column';
@@ -29,7 +44,7 @@ interface KanbanViewProps {
   currentUserId?: string;
   onSearchChange: (query: string) => void;
   onTypeFilterChange: (type: FilterType) => void;
-  onStatusChange: (taskId: string, status: string) => void;
+  onStatusChange: (taskId: string, status: string, onHoldReason?: string) => void;
   onDelete?: (taskId: string) => void;
   onCreateTask?: () => void;
   renderProgressFeed?: () => React.ReactNode;
@@ -41,6 +56,17 @@ const TYPE_OPTIONS: { value: FilterType; icon: typeof ClipboardList; label: stri
   { value: 'assigned', icon: UserCheck, label: 'Assigned', short: 'Assigned' },
   { value: 'team', icon: Users2, label: 'Team', short: 'Team' },
 ];
+
+const dropAnimation = {
+  duration: 250,
+  easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+};
+
+const measuring = {
+  droppable: {
+    strategy: MeasuringStrategy.Always,
+  },
+};
 
 export function KanbanView({
   tasks,
@@ -56,12 +82,25 @@ export function KanbanView({
   renderProgressFeed,
 }: KanbanViewProps) {
   const [activeTask, setActiveTask] = useState<TaskWithUsers | null>(null);
-  const [overId, setOverId] = useState<string | null>(null);
+  const [activeColumnId, setActiveColumnId] = useState<TaskStatus | null>(null);
   const [mobileStatus, setMobileStatus] = useState<TaskStatus>('pending');
+
+  const [pendingOnHold, setPendingOnHold] = useState<{ taskId: string } | null>(null);
+  const [onHoldReason, setOnHoldReason] = useState('');
 
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const tasksByStatus = KANBAN_COLUMNS.reduce(
     (acc, status) => {
@@ -71,49 +110,88 @@ export function KanbanView({
     {} as Record<TaskStatus, TaskWithUsers[]>
   );
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const task = tasks.find((t) => t.id === event.active.id);
-    if (task) setActiveTask(task);
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    setOverId(event.over?.id as string | null);
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveTask(null);
-    setOverId(null);
-
-    if (!over) return;
-
-    const taskId = active.id as string;
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-
-    let targetStatus: TaskStatus | null = null;
-
-    if (KANBAN_COLUMNS.includes(over.id as TaskStatus)) {
-      targetStatus = over.id as TaskStatus;
-    } else {
-      const targetTask = tasks.find((t) => t.id === over.id);
-      if (targetTask) {
-        targetStatus = targetTask.status as TaskStatus;
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const task = tasks.find((t) => t.id === event.active.id);
+      if (task) {
+        setActiveTask(task);
+        setActiveColumnId(task.status as TaskStatus);
+        document.body.style.cursor = 'grabbing';
       }
-    }
+    },
+    [tasks]
+  );
 
-    if (targetStatus && targetStatus !== task.status) {
-      onStatusChange(taskId, targetStatus);
-    }
-  };
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { over } = event;
+      if (!over) {
+        setActiveColumnId(null);
+        return;
+      }
+      const overId = over.id as string;
+      if (KANBAN_COLUMNS.includes(overId as TaskStatus)) {
+        setActiveColumnId(overId as TaskStatus);
+        return;
+      }
+      const overTask = tasks.find((t) => t.id === overId);
+      if (overTask) setActiveColumnId(overTask.status as TaskStatus);
+    },
+    [tasks]
+  );
 
-  const handleDragCancel = () => {
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      document.body.style.cursor = '';
+      setActiveTask(null);
+      setActiveColumnId(null);
+
+      if (!over) return;
+
+      const taskId = active.id as string;
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) return;
+
+      const overId = over.id as string;
+      let targetStatus: TaskStatus | null = null;
+
+      if (KANBAN_COLUMNS.includes(overId as TaskStatus)) {
+        targetStatus = overId as TaskStatus;
+      } else {
+        const targetTask = tasks.find((t) => t.id === overId);
+        if (targetTask) targetStatus = targetTask.status as TaskStatus;
+      }
+
+      if (targetStatus && targetStatus !== task.status) {
+        if (targetStatus === 'on_hold') {
+          setPendingOnHold({ taskId });
+          setOnHoldReason('');
+        } else {
+          onStatusChange(taskId, targetStatus);
+        }
+      }
+    },
+    [tasks, onStatusChange]
+  );
+
+  const handleDragCancel = useCallback(() => {
+    document.body.style.cursor = '';
     setActiveTask(null);
-    setOverId(null);
+    setActiveColumnId(null);
+  }, []);
+
+  const handleOnHoldConfirm = () => {
+    if (pendingOnHold && onHoldReason.trim()) {
+      onStatusChange(pendingOnHold.taskId, 'on_hold', onHoldReason.trim());
+      setPendingOnHold(null);
+      setOnHoldReason('');
+    }
   };
 
-  const handleDelete = (taskId: string) => {
-    if (onDelete) onDelete(taskId);
+  const handleOnHoldCancel = () => {
+    setPendingOnHold(null);
+    setOnHoldReason('');
   };
 
   return (
@@ -174,27 +252,30 @@ export function KanbanView({
           <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : isDesktop ? (
-        <div className="flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex-1 overflow-x-auto overflow-y-auto">
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={closestCenter}
+            measuring={measuring}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
           >
-            <div className="flex gap-4 p-4 h-full min-w-max">
+            <div className="flex gap-4 p-4 min-w-max">
               {KANBAN_COLUMNS.map((status) => (
                 <KanbanColumn
                   key={status}
                   status={status}
                   tasks={tasksByStatus[status]}
-                  isOver={overId === status}
+                  isOver={activeColumnId === status && activeTask?.status !== status}
                 />
               ))}
             </div>
 
-            <DragOverlay>{activeTask && <KanbanCardOverlay task={activeTask} />}</DragOverlay>
+            <DragOverlay dropAnimation={dropAnimation}>
+              {activeTask && <KanbanCardOverlay task={activeTask} />}
+            </DragOverlay>
           </DndContext>
         </div>
       ) : (
@@ -203,10 +284,37 @@ export function KanbanView({
           selectedStatus={mobileStatus}
           onStatusSelect={setMobileStatus}
           onStatusChange={onStatusChange}
-          onDelete={handleDelete}
+          onDelete={(taskId) => onDelete?.(taskId)}
           currentUserId={currentUserId}
         />
       )}
+
+      <Dialog open={!!pendingOnHold} onOpenChange={(open) => !open && handleOnHoldCancel()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Put Task On Hold</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for putting this task on hold. This helps the team understand
+              why work has been paused.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={onHoldReason}
+            onChange={(e) => setOnHoldReason(e.target.value)}
+            placeholder="e.g., Waiting for design approval, Blocked by dependency..."
+            className="min-h-[100px]"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={handleOnHoldCancel}>
+              Cancel
+            </Button>
+            <Button onClick={handleOnHoldConfirm} disabled={!onHoldReason.trim()}>
+              Put On Hold
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

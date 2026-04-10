@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Clock, GripVertical, Timer, PauseCircle, CheckCircle2 } from 'lucide-react';
@@ -16,6 +17,7 @@ import { useNavigation } from '../../../providers/navigation-context';
 interface KanbanCardProps {
   task: TaskWithUsers;
   isDragging?: boolean;
+  isOverlay?: boolean;
 }
 
 function getInitials(name: string) {
@@ -27,7 +29,7 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-export function KanbanCard({ task, isDragging }: KanbanCardProps) {
+export function KanbanCard({ task, isDragging, isOverlay }: KanbanCardProps) {
   const { navigate } = useNavigation();
   const {
     attributes,
@@ -38,9 +40,24 @@ export function KanbanCard({ task, isDragging }: KanbanCardProps) {
     isDragging: isSortableDragging,
   } = useSortable({ id: task.id });
 
+  // dnd-kit suppresses the synthetic click event after a drag only on the element
+  // that holds `listeners`. This ref is a belt-and-suspenders guard: set on
+  // pointerdown so that if the pointer moves ≥5px (drag threshold) and then
+  // releases, the onClick handler sees the flag and skips navigation.
+  const didDragRef = useRef(false);
+
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: transition || 'transform 200ms cubic-bezier(0.25, 1, 0.5, 1)',
+    opacity: isSortableDragging ? 0.4 : 1,
+    scale: isSortableDragging ? 0.98 : 1,
+    ...(isOverlay
+      ? {
+          boxShadow: '0 15px 30px -10px rgba(0,0,0,0.3), 0 5px 15px -5px rgba(0,0,0,0.2)',
+          transform: 'rotate(3deg) scale(1.02)',
+          cursor: 'grabbing',
+        }
+      : {}),
   };
 
   const priorityConfig = TASK_PRIORITY_CONFIG[task.priority as TaskPriority];
@@ -80,28 +97,50 @@ export function KanbanCard({ task, isDragging }: KanbanCardProps) {
   const formattedTime = timeInfo?.timestamp ? formatCompactDuration(timeInfo.timestamp) : '';
   const TimeIcon = timeInfo?.icon || Clock;
 
+  const handlePointerDown = () => {
+    didDragRef.current = false;
+  };
+
+  const handlePointerMove = () => {
+    // Once the pointer has moved (dnd-kit will activate if ≥5px) mark as dragged
+    // so the subsequent onClick is ignored.
+    if (isSortableDragging) didDragRef.current = true;
+  };
+
   const handleClick = () => {
-    if (!isDragging && !isSortableDragging) {
-      navigate(`/tasks/${task.id}`);
-    }
+    if (didDragRef.current || isDragging || isSortableDragging) return;
+    navigate(`/tasks/${task.id}`);
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
+      // listeners go on the root div so dnd-kit's built-in click suppression
+      // applies to the whole card surface — not just the grip handle.
+      {...listeners}
       className={cn(
-        'group bg-card rounded-xl border p-3 cursor-pointer transition-all',
+        'group bg-card rounded-xl border p-3 cursor-pointer',
+        'transition-[box-shadow,border-color] duration-200',
         'hover:shadow-md hover:border-primary/20',
-        (isDragging || isSortableDragging) && 'opacity-50 shadow-lg rotate-2 scale-105'
+        isSortableDragging && 'border-dashed border-primary/40',
+        isOverlay && 'shadow-2xl border-primary/30 bg-card/95 backdrop-blur-sm'
       )}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
       onClick={handleClick}
     >
       <div className="flex items-start gap-2">
+        {/* Grip handle is now purely visual — listeners live on the root div */}
         <button
           {...attributes}
-          {...listeners}
-          className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-0.5 -ml-1 text-muted-foreground hover:text-foreground"
+          className={cn(
+            'transition-all duration-150 cursor-grab active:cursor-grabbing p-0.5 -ml-1',
+            'text-muted-foreground/50 hover:text-muted-foreground',
+            'opacity-40 group-hover:opacity-100',
+            isOverlay && 'opacity-100 text-primary'
+          )}
+          tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
         >
           <GripVertical className="h-4 w-4" />
@@ -158,5 +197,5 @@ export function KanbanCard({ task, isDragging }: KanbanCardProps) {
 }
 
 export function KanbanCardOverlay({ task }: { task: TaskWithUsers }) {
-  return <KanbanCard task={task} isDragging />;
+  return <KanbanCard task={task} isDragging isOverlay />;
 }

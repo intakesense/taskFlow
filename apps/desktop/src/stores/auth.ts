@@ -3,8 +3,10 @@ import { supabase } from '@/lib/supabase';
 import type { User } from '@taskflow/core';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
-// Supabase OAuth redirect URL (uses custom scheme)
-const REDIRECT_URL = 'taskflow://auth/callback';
+// Supabase OAuth redirect URL — goes through the web app so the browser shows
+// a "Login successful" page instead of getting stuck on the taskflow:// scheme.
+// The web page then forwards the token hash to taskflow://auth/callback.
+const REDIRECT_URL = 'https://tms.intakesense.com/auth/desktop-callback';
 
 // Check if running in Tauri
 const isTauri = () => '__TAURI_INTERNALS__' in window;

@@ -7,7 +7,7 @@ interface KanbanMobileProps {
   tasks: TaskWithUsers[];
   selectedStatus: TaskStatus;
   onStatusSelect: (status: TaskStatus) => void;
-  onStatusChange: (taskId: string, status: string) => void;
+  onStatusChange: (taskId: string, status: string, onHoldReason?: string) => void;
   onDelete: (taskId: string) => void;
   currentUserId?: string;
 }
