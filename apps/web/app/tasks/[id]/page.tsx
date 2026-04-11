@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import { TaskDetailContainerSocial } from '@/components/tasks/task-detail-container-social'
+import { TaskDetailContainerSocial, DashboardLayout } from '@taskflow/features'
 import { redirect } from 'next/navigation'
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -18,5 +18,5 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   // Await params as per Next.js 15+ requirement
   const { id: taskId } = await params
 
-  return <TaskDetailContainerSocial taskId={taskId} />
+  return <DashboardLayout><TaskDetailContainerSocial taskId={taskId} /></DashboardLayout>
 }

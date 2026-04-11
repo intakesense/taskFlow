@@ -1,3 +1,5 @@
+'use client';
+
 import {
   MoreVertical,
   CheckCircle2,

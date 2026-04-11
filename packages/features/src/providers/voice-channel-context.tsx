@@ -71,6 +71,15 @@ export function VoiceChannelProvider({
   const [isVideoOn, setIsVideoOn] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
+  // On mount, adopt any existing Daily instance left by a prior provider lifecycle
+  // (e.g. after hot reload, or navigating away before cleanup completed)
+  useEffect(() => {
+    const existing = DailyIframe.getCallInstance();
+    if (existing) {
+      callObjectRef.current = existing as DailyCall;
+    }
+  }, []);
+
   // Cleanup on unmount or page unload
   useEffect(() => {
     const cleanup = () => {

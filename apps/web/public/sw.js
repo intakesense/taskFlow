@@ -19,8 +19,8 @@ self.addEventListener('push', (event) => {
   // Build notification options
   const options = {
     body: data.body,
-    icon: data.icon || '/icon.svg',
-    badge: '/icon.svg',
+    icon: data.icon || '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
     vibrate: [100, 50, 100],
     tag: data.tag || `conversation-${data.data?.conversation_id || 'default'}`,
     renotify: true,
@@ -34,7 +34,7 @@ self.addEventListener('push', (event) => {
       {
         action: 'mark-read',
         title: 'Mark as Read',
-        icon: '/icon.svg'
+        icon: '/icons/icon-192x192.png'
       }
     ] : []
   }

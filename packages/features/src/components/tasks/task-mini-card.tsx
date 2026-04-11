@@ -1,3 +1,5 @@
+'use client';
+
 import { Clock, CheckCircle2, Timer, PauseCircle } from 'lucide-react';
 import { cn } from '@taskflow/ui';
 import {

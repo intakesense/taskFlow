@@ -1,9 +1,7 @@
 'use client';
 
-import { ChitChatContainer } from '@/components/voice/chitchat-container';
+import { ChitChatContainer, DashboardLayout } from '@taskflow/features';
 
 export default function ChitChatPage() {
-  // Auth handled by middleware - redirects to /login if not authenticated
-  // VoiceChannelProvider is already in root layout
-  return <ChitChatContainer />;
+  return <DashboardLayout><ChitChatContainer /></DashboardLayout>;
 }

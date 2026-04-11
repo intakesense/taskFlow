@@ -1,3 +1,5 @@
+'use client';
+
 // Task Detail Container Social - Handles data fetching for social/chat-centric task view
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';

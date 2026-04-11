@@ -173,8 +173,8 @@ export function Sidebar({ className }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-          <ListTodo className="w-5 h-5 text-primary-foreground" />
+        <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+          <img src="/logo.png" alt="TaskFlow" width={40} height={40} className="w-full h-full object-cover" />
         </div>
         <div>
           <h1 className="text-lg font-bold text-foreground">TaskFlow</h1>

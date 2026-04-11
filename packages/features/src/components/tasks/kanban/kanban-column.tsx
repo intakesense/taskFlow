@@ -1,3 +1,5 @@
+'use client';
+
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Clock, CircleDashed, PauseCircle, CheckCircle2 } from 'lucide-react';

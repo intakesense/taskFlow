@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/auth-context'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -182,8 +183,8 @@ export function Sidebar({ className }: SidebarProps) {
         >
             {/* Logo */}
             <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
-                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                    <ListTodo className="w-5 h-5 text-primary-foreground" />
+                <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+                    <Image src="/logo.png" alt="TaskFlow" width={40} height={40} className="w-full h-full object-cover" />
                 </div>
                 <div>
                     <h1 className="text-lg font-bold text-foreground">TaskFlow</h1>
@@ -210,8 +211,8 @@ export function MobileNav() {
             <SheetContent side="left" className="w-64 p-0 bg-card border-r border-border">
                 {/* Logo */}
                 <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
-                    <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                        <ListTodo className="w-5 h-5 text-primary-foreground" />
+                    <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+                        <Image src="/logo.png" alt="TaskFlow" width={40} height={40} className="w-full h-full object-cover" />
                     </div>
                     <div>
                         <h1 className="text-lg font-bold text-foreground">TaskFlow</h1>

@@ -12,16 +12,6 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait-primary',
     scope: '/',
     icons: [
-      // SVG fallback for modern browsers
-      {
-        src: '/icon.svg',
-        sizes: 'any',
-        type: 'image/svg+xml',
-        purpose: 'any',
-      },
-      // PNG icons required for iOS web push (iOS 16.4+ silently fails without these)
-      // ACTION REQUIRED: Generate these PNG files in /public from your SVG icon.
-      // Use: https://www.simicart.com/manifest-generator.html or `sharp` npm package.
       {
         src: '/icons/icon-192x192.png',
         sizes: '192x192',

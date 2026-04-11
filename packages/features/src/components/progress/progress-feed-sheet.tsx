@@ -151,7 +151,7 @@ export function ProgressFeedSheet({ trigger }: ProgressFeedSheetProps) {
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+      <SheetContent side="right" className="w-full p-0 flex flex-col" style={{ maxWidth: '28rem' }}>
         <SheetHeader className="px-4 py-3 border-b shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5" />

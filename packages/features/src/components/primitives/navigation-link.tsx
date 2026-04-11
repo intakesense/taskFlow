@@ -1,3 +1,5 @@
+'use client';
+
 import { useNavigation, type LinkProps } from '../../providers/navigation-context';
 
 /**

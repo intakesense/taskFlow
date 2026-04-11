@@ -8,6 +8,8 @@ import { TasksViewSocial } from './tasks-view-social';
 import { TeamView } from './team-view';
 import { KanbanView } from './kanban';
 import { OnHoldDialog } from './on-hold-dialog';
+import { CreateTaskDrawer } from './create-task-drawer';
+import { ProgressFeedSheet } from '../progress/progress-feed-sheet';
 import type { TaskStatus, TaskWithUsers } from '@taskflow/core';
 import type { FilterType } from './types';
 
@@ -28,6 +30,7 @@ export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<FilterType>('all');
+  const [showCreateDrawer, setShowCreateDrawer] = useState(false);
 
   // On-hold dialog state
   const [onHoldDialog, setOnHoldDialog] = useState<{
@@ -88,11 +91,12 @@ export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps
     }
   }, [onHoldDialog.taskId, changeStatus]);
 
-  const handleStatusChange = useCallback(async (taskId: string, status: string) => {
+  const handleStatusChange = useCallback(async (taskId: string, status: string, onHoldReason?: string) => {
     const typedStatus = status as TaskStatus;
 
-    // If changing to on_hold, show dialog for reason
-    if (typedStatus === 'on_hold') {
+    // on_hold requires a reason. If one wasn't provided (e.g. from a non-kanban
+    // source like the list view), show the dialog to collect it.
+    if (typedStatus === 'on_hold' && !onHoldReason) {
       const task = tasks.find((t) => t.id === taskId);
       setOnHoldDialog({
         open: true,
@@ -102,11 +106,11 @@ export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps
       return;
     }
 
-    // For all other status changes, use the workflow hook
     try {
       await changeStatus.mutateAsync({
         taskId,
         status: typedStatus,
+        onHoldReason,
       });
       toast.success('Task updated');
     } catch {
@@ -165,6 +169,8 @@ export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps
             onTypeFilterChange={setTypeFilter}
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
+            onCreateTask={() => setShowCreateDrawer(true)}
+            renderProgressFeed={() => <ProgressFeedSheet />}
           />
         );
       case 'team':
@@ -204,6 +210,7 @@ export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps
   return (
     <>
       {renderView()}
+      <CreateTaskDrawer open={showCreateDrawer} onOpenChange={setShowCreateDrawer} />
       <OnHoldDialog
         open={onHoldDialog.open}
         onOpenChange={(open) => {

@@ -10,6 +10,7 @@ import {
 } from 'react';
 import {
     ThemeConfig,
+    ThemeEffects,
     ThemeMode,
     ThemePreset,
     ThemeContextValue,
@@ -66,11 +67,12 @@ export function ThemeProvider({
 
         // Always load custom overrides (for settings like chatPattern)
         const customTheme = loadCustomTheme();
-        if (customTheme) {
-            // Only merge effects (like chatPattern) to preserve preset colors/fonts
+        if (customTheme?.effects?.chatPattern) {
+            // Only merge chatPattern — never let stored effects override preset-controlled
+            // fields (borderRadius, glassmorphism, etc.) which belong to the preset.
             const mergedTheme = {
                 ...baseTheme,
-                effects: { ...baseTheme.effects, ...customTheme.effects },
+                effects: { ...baseTheme.effects, chatPattern: customTheme.effects.chatPattern },
             };
             setTheme(mergedTheme);
         } else {
@@ -134,10 +136,10 @@ export function ThemeProvider({
     const setPreset = useCallback((preset: ThemePreset) => {
         const presetTheme = THEME_PRESETS[preset];
         if (presetTheme) {
-            // Load any custom effect overrides (like chatPattern)
+            // Only merge chatPattern from custom storage — not preset-controlled fields
             const customTheme = loadCustomTheme();
-            const mergedEffects = customTheme?.effects
-                ? { ...presetTheme.effects, ...customTheme.effects }
+            const mergedEffects = customTheme?.effects?.chatPattern
+                ? { ...presetTheme.effects, chatPattern: customTheme.effects.chatPattern }
                 : presetTheme.effects;
 
             setTheme({
@@ -157,8 +159,9 @@ export function ThemeProvider({
         setTheme((prev) => {
             // Merge updates while keeping the current preset
             const merged = mergeTheme(prev, updates);
-            // Persist custom settings (like chatPattern) separately
-            persistCustomTheme({ effects: merged.effects });
+            // Only persist user-overrideable fields (chatPattern), NOT preset-controlled
+            // fields like borderRadius, glassmorphism, etc. — those come from the preset.
+            persistCustomTheme({ effects: { chatPattern: merged.effects.chatPattern } as ThemeEffects });
             return merged;
         });
     }, []);
