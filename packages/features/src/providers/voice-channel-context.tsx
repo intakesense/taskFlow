@@ -26,6 +26,7 @@ interface VoiceChannelContextValue {
   connectionState: VoiceConnectionState;
   participants: DailyParticipant[];
   localParticipant: DailyParticipant | null;
+  callObject: DailyCall | null;
   isMuted: boolean;
   isVideoOn: boolean;
   isScreenSharing: boolean;
@@ -63,6 +64,7 @@ export function VoiceChannelProvider({
 
   const callObjectRef = useRef<DailyCall | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const [callObject, setCallObject] = useState<DailyCall | null>(null);
   const [currentChannel, setCurrentChannel] = useState<VoiceChannel | null>(null);
   const [connectionState, setConnectionState] = useState<VoiceConnectionState>('idle');
   const [participants, setParticipants] = useState<DailyParticipant[]>([]);
@@ -95,11 +97,13 @@ export function VoiceChannelProvider({
     window.addEventListener('beforeunload', cleanup);
     return () => {
       window.removeEventListener('beforeunload', cleanup);
-      // Normal cleanup on unmount
-      if (callObjectRef.current) {
-        callObjectRef.current.leave().catch(() => {});
-        callObjectRef.current.destroy();
-        callObjectRef.current = null;
+      // Normal cleanup on unmount — destroy synchronously so Strict Mode
+      // double-mount doesn't leave an orphaned DailyIframe instance
+      const call = callObjectRef.current;
+      callObjectRef.current = null;
+      if (call) {
+        call.leave().catch(() => {});
+        call.destroy();
       }
       if (profile?.id) {
         voiceService.leaveChannel(profile.id).catch(() => {});
@@ -161,8 +165,16 @@ export function VoiceChannelProvider({
 
         // Leave existing call if any
         if (callObjectRef.current) {
-          await callObjectRef.current.leave();
+          await callObjectRef.current.leave().catch(() => {});
           callObjectRef.current.destroy();
+          callObjectRef.current = null;
+        }
+
+        // Also destroy any orphaned Daily instance (e.g. from React Strict Mode double-mount)
+        const orphaned = DailyIframe.getCallInstance();
+        if (orphaned) {
+          await (orphaned as DailyCall).leave().catch(() => {});
+          (orphaned as DailyCall).destroy();
         }
 
         // Create new call object
@@ -172,6 +184,7 @@ export function VoiceChannelProvider({
         });
 
         callObjectRef.current = callObject;
+        setCallObject(callObject);
 
         // Set up event listeners
         callObject
@@ -188,6 +201,7 @@ export function VoiceChannelProvider({
           })
           .on('participant-joined', () => updateParticipants(callObject))
           .on('participant-left', () => updateParticipants(callObject))
+          .on('participant-updated', () => updateParticipants(callObject))
           .on('participant-updated', () => updateParticipants(callObject))
           .on('error', (event) => {
             console.error('Daily error:', event);
@@ -221,6 +235,7 @@ export function VoiceChannelProvider({
         await callObjectRef.current.leave();
         callObjectRef.current.destroy();
         callObjectRef.current = null;
+        setCallObject(null);
       }
 
       if (profile) {
@@ -305,6 +320,7 @@ export function VoiceChannelProvider({
       connectionState,
       participants,
       localParticipant,
+      callObject,
       isMuted,
       isVideoOn,
       isScreenSharing,
@@ -319,6 +335,7 @@ export function VoiceChannelProvider({
       connectionState,
       participants,
       localParticipant,
+      callObject,
       isMuted,
       isVideoOn,
       isScreenSharing,

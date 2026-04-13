@@ -1,8 +1,9 @@
 'use client';
 
 import { cn, ScrollArea, Skeleton } from '@taskflow/ui';
-import { Headphones, Phone, Users } from 'lucide-react';
+import { Headphones, Phone, Users, Wifi } from 'lucide-react';
 import type { VoiceChannelWithParticipants } from '@taskflow/core';
+import { DailyProvider, DailyAudio, useParticipantIds } from '@daily-co/daily-react';
 import {
   useVoiceChannels,
   useVoiceChannelsRealtime,
@@ -18,8 +19,7 @@ export function ChitChatContainer() {
   const {
     currentChannel,
     connectionState,
-    participants,
-    localParticipant,
+    callObject,
     joinChannel,
   } = useVoiceChannel();
 
@@ -56,18 +56,19 @@ export function ChitChatContainer() {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col bg-background">
-        {currentChannel ? (
-          <ActiveCallView
-            participants={participants}
-            localParticipant={localParticipant}
-            channelName={currentChannel.name}
-            connectionState={connectionState}
-          />
+        {currentChannel && callObject ? (
+          <DailyProvider callObject={callObject}>
+            <ActiveCallView
+              channelName={currentChannel.name}
+              connectionState={connectionState}
+            />
+          </DailyProvider>
         ) : (
           <IdleView
             channels={channels || []}
             isLoading={isLoading}
             onJoinChannel={joinChannel}
+            connectionState={connectionState}
           />
         )}
       </div>
@@ -76,20 +77,19 @@ export function ChitChatContainer() {
 }
 
 interface ActiveCallViewProps {
-  participants: ReturnType<typeof useVoiceChannel>['participants'];
-  localParticipant: ReturnType<typeof useVoiceChannel>['localParticipant'];
   channelName: string;
   connectionState: string;
 }
 
-function ActiveCallView({
-  participants,
-  localParticipant,
-  channelName,
-  connectionState,
-}: ActiveCallViewProps) {
+// Must be inside DailyProvider so all Daily hooks work
+function ActiveCallView({ channelName, connectionState }: ActiveCallViewProps) {
+  const participantIds = useParticipantIds();
+
   return (
     <>
+      {/* Handles all remote audio automatically */}
+      <DailyAudio />
+
       {/* Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -97,29 +97,32 @@ function ActiveCallView({
             className={cn(
               'h-3 w-3 rounded-full',
               connectionState === 'connected'
-                ? 'bg-green-500'
+                ? 'bg-green-500 animate-pulse'
                 : connectionState === 'connecting'
                   ? 'bg-yellow-500 animate-pulse'
                   : 'bg-red-500'
             )}
           />
           <h2 className="font-semibold">{channelName}</h2>
+          {connectionState === 'connected' && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full">
+              <Wifi className="h-3 w-3" />
+              Connected
+            </span>
+          )}
           <span className="text-sm text-muted-foreground flex items-center gap-1">
             <Users className="h-4 w-4" />
-            {(localParticipant ? 1 : 0) + participants.length}
+            {participantIds.length}
           </span>
         </div>
       </div>
 
-      {/* Participant grid */}
+      {/* Participant grid — uses Daily hooks internally */}
       <div className="flex-1 overflow-hidden">
-        <ParticipantGrid
-          participants={participants}
-          localParticipant={localParticipant}
-        />
+        <ParticipantGrid />
       </div>
 
-      {/* Controls bar */}
+      {/* Controls */}
       <div className="p-4 border-t border-border bg-card">
         <VoiceControls />
       </div>
@@ -128,14 +131,15 @@ function ActiveCallView({
 }
 
 interface IdleViewProps {
-  channels: VoiceChannelWithParticipants[] | undefined;
+  channels: VoiceChannelWithParticipants[];
   isLoading: boolean;
   onJoinChannel: (channel: VoiceChannelWithParticipants) => void;
+  connectionState: string;
 }
 
-function IdleView({ channels, isLoading, onJoinChannel }: IdleViewProps) {
-  // Find default channel for quick join
+function IdleView({ channels, isLoading, onJoinChannel, connectionState }: IdleViewProps) {
   const defaultChannel = channels?.find((c) => c.is_default);
+  const isConnecting = connectionState === 'connecting';
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8">
@@ -172,15 +176,17 @@ function IdleView({ channels, isLoading, onJoinChannel }: IdleViewProps) {
           {defaultChannel && (
             <button
               onClick={() => onJoinChannel(defaultChannel)}
+              disabled={isConnecting}
               className={cn(
                 'px-6 py-3 bg-primary text-primary-foreground rounded-lg',
                 'font-medium hover:bg-primary/90 transition-colors',
-                'flex items-center gap-2 mx-auto'
+                'flex items-center gap-2 mx-auto',
+                isConnecting && 'opacity-70 cursor-not-allowed'
               )}
             >
               <Headphones className="h-5 w-5" />
-              Join {defaultChannel.name}
-              {defaultChannel.participantCount > 0 && (
+              {isConnecting ? 'Connecting...' : `Join ${defaultChannel.name}`}
+              {!isConnecting && defaultChannel.participantCount > 0 && (
                 <span className="bg-primary-foreground/20 px-2 py-0.5 rounded text-sm">
                   {defaultChannel.participantCount} online
                 </span>

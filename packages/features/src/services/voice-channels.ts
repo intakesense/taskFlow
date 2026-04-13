@@ -170,6 +170,7 @@ export function createVoiceChannelsService(
         .insert({
           channel_id: channelId,
           user_id: userId,
+          joined_at: new Date().toISOString(),
         })
         .select('id')
         .single();
