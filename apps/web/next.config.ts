@@ -15,7 +15,7 @@ for (const envVar of requiredEnvVars) {
 }
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: ['@taskflow/features', '@taskflow/ui', '@taskflow/core'],
 
   // Allow images from Supabase storage
   images: {

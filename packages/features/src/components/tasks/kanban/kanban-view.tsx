@@ -98,7 +98,7 @@ export function KanbanView({
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
+      activationConstraint: { distance: 1 },
     }),
     useSensor(TouchSensor, {
       activationConstraint: { delay: 200, tolerance: 5 },
