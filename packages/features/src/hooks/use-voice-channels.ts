@@ -22,7 +22,6 @@ export function useVoiceChannels() {
   return useQuery<VoiceChannelWithParticipants[]>({
     queryKey: voiceChannelKeys.list(),
     queryFn: () => service.getChannels(),
-    refetchInterval: 10000, // Refresh every 10 seconds
   });
 }
 
@@ -44,8 +43,7 @@ export function useVoiceChannelsRealtime() {
           table: 'voice_channel_participants',
         },
         () => {
-          // Invalidate query on any participant change
-          queryClient.invalidateQueries({
+          queryClient.refetchQueries({
             queryKey: voiceChannelKeys.list(),
           });
         }

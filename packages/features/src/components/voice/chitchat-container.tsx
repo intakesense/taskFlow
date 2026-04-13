@@ -56,10 +56,10 @@ export function ChitChatContainer() {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col bg-background">
-        {currentChannel && callObject ? (
+        {connectionState === 'connected' || connectionState === 'connecting' ? (
           <DailyProvider callObject={callObject}>
             <ActiveCallView
-              channelName={currentChannel.name}
+              channelName={currentChannel?.name ?? ''}
               connectionState={connectionState}
             />
           </DailyProvider>

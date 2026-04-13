@@ -194,14 +194,13 @@ export function VoiceChannelProvider({
             updateParticipants(callObject);
           })
           .on('left-meeting', () => {
-            setConnectionState('left');
+            setConnectionState('idle');
             setCurrentChannel(null);
             setParticipants([]);
             setLocalParticipant(null);
           })
           .on('participant-joined', () => updateParticipants(callObject))
           .on('participant-left', () => updateParticipants(callObject))
-          .on('participant-updated', () => updateParticipants(callObject))
           .on('participant-updated', () => updateParticipants(callObject))
           .on('error', (event) => {
             console.error('Daily error:', event);
