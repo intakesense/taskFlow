@@ -1,3 +1,5 @@
 export { AIVoiceChatButton } from './ai-voice-chat-button'
 export { AIVoiceChatModal } from './ai-voice-chat-modal'
 export { AIDirectVoiceChat } from './ai-direct-voice-chat'
+export { AIVoiceBot } from './ai-voice-bot'
+export { AIBotManager } from './ai-bot-manager'

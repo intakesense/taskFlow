@@ -28,9 +28,10 @@ interface ActivateBotResponse {
   message: string
   sessionId: string
   botName: string
-  clientSecret: { value: string } | string
-  expiresAt: number
+  clientSecret: string
   model: string
+  voice: string
+  triggerPhrases: string[]
 }
 
 /**
@@ -43,6 +44,8 @@ export function useAIBotSession(channelId: string | null) {
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [botName, setBotName] = useState<string>('Bot')
   const [model, setModel] = useState<string>('gpt-4o-realtime-preview')
+  const [voice, setVoice] = useState<string>('alloy')
+  const [triggerPhrases, setTriggerPhrases] = useState<string[]>(['Bot', 'Hey Bot'])
 
   // Query current bot status
   const {
@@ -87,13 +90,11 @@ export function useAIBotSession(channelId: string | null) {
       return data as ActivateBotResponse
     },
     onSuccess: (data) => {
-      // Extract the token value
-      const secret = typeof data.clientSecret === 'object'
-        ? data.clientSecret.value
-        : data.clientSecret
-      setClientSecret(secret)
+      setClientSecret(data.clientSecret)
       setBotName(data.botName)
       setModel(data.model)
+      setVoice(data.voice)
+      setTriggerPhrases(data.triggerPhrases)
       toast.success(`${data.botName} activated`)
       queryClient.invalidateQueries({
         queryKey: aiBotSessionKeys.status(channelId || ''),
@@ -172,5 +173,7 @@ export function useAIBotSession(channelId: string | null) {
     clientSecret,
     botName,
     model,
+    voice,
+    triggerPhrases,
   }
 }

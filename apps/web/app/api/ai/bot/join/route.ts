@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
 
 const AI_BOT_USER_ID = '00000000-0000-0000-0000-000000000001'
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     // Check if bot is enabled by admin
     const { data: botConfig } = await supabase
       .from('ai_bot_config')
-      .select('is_enabled, name, voice')
+      .select('is_enabled, name, voice, trigger_phrases')
       .single()
 
     if (!botConfig?.is_enabled) {
@@ -73,16 +74,24 @@ export async function POST(request: NextRequest) {
       }, { status: 409 })
     }
 
-    // Get OpenAI ephemeral token for the host's browser
-    const tokenResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {
+    const model = process.env.OPENAI_REALTIME_MODEL
+    const voice = botConfig.voice || 'alloy'
+
+    // Get OpenAI ephemeral client key for the host's browser.
+    // Must use /v1/realtime/client_secrets — this endpoint returns a top-level
+    // "value" string (prefix "ek_") for use with session.connect({ apiKey }).
+    // /v1/realtime/sessions is a different endpoint for server-side session management.
+    const tokenResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_REALTIME_MODEL,
-        voice: botConfig.voice || 'alloy',
+        session: {
+          type: 'realtime',
+          model,
+        },
       }),
     })
 
@@ -97,18 +106,23 @@ export async function POST(request: NextRequest) {
 
     const tokenData = await tokenResponse.json()
 
-    // Add bot to participants table (so it appears in the UI)
-    await supabase.from('voice_channel_participants').upsert({
+    // Use admin client for bot participant upsert — the bot user ID doesn't
+    // match auth.uid() so the authenticated RLS policy would block it.
+    const adminClient = createAdminClient()
+
+    await adminClient.from('voice_channel_participants').upsert({
       channel_id: channelId,
       user_id: AI_BOT_USER_ID,
-      is_muted: false, // Bot will speak
+      is_muted: false,
       is_video_on: false,
     }, {
       onConflict: 'channel_id,user_id',
     })
 
-    // Create AI session record with host tracking
-    const { data: session, error: sessionError } = await supabase
+    // Create AI session record. The authenticated INSERT policy allows this
+    // (host_user_id = auth.uid()), but using admin client keeps all bot-related
+    // DB writes consistent and avoids any future RLS edge cases.
+    const { data: session, error: sessionError } = await adminClient
       .from('ai_sessions')
       .insert({
         voice_channel_id: channelId,
@@ -131,9 +145,11 @@ export async function POST(request: NextRequest) {
       message: `${botConfig.name} activated`,
       sessionId: session.id,
       botName: botConfig.name,
-      clientSecret: tokenData.client_secret,
-      expiresAt: tokenData.expires_at,
-      model: process.env.OPENAI_REALTIME_MODEL,
+      // tokenData.value is the ephemeral key string (prefix "ek_")
+      clientSecret: tokenData.value,
+      model,
+      voice,
+      triggerPhrases: botConfig.trigger_phrases ?? ['Bot', 'Hey Bot'],
     })
   } catch (error) {
     console.error('Bot join error:', error)

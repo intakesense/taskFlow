@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
 
 const AI_BOT_USER_ID = '00000000-0000-0000-0000-000000000001'
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { channelId, force } = await request.json()
+    const { channelId, force, transcript } = await request.json()
 
     if (!channelId) {
       return NextResponse.json({ error: 'Channel ID required' }, { status: 400 })
@@ -66,24 +67,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // End the session
-    await supabase
+    // End the session. Use admin client so the update succeeds regardless of
+    // who is calling (the host policy uses auth.uid() which may have already
+    // become stale by the time the leave fires on unmount).
+    const adminClient = createAdminClient()
+    await adminClient
       .from('ai_sessions')
       .update({
         status: 'ended',
         ended_at: new Date().toISOString(),
+        // transcript is a RealtimeItem[] array captured via history_updated.
+        // Only write it if the host sent one — don't overwrite with null.
+        ...(transcript != null ? { transcript } : {}),
       })
       .eq('id', session.id)
 
-    // Remove bot from participants
-    await supabase
+    // Remove bot from participants — admin client needed (bot user_id ≠ auth.uid())
+    await adminClient
       .from('voice_channel_participants')
       .delete()
       .eq('channel_id', channelId)
       .eq('user_id', AI_BOT_USER_ID)
 
     // Get bot config for name
-    const { data: botConfig } = await supabase
+    const { data: botConfig } = await adminClient
       .from('ai_bot_config')
       .select('name')
       .single()

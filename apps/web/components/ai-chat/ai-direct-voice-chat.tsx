@@ -8,6 +8,7 @@ import { getAgentTools, type AgentContext } from '@/lib/ai/agent-tools'
 interface AIDirectVoiceChatProps {
   clientSecret: string
   model: string
+  voice?: string
   userId: string
   userName: string
   onStateChange?: (state: 'listening' | 'speaking') => void
@@ -26,6 +27,7 @@ interface AIDirectVoiceChatProps {
 export function AIDirectVoiceChat({
   clientSecret,
   model,
+  voice,
   userId,
   userName,
   onStateChange,
@@ -56,6 +58,9 @@ export function AIDirectVoiceChat({
       try {
         const agent = new RealtimeAgent({
           name: 'Assistant',
+          // voice goes on RealtimeAgent — it cannot be set on RealtimeSession
+          // and must not be passed to connect()
+          ...(voice ? { voice } : {}),
           instructions: `You are a helpful AI assistant having a voice conversation with ${userName}.
 Keep responses concise (1-3 sentences) for natural voice flow.
 Be helpful, friendly, and engaging.
@@ -76,7 +81,13 @@ Always use get_users first before send_message to get the correct user ID.`,
           tools,
         })
 
-        session = new RealtimeSession(agent)
+        // model goes in the RealtimeSession constructor options, NOT in connect().
+        // The SDK source confirms connect()'s model field is ignored — the transport
+        // always reads this.options.model set at construction time.
+        session = new RealtimeSession(agent, {
+          model,
+          context: agentContext,
+        })
 
         // Track speaking state via refs (never stale)
         session.on('audio_start', () => {
@@ -96,11 +107,10 @@ Always use get_users first before send_message to get the correct user ID.`,
           toast.error('AI connection error')
         })
 
-        // Connect - WebRTC auto configures mic and speaker
+        // connect() only needs apiKey — model is already set on the constructor
         console.log('[AIChat:WebRTC] Calling session.connect()...')
         await session.connect({
           apiKey: clientSecret,
-          model,
         })
 
         // If React Strict Mode unmounted us while awaiting, tear down immediately
@@ -132,7 +142,7 @@ Always use get_users first before send_message to get the correct user ID.`,
         session = null
       }
     }
-  }, [clientSecret, model, userId, userName]) // Only reconnect when these actually change
+  }, [clientSecret, model, voice, userId, userName]) // Only reconnect when these actually change
 
   return null
 }

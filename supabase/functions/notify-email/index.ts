@@ -85,7 +85,7 @@ function baseTemplate(content: string, previewText: string = ''): string {
           <!-- Logo row -->
           <tr>
             <td style="padding:0 0 20px;">
-              <span style="font-size:14px;font-weight:700;color:#18181b;letter-spacing:-0.2px;">TaskFlow</span>
+              <img src="${Deno.env.get('APP_URL') || 'https://taskflow.app'}/logo.png" alt="TaskFlow" width="36" height="36" style="display:block;border-radius:8px;" />
             </td>
           </tr>
 
