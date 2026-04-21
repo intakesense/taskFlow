@@ -109,3 +109,9 @@ export {
   useDefaultVoiceChannel,
   voiceChannelKeys,
 } from './use-voice-channels';
+
+export {
+  useDriveAttachments,
+  useInvalidateDriveAttachments,
+  driveAttachmentKeys,
+} from './use-drive-attachments';

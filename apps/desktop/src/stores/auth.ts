@@ -213,6 +213,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         options: {
           redirectTo: REDIRECT_URL,
           skipBrowserRedirect: true,
+          scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file',
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
 

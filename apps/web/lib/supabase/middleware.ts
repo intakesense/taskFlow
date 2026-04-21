@@ -55,7 +55,7 @@ export const updateSession = async (request: NextRequest) => {
         request.headers.get('x-nextjs-data') !== null
 
     // Public routes that don't require authentication
-    const publicRoutes = ['/login']
+    const publicRoutes = ['/login', '/auth/callback']
     const isPublicRoute = publicRoutes.some(route =>
         request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith('/api/auth')
     )

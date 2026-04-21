@@ -105,6 +105,10 @@ function AppWithFeatures() {
       }}
       supabase={supabase}
       auth={auth}
+      config={{
+        apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
+        googleApiKey: import.meta.env.VITE_GOOGLE_API_KEY ?? '',
+      }}
     >
       <DashboardPage currentPath={currentPath} />
       <Toaster theme="dark" />

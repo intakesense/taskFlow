@@ -149,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             })
                         }
                     })
+
                 } else {
                     setProfile(null)
                     setMaskedAsUser(null)
@@ -184,7 +185,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: `${window.location.origin}/auth/callback`
+                redirectTo: `${window.location.origin}/auth/callback`,
+                scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file',
+                queryParams: {
+                    access_type: 'offline',    // ensures refresh_token is returned on first consent
+                    prompt: 'select_account',  // shows account picker but skips consent after first grant
+                }
             }
         })
         return { error: error as Error | null }

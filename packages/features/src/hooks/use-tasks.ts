@@ -4,8 +4,10 @@ import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tansta
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { useServices } from '../providers/services-context';
+import { useConfig } from '../providers/config-context';
 import { haptics } from '../utils/haptics';
 import { getErrorMessage } from '../utils/error';
+import { syncTaskToCalendar, removeTaskFromCalendar } from '../services/calendar-sync';
 import type { TaskWithUsers, TaskStatus } from '@taskflow/core';
 import type { CreateTaskInput, UpdateTaskInput, TaskFilters, PaginatedTasksResult } from '../services/tasks';
 
@@ -135,7 +137,8 @@ export function useTask(taskId: string | null) {
  * Hook to create a new task.
  */
 export function useCreateTask() {
-  const { tasks } = useServices();
+  const { tasks, supabase } = useServices();
+  const { apiBaseUrl } = useConfig();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -144,9 +147,21 @@ export function useCreateTask() {
     onMutate: () => {
       haptics.medium();
     },
-    onSuccess: () => {
+    onSuccess: (createdTask, { userId, input }) => {
       haptics.success();
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      // Fire-and-forget: sync to Google Calendar if deadline is set
+      if (input.deadline && createdTask?.id) {
+        syncTaskToCalendar({
+          supabase,
+          apiBaseUrl,
+          taskId: createdTask.id,
+          title: input.title,
+          dueDate: input.deadline,
+          description: input.description ?? undefined,
+          userId,
+        }).catch(() => { /* non-fatal */ })
+      }
     },
     onError: (error) => {
       haptics.error();
@@ -160,7 +175,8 @@ export function useCreateTask() {
  * Hook to update an existing task with optimistic updates.
  */
 export function useUpdateTask() {
-  const { tasks } = useServices();
+  const { tasks, supabase } = useServices();
+  const { apiBaseUrl } = useConfig();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -193,8 +209,21 @@ export function useUpdateTask() {
       const message = getErrorMessage(error, 'Failed to update task');
       toast.error(message);
     },
-    onSuccess: () => {
+    onSuccess: (updatedTask, { id, input }) => {
       haptics.success();
+      // If deadline changed, re-sync calendar event
+      if (input.deadline && updatedTask) {
+        const task = updatedTask as TaskWithUsers
+        syncTaskToCalendar({
+          supabase,
+          apiBaseUrl,
+          taskId: id,
+          title: task.title,
+          dueDate: input.deadline,
+          description: task.description ?? undefined,
+          userId: task.assigner?.id ?? '',
+        }).catch(() => { /* non-fatal */ })
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
@@ -206,7 +235,8 @@ export function useUpdateTask() {
  * Hook to delete a task with optimistic update.
  */
 export function useDeleteTask() {
-  const { tasks } = useServices();
+  const { tasks, supabase } = useServices();
+  const { apiBaseUrl } = useConfig();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -233,8 +263,18 @@ export function useDeleteTask() {
       const message = getErrorMessage(error, 'Failed to delete task');
       toast.error(message);
     },
-    onSuccess: () => {
+    onSuccess: (_, taskId, context) => {
       haptics.success();
+      // Remove from calendar — find assigner from optimistic snapshot
+      const deletedTask = context?.previousTasks?.find(t => t.id === taskId)
+      if (deletedTask?.assigner?.id) {
+        removeTaskFromCalendar({
+          supabase,
+          apiBaseUrl,
+          taskId,
+          userId: deletedTask.assigner.id,
+        }).catch(() => { /* non-fatal */ })
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
@@ -276,7 +316,8 @@ export function useArchiveTask() {
  * - archived -> in_progress: Only creator (reopen)
  */
 export function useChangeTaskStatus() {
-  const { tasks } = useServices();
+  const { tasks, supabase } = useServices();
+  const { apiBaseUrl } = useConfig();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -319,8 +360,20 @@ export function useChangeTaskStatus() {
       const message = getStatusChangeErrorMessage(error);
       toast.error(message);
     },
-    onSuccess: () => {
+    onSuccess: (_, { taskId, status }, context) => {
       haptics.success();
+      // Task marked as done (archived) — remove from calendar
+      if (status === 'archived') {
+        const task = context?.previousTasks?.find(t => t.id === taskId)
+        if (task?.assigner?.id) {
+          removeTaskFromCalendar({
+            supabase,
+            apiBaseUrl,
+            taskId,
+            userId: task.assigner.id,
+          }).catch(() => { /* non-fatal */ })
+        }
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });

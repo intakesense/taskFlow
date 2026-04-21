@@ -27,6 +27,11 @@ export { NewChatDialog } from './new-chat-dialog';
 export { ChatView } from './chat-view';
 export { GroupSettingsDialog } from './group-settings-dialog';
 
+// Google Drive integration
+export { AttachMenu } from './attach-menu';
+export { useDrivePicker } from './drive-picker';
+export type { DriveFile } from './drive-picker';
+
 // Re-export chat message hooks from hooks directory
 export {
   useChatMessages,

@@ -30,9 +30,6 @@ function LoginPageContent() {
     useEffect(() => {
         const code = searchParams.get('code')
         if (code) {
-            // Code is present - Supabase client will auto-exchange it
-            // Just show loading state, the auth state change will trigger redirect
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setIsGoogleLoading(true)
         }
     }, [searchParams])

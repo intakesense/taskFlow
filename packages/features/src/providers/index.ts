@@ -37,6 +37,11 @@ export {
 } from './features-provider';
 
 export {
+  useConfig,
+  type FeaturesConfig,
+} from './config-context';
+
+export {
   VoiceChannelProvider,
   useVoiceChannel,
 } from './voice-channel-context';

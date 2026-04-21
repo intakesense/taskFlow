@@ -16,6 +16,8 @@ import { TypingBubble } from './typing-bubble';
 import { OnlineStatusBadge, OnlineStatusDot } from './online-status-badge';
 import { VoiceRecorder, AudioMessagePlayer } from './voice-recorder';
 import { FileAttachment } from './file-attachment';
+import { AttachMenu } from './attach-menu';
+import type { DriveFile } from './drive-picker';
 import { ProfilePictureDialog } from './profile-picture-dialog';
 import { GroupSettingsDialog } from './group-settings-dialog';
 import { MessageStatus } from './message-status';
@@ -37,12 +39,12 @@ import {
 import {
   ArrowLeft,
   Send,
-  Paperclip,
   MoreVertical,
   Loader2,
   X,
   Mic,
   Settings,
+  Paperclip,
 } from 'lucide-react';
 import type {
   ConversationWithMembers,
@@ -65,6 +67,7 @@ interface ChatViewProps {
   isUserOnline: (userId: string) => boolean;
   onSendMessage: (content: string, replyToId?: string) => void;
   onSendFile?: (file: File, replyToId?: string) => void | Promise<void>;
+  onSendDriveFile?: (driveFile: DriveFile, messageId?: string) => void | Promise<void>;
   onBack?: () => void;
   onTyping?: () => void;
   isLoading?: boolean;
@@ -82,6 +85,7 @@ export function ChatView({
   isUserOnline,
   onSendMessage,
   onSendFile,
+  onSendDriveFile,
   onBack,
   onTyping,
   isLoading,
@@ -92,6 +96,7 @@ export function ChatView({
   const { effectiveUser } = useAuth();
   const [input, setInput] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedDriveFile, setSelectedDriveFile] = useState<DriveFile | null>(null);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [isSendingVoice, setIsSendingVoice] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageWithSender | null>(null);
@@ -103,7 +108,6 @@ export function ChatView({
     email?: string | null;
   } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: allUsers = [] } = useUsers();
@@ -141,9 +145,8 @@ export function ChatView({
   }, [replyingTo]);
 
   const handleSend = () => {
-    if (!input.trim() && !selectedFile) return;
+    if (!input.trim() && !selectedFile && !selectedDriveFile) return;
 
-    // Haptic feedback for sending message
     haptics.medium();
 
     const replyToId = replyingTo?.id;
@@ -151,6 +154,11 @@ export function ChatView({
     if (selectedFile && onSendFile) {
       onSendFile(selectedFile, replyToId);
       setSelectedFile(null);
+    }
+
+    if (selectedDriveFile && onSendDriveFile) {
+      onSendDriveFile(selectedDriveFile);
+      setSelectedDriveFile(null);
     }
 
     if (input.trim()) {
@@ -200,14 +208,6 @@ export function ChatView({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleMentionInput(e.target.value);
     onTyping?.();
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-    }
-    e.target.value = '';
   };
 
   const handleSendVoiceMessage = async (audioBlob: Blob) => {
@@ -275,7 +275,7 @@ export function ChatView({
     : isSelfChat
       ? 'You (Notes)'
       : otherUser?.name || 'Unknown';
-  const hasContent = input.trim().length > 0 || selectedFile !== null;
+  const hasContent = input.trim().length > 0 || selectedFile !== null || selectedDriveFile !== null;
   const showSendButton = hasContent || showVoiceRecorder;
 
   const currentUser = effectiveUser
@@ -528,31 +528,32 @@ export function ChatView({
             </div>
           )}
 
+          {selectedDriveFile && (
+            <div className="mb-2 sm:mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/60 border border-border text-sm">
+              {selectedDriveFile.iconUrl && (
+                <img src={selectedDriveFile.iconUrl} alt="" className="h-5 w-5 shrink-0" />
+              )}
+              <span className="truncate flex-1">{selectedDriveFile.name}</span>
+              <button
+                onClick={() => setSelectedDriveFile(null)}
+                className="text-muted-foreground hover:text-foreground shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center gap-1 sm:gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileSelect}
-              className="hidden"
-            />
             <EmojiPicker
               onEmojiSelect={handleEmojiSelect}
               disabled={isSending || isSendingVoice}
               position="top"
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                haptics.light();
-                fileInputRef.current?.click();
-              }}
-              title="Attach file"
+            <AttachMenu
               disabled={isSending || isSendingVoice}
-              className="h-9 w-9 sm:h-11 sm:w-11 rounded-full touch-manipulation flex-shrink-0"
-            >
-              <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />
-            </Button>
+              onFileSelected={(file) => { haptics.light(); setSelectedFile(file); setSelectedDriveFile(null); }}
+              onDriveFileSelected={(file) => { haptics.light(); setSelectedDriveFile(file); setSelectedFile(null); }}
+            />
             <div className="flex-1 min-w-0 relative">
               <MentionPopup
                 users={filteredUsers}
@@ -582,7 +583,7 @@ export function ChatView({
               <Button
                 onClick={handleSend}
                 disabled={
-                  (!input.trim() && !selectedFile) || isSending || isSendingVoice
+                  (!input.trim() && !selectedFile && !selectedDriveFile) || isSending || isSendingVoice
                 }
                 size="icon"
                 title="Send"

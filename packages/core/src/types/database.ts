@@ -244,6 +244,106 @@ export type Database = {
           },
         ]
       }
+      drive_attachments: {
+        Row: {
+          created_at: string
+          file_id: string
+          file_name: string
+          icon_link: string | null
+          id: string
+          message_id: string | null
+          mime_type: string
+          task_id: string | null
+          uploader_id: string
+          web_view_link: string
+        }
+        Insert: {
+          created_at?: string
+          file_id: string
+          file_name: string
+          icon_link?: string | null
+          id?: string
+          message_id?: string | null
+          mime_type: string
+          task_id?: string | null
+          uploader_id: string
+          web_view_link: string
+        }
+        Update: {
+          created_at?: string
+          file_id?: string
+          file_name?: string
+          icon_link?: string | null
+          id?: string
+          message_id?: string | null
+          mime_type?: string
+          task_id?: string | null
+          uploader_id?: string
+          web_view_link?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drive_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drive_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drive_attachments_uploader_id_fkey"
+            columns: ["uploader_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hrms_links: {
+        Row: {
+          hrms_employee_id: string
+          hrms_employee_name: string
+          hrms_token: string
+          hrms_token_expires_at: string | null
+          hrms_user_id: string
+          id: string
+          last_checkin_at: string | null
+          last_checkout_at: string | null
+          linked_at: string
+          user_id: string
+        }
+        Insert: {
+          hrms_employee_id: string
+          hrms_employee_name: string
+          hrms_token: string
+          hrms_token_expires_at?: string | null
+          hrms_user_id: string
+          id?: string
+          last_checkin_at?: string | null
+          last_checkout_at?: string | null
+          linked_at?: string
+          user_id: string
+        }
+        Update: {
+          hrms_employee_id?: string
+          hrms_employee_name?: string
+          hrms_token?: string
+          hrms_token_expires_at?: string | null
+          hrms_user_id?: string
+          id?: string
+          last_checkin_at?: string | null
+          last_checkout_at?: string | null
+          linked_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       meeting_minutes: {
         Row: {
           action_items: Json | null
@@ -485,31 +585,31 @@ export type Database = {
       }
       task_audit_log: {
         Row: {
+          action: string
+          created_at: string | null
           id: string
+          new_value: Json | null
+          old_value: Json | null
           task_id: string
           user_id: string
-          action: string
-          old_value: Json | null
-          new_value: Json | null
-          created_at: string
         }
         Insert: {
+          action: string
+          created_at?: string | null
           id?: string
+          new_value?: Json | null
+          old_value?: Json | null
           task_id: string
           user_id: string
-          action: string
-          old_value?: Json | null
-          new_value?: Json | null
-          created_at?: string
         }
         Update: {
+          action?: string
+          created_at?: string | null
           id?: string
+          new_value?: Json | null
+          old_value?: Json | null
           task_id?: string
           user_id?: string
-          action?: string
-          old_value?: Json | null
-          new_value?: Json | null
-          created_at?: string
         }
         Relationships: [
           {
@@ -521,6 +621,45 @@ export type Database = {
           },
           {
             foreignKeyName: "task_audit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_calendar_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_calendar_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_calendar_events_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -771,6 +910,47 @@ export type Database = {
           },
         ]
       }
+      user_google_tokens: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string
+          id: string
+          refresh_token: string | null
+          scopes: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          refresh_token?: string | null
+          scopes: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          refresh_token?: string | null
+          scopes?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_url: string | null
@@ -953,7 +1133,7 @@ export type Database = {
     Functions: {
       cleanup_stale_voice_participants: { Args: never; Returns: number }
       get_default_voice_channel_id: { Args: never; Returns: string }
-      get_user_level: { Args: { user_id: string }; Returns: number }
+      get_user_level: { Args: { p_user_id: string }; Returns: number }
       get_voice_channel_participant_count: {
         Args: { p_channel_id: string }
         Returns: number

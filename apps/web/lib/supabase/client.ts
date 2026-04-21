@@ -13,5 +13,11 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
  * @see https://supabase.com/docs/guides/auth/server-side/creating-a-client
  */
 export const createClient = () => {
-    return createBrowserClient<Database>(supabaseUrl, supabaseKey);
+    return createBrowserClient<Database>(supabaseUrl, supabaseKey, {
+        realtime: {
+            // Offload heartbeats to a Web Worker so background-tab throttling
+            // doesn't starve heartbeats and cause TIMED_OUT disconnects.
+            worker: true,
+        },
+    });
 };

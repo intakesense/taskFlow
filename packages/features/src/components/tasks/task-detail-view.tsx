@@ -57,6 +57,8 @@ import {
   Trash2,
   StickyNote,
   MessageSquare,
+  Paperclip,
+  ExternalLink,
   Eye,
   Lock,
   Pencil,
@@ -64,6 +66,8 @@ import {
 import { NavigationLink } from '../primitives';
 import { StackedAvatars } from './stacked-avatars';
 import { MultiUserSelector } from './multi-user-selector';
+import { AttachMenu } from '../messages/attach-menu';
+import type { DriveFile } from '../messages/drive-picker';
 import type { UseDialogReturn } from '../../hooks/use-dialog';
 
 interface TaskDetailViewProps {
@@ -95,6 +99,9 @@ interface TaskDetailViewProps {
   onArchive: () => void;
   onUpdateAssignees: (userIds: string[]) => void;
   updatingAssignees: boolean;
+  // Drive attachments
+  driveAttachments?: DriveFile[]
+  onAttachDriveFile?: (file: DriveFile) => void | Promise<void>
 }
 
 export function TaskDetailView({
@@ -126,6 +133,8 @@ export function TaskDetailView({
   onArchive,
   onUpdateAssignees,
   updatingAssignees,
+  driveAttachments = [],
+  onAttachDriveFile,
 }: TaskDetailViewProps) {
   const [isEditingAssignees, setIsEditingAssignees] = useState(false);
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>(
@@ -389,6 +398,10 @@ export function TaskDetailView({
             <StickyNote className="h-4 w-4 mr-2" />
             Notes ({notes.length})
           </TabsTrigger>
+          <TabsTrigger value="attachments">
+            <Paperclip className="h-4 w-4 mr-2" />
+            Files ({driveAttachments.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="messages">
@@ -412,7 +425,14 @@ export function TaskDetailView({
                 ))}
               </ScrollArea>
               <Separator className="my-4" />
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                {onAttachDriveFile && (
+                  <AttachMenu
+                    disabled={sendingMessage}
+                    onFileSelected={() => { /* local file upload not supported in task messages */ }}
+                    onDriveFileSelected={(file) => { onAttachDriveFile(file) }}
+                  />
+                )}
                 <Input
                   placeholder="Type a message..."
                   value={newMessage}
@@ -483,6 +503,44 @@ export function TaskDetailView({
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="attachments">
+          <Card data-slot="card">
+            <CardContent className="p-6">
+              {driveAttachments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Paperclip className="h-10 w-10 text-muted-foreground mb-3" />
+                  <p className="text-sm text-muted-foreground">No files attached yet</p>
+                  {onAttachDriveFile && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Use the attachment icon in the Messages tab to share a Drive file
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {driveAttachments.map((file) => (
+                    <a
+                      key={file.id}
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors group"
+                    >
+                      {file.iconUrl ? (
+                        <img src={file.iconUrl} alt="" className="h-6 w-6 shrink-0" />
+                      ) : (
+                        <Paperclip className="h-5 w-5 text-muted-foreground shrink-0" />
+                      )}
+                      <span className="flex-1 text-sm truncate">{file.name}</span>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

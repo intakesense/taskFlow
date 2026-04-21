@@ -25,22 +25,22 @@ import { useNavigation } from '../../providers/navigation-context';
 import { useAuth } from '../../providers/auth-context';
 import { NavigationLink } from '../primitives/navigation-link';
 import { getLevelLabel } from '../../services/users';
+import { AttendanceWidget } from '../attendance';
 
 interface SidebarProps {
   className?: string;
 }
 
-// Navigation items
 const navigation = [
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
   { name: 'Messages', href: '/chat', icon: MessageSquare },
   { name: 'ChitChat', href: '/chitchat', icon: Headphones },
 ];
 
-// Admin-only navigation
 const adminNavigation = [
   { name: 'Users', href: '/admin/users', icon: Users },
 ];
+
 
 function NavItems({ onClick }: { onClick?: () => void }) {
   const { currentPath } = useNavigation();
@@ -49,7 +49,6 @@ function NavItems({ onClick }: { onClick?: () => void }) {
   return (
     <nav className="flex-1 px-3 py-4 space-y-1">
       {navigation.map((item) => {
-        // Tasks (/tasks) is also active when on root (/)
         const isActive =
           item.href === '/tasks'
             ? currentPath === '/' || currentPath === '/tasks' || currentPath.startsWith('/tasks/')
@@ -101,6 +100,12 @@ function NavItems({ onClick }: { onClick?: () => void }) {
           })}
         </>
       )}
+
+      {/* Divider + attendance widget */}
+      <div className="pt-2 pb-1">
+        <div className="border-t border-border" />
+      </div>
+      <AttendanceWidget />
     </nav>
   );
 }
@@ -160,9 +165,6 @@ function UserMenu() {
   );
 }
 
-/**
- * Desktop sidebar navigation.
- */
 export function Sidebar({ className }: SidebarProps) {
   return (
     <aside
@@ -171,7 +173,6 @@ export function Sidebar({ className }: SidebarProps) {
         className
       )}
     >
-      {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
         <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
           <img src="/logo.png" alt="TaskFlow" width={40} height={40} className="w-full h-full object-cover" />
@@ -188,9 +189,6 @@ export function Sidebar({ className }: SidebarProps) {
   );
 }
 
-/**
- * Mobile navigation drawer.
- */
 export function MobileNav() {
   const [open, setOpen] = useState(false);
 
@@ -202,10 +200,9 @@ export function MobileNav() {
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-0 bg-card border-r border-border">
-        {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-            <ListTodo className="w-5 h-5 text-primary-foreground" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+            <img src="/logo.png" alt="TaskFlow" width={40} height={40} className="w-full h-full object-cover" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-foreground">TaskFlow</h1>

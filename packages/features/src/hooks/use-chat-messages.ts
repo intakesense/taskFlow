@@ -1,10 +1,9 @@
 'use client';
 
-// useChatMessages - Message operations with React Query
-// Migrated from apps/web/hooks/use-chat-messages.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import type {
   Message,
   MessageWithSender,
@@ -15,18 +14,13 @@ import type {
 import { useSupabase } from '../providers/services-context';
 import { conversationKeys } from './use-conversations';
 import { logError, getErrorMessage } from '../utils/error';
-import { createRealtimeManager } from '../utils/realtime-manager';
 
-// Query keys
 export const chatMessageKeys = {
   all: ['messages'] as const,
   conversation: (conversationId: string) => [...chatMessageKeys.all, conversationId] as const,
   search: (query: string) => [...chatMessageKeys.all, 'search', query] as const,
 };
 
-/**
- * Hook to fetch messages for a conversation
- */
 export function useChatMessages(conversationId: string | undefined) {
   const supabase = useSupabase();
 
@@ -53,7 +47,6 @@ export function useChatMessages(conversationId: string | undefined) {
 
       if (error) {
         logError('fetchMessages', error);
-        // Fallback without joins
         const { data: messagesOnly, error: fallbackError } = await supabase
           .from('messages')
           .select('*')
@@ -77,9 +70,6 @@ export function useChatMessages(conversationId: string | undefined) {
   });
 }
 
-/**
- * Fetch messages function for prefetching
- */
 export function createFetchMessages(supabase: ReturnType<typeof useSupabase>) {
   return async (conversationId: string): Promise<MessageWithSender[]> => {
     const { data, error } = await supabase
@@ -105,9 +95,6 @@ export function createFetchMessages(supabase: ReturnType<typeof useSupabase>) {
   };
 }
 
-/**
- * Hook to send a chat message with optimistic updates
- */
 export function useSendChatMessage() {
   const supabase = useSupabase();
   const queryClient = useQueryClient();
@@ -224,7 +211,16 @@ export function useSendChatMessage() {
 }
 
 /**
- * Consolidated realtime hook for messages + typing + online status
+ * Subscribes to realtime messages, typing presence, and online status
+ * for a conversation.
+ *
+ * Uses the Supabase client directly — no custom manager needed.
+ * The client handles WebSocket reconnection automatically. Channels do NOT
+ * auto-rejoin after a disconnect, so we recreate the channel on TIMED_OUT /
+ * CHANNEL_ERROR with exponential backoff.
+ *
+ * worker:true on the client prevents background-tab heartbeat starvation
+ * (the most common cause of TIMED_OUT when the app is idle).
  */
 export function useConversationRealtime(
   conversationId: string | undefined,
@@ -236,13 +232,8 @@ export function useConversationRealtime(
   const [typingUsers, setTypingUsers] = useState<UserBasic[]>([]);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
 
-  // Create realtime manager scoped to this supabase client
-  const realtimeManager = useMemo(() => createRealtimeManager(supabase), [supabase]);
-
   const onNewMessageRef = useRef(onNewMessage);
-  useEffect(() => {
-    onNewMessageRef.current = onNewMessage;
-  });
+  useEffect(() => { onNewMessageRef.current = onNewMessage; });
 
   useEffect(() => {
     if (!conversationId || !currentUserId) {
@@ -251,52 +242,14 @@ export function useConversationRealtime(
       return;
     }
 
+    // One stable toast ID per conversation — Sonner replaces instead of stacking.
+    const TOAST_ID = `rt-${conversationId}`;
+
+    let channel: RealtimeChannel | null = null;
     let retryCount = 0;
     const MAX_RETRIES = 3;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let isCleanedup = false;
-    let hadChannelError = false;
-
-    const handleNewMessage = async (payload: { new: Message }) => {
-      const newMessage = payload.new;
-
-      if (newMessage.conversation_id !== conversationId) return;
-      if (newMessage.sender_id === currentUserId) return;
-
-      // Try to resolve sender from cache
-      let sender: UserBasic | null = null;
-      const allCachedConvs = queryClient.getQueriesData<ConversationWithMembers[]>({
-        queryKey: conversationKeys.all,
-      });
-      for (const [, conversationsData] of allCachedConvs) {
-        if (!conversationsData) continue;
-        const conversation = conversationsData.find((c) => c.id === conversationId);
-        if (conversation?.members) {
-          sender = conversation.members.find((m) => m.id === newMessage.sender_id) || null;
-          if (sender) break;
-        }
-      }
-
-      // Fallback: fetch sender
-      if (!sender) {
-        const { data: senderData } = await supabase
-          .from('users')
-          .select('id, name, email, level, avatar_url')
-          .eq('id', newMessage.sender_id)
-          .single();
-        sender = senderData as UserBasic;
-      }
-
-      const messageWithSender: MessageWithSender = { ...newMessage, sender, reactions: [] };
-
-      queryClient.setQueryData<MessageWithSender[]>(
-        chatMessageKeys.conversation(conversationId),
-        (old = []) =>
-          old.some((msg) => msg.id === messageWithSender.id) ? old : [...old, messageWithSender]
-      );
-      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
-      onNewMessageRef.current?.(newMessage);
-    };
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let destroyed = false;
 
     interface PresenceState {
       user_id?: string;
@@ -305,163 +258,184 @@ export function useConversationRealtime(
       user?: UserBasic;
     }
 
-    const parsePresenceState = (
-      rawState: Record<string, unknown[]>
-    ): { typing: UserBasic[]; online: Set<string> } => {
+    const syncPresence = (ch: RealtimeChannel) => {
+      const raw = ch.presenceState() as Record<string, unknown[]>;
       const typing: UserBasic[] = [];
       const online = new Set<string>();
-      const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+      const staleThreshold = Date.now() - 5 * 60 * 1000;
 
-      Object.values(rawState).forEach((presences) => {
+      Object.values(raw).forEach((presences) => {
         (presences as PresenceState[]).forEach((p) => {
           if (!p.user_id || p.user_id === currentUserId) return;
-          if (p.online_at && new Date(p.online_at).getTime() > fiveMinutesAgo) {
+          if (p.online_at && new Date(p.online_at).getTime() > staleThreshold) {
             online.add(p.user_id);
           }
           if (p.typing && p.user) typing.push(p.user);
         });
       });
 
-      return { typing, online };
-    };
-
-    const syncPresence = (channel: ReturnType<typeof realtimeManager.getOrCreateChannel>) => {
-      const { typing, online } = parsePresenceState(
-        channel.presenceState() as Record<string, unknown[]>
-      );
       setTypingUsers(typing);
       setOnlineUserIds(online);
     };
 
-    const setupChannel = () => {
-      if (isCleanedup) return;
+    const handleNewMessage = async (payload: { new: Message }) => {
+      const newMessage = payload.new;
+      if (newMessage.sender_id === currentUserId) return;
 
-      // Always force remove first to ensure clean state
-      realtimeManager.forceRemoveChannel(conversationId);
-      const ch = realtimeManager.getOrCreateChannel(conversationId);
+      // Try cache first to avoid an extra round-trip
+      let sender: UserBasic | null = null;
+      for (const [, data] of queryClient.getQueriesData<ConversationWithMembers[]>({ queryKey: conversationKeys.all })) {
+        const conv = data?.find((c) => c.id === conversationId);
+        if (conv?.members) {
+          sender = conv.members.find((m) => m.id === newMessage.sender_id) ?? null;
+          if (sender) break;
+        }
+      }
 
-      ch.on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        handleNewMessage
-      )
-        .on('presence', { event: 'sync' }, () => syncPresence(ch))
+      if (!sender) {
+        const { data } = await supabase
+          .from('users')
+          .select('id, name, email, level, avatar_url')
+          .eq('id', newMessage.sender_id)
+          .single();
+        sender = data as UserBasic;
+      }
+
+      const msg: MessageWithSender = { ...newMessage, sender, reactions: [] };
+      queryClient.setQueryData<MessageWithSender[]>(
+        chatMessageKeys.conversation(conversationId),
+        (old = []) => (old.some((m) => m.id === msg.id) ? old : [...old, msg])
+      );
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+      onNewMessageRef.current?.(newMessage);
+    };
+
+    const subscribe = () => {
+      if (destroyed) return;
+
+      // Always remove the previous channel before creating a new one.
+      // After TIMED_OUT / CHANNEL_ERROR the channel is dead and will not
+      // self-recover — supabase-js only auto-reconnects the WebSocket transport,
+      // not individual channels.
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
+
+      channel = supabase
+        .channel(`conversation:${conversationId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          handleNewMessage
+        )
+        .on('presence', { event: 'sync' }, () => channel && syncPresence(channel))
         .subscribe((status) => {
-          if (isCleanedup) return;
+          if (destroyed) return;
 
           if (status === 'SUBSCRIBED') {
             retryCount = 0;
-            hadChannelError = false;
-            ch.track({ user_id: currentUserId, online_at: new Date().toISOString() }).catch(
-              (err) => logError('presenceTrack', err)
-            );
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            hadChannelError = true;
-
+            toast.dismiss(TOAST_ID);
+            channel!
+              .track({ user_id: currentUserId, online_at: new Date().toISOString() })
+              .catch((err) => logError('presenceTrack', err));
+          } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
             if (retryCount < MAX_RETRIES) {
-              const delay = Math.pow(2, retryCount + 1) * 1000;
+              const delay = Math.pow(2, retryCount + 1) * 1000; // 2s, 4s, 8s
+              retryTimer = setTimeout(subscribe, delay);
               retryCount++;
-              retryTimeout = setTimeout(setupChannel, delay);
             } else {
               logError('realtimeSubscription', { status, conversationId });
-              toast.error('Connection lost. Messages may not update in real-time.');
+              if (document.visibilityState === 'visible') {
+                toast.error('Connection lost. Messages may not update in real-time.', {
+                  id: TOAST_ID,
+                });
+              }
             }
           }
         });
-
-      realtimeManager.markAsConfigured(conversationId);
     };
 
-    // Always setup fresh channel - forceRemoveChannel handles cleanup
-    setupChannel();
-
     const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible' || isCleanedup) return;
+      if (document.visibilityState !== 'visible' || destroyed) return;
 
+      // Refetch to catch any messages missed while the tab was hidden.
+      // Supabase has no event-replay mechanism so this is the only way to
+      // guarantee consistency after a background disconnect.
       queryClient.invalidateQueries({ queryKey: chatMessageKeys.conversation(conversationId) });
 
-      if (hadChannelError) {
-        if (retryTimeout) clearTimeout(retryTimeout);
+      if (retryCount > 0) {
+        // Connection was lost. Reconnect immediately rather than waiting for
+        // the next backoff tick — the user is back so network is likely up.
+        if (retryTimer) clearTimeout(retryTimer);
+        retryTimer = null;
         retryCount = 0;
-        setupChannel();
+        toast.dismiss(TOAST_ID);
+        subscribe();
       } else {
-        const ch = realtimeManager.getOrCreateChannel(conversationId);
-        ch.track({ user_id: currentUserId, online_at: new Date().toISOString() }).catch((err) =>
-          logError('presenceTrack.visibility', err)
-        );
+        // No error — just refresh our presence so we show as online again.
+        channel
+          ?.track({ user_id: currentUserId, online_at: new Date().toISOString() })
+          .catch((err) => logError('presenceTrack.visibility', err));
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    subscribe();
 
     return () => {
-      isCleanedup = true;
-      if (retryTimeout) clearTimeout(retryTimeout);
+      destroyed = true;
+      if (retryTimer) clearTimeout(retryTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (channel) supabase.removeChannel(channel);
       setTypingUsers([]);
       setOnlineUserIds(new Set());
-
-      const ch = realtimeManager.getOrCreateChannel(conversationId);
-      ch.untrack().catch((err) => logError('presenceUntrack', err));
-      realtimeManager.releaseChannel(conversationId);
     };
-  }, [conversationId, currentUserId, queryClient, supabase, realtimeManager]);
+  }, [conversationId, currentUserId, queryClient, supabase]);
 
   const isUserOnline = useCallback(
     (userId: string): boolean => onlineUserIds.has(userId),
     [onlineUserIds]
   );
 
-  return {
-    typingUsers,
-    onlineUserIds,
-    isUserOnline,
-    onlineCount: onlineUserIds.size,
-  };
+  return { typingUsers, onlineUserIds, isUserOnline, onlineCount: onlineUserIds.size };
 }
 
 /**
- * Typing indicator using Supabase Presence
+ * Sends typing presence on the conversation channel.
+ * Reads the channel directly from the supabase client — no separate subscription.
  */
 export function useSetTyping() {
   const supabase = useSupabase();
-  const realtimeManager = useMemo(() => createRealtimeManager(supabase), [supabase]);
 
   const setTyping = useCallback(
     async (conversationId: string, userId: string, user: UserBasic) => {
-      const channel = realtimeManager.getOrCreateChannel(conversationId);
-      await channel.track({
-        user_id: userId,
-        user,
-        typing: true,
-        online_at: new Date().toISOString(),
-      });
+      const channel = supabase.channel(`conversation:${conversationId}`);
+      await channel
+        .track({ user_id: userId, user, typing: true, online_at: new Date().toISOString() })
+        .catch((err) => logError('setTyping', err));
     },
-    [realtimeManager]
+    [supabase]
   );
 
   const clearTyping = useCallback(
     async (conversationId: string, userId: string) => {
-      const channel = realtimeManager.getOrCreateChannel(conversationId);
-      await channel.track({
-        user_id: userId,
-        online_at: new Date().toISOString(),
-      });
+      const channel = supabase.channel(`conversation:${conversationId}`);
+      await channel
+        .track({ user_id: userId, online_at: new Date().toISOString() })
+        .catch((err) => logError('clearTyping', err));
     },
-    [realtimeManager]
+    [supabase]
   );
 
   return { setTyping, clearTyping };
 }
 
-/**
- * Mark messages as read
- */
 export function useMarkChatAsRead() {
   const supabase = useSupabase();
   const queryClient = useQueryClient();

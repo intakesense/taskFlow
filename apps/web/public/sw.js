@@ -1,4 +1,4 @@
-// TaskFlow Service Worker
+// TaskFlow Service Worker v2
 // Minimal SW for PWA installability and push notifications
 // No caching - this is a real-time chat app
 

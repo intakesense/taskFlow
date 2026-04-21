@@ -68,6 +68,10 @@ export function WebFeaturesProvider({ children }: WebFeaturesProviderProps) {
       supabase={supabase}
       auth={auth}
       Image={WebImage}
+      config={{
+        apiBaseUrl: '',
+        googleApiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? '',
+      }}
     >
       <VoiceChannelProvider>
         {children}

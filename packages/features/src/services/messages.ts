@@ -130,14 +130,22 @@ export function createMessagesService(supabase: SupabaseClient<Database>) {
         });
       }
 
-      // Step 4: Combine
-      return conversations.map((conv: Conversation) => ({
-        ...conv,
-        members: membersByConv.get(conv.id) || [],
-        membersWithStatus: membersWithStatusByConv.get(conv.id) || [],
-        lastMessage: lastMessageByConv.get(conv.id) || null,
-        unreadCount: unreadCountByConv.get(conv.id) || 0,
-      }));
+      // Step 4: Combine, then sort by last message time (most recent first).
+      // We sort client-side using lastMessage.created_at because conversations.updated_at
+      // may be stale for rows that predate the DB trigger.
+      return conversations
+        .map((conv: Conversation) => ({
+          ...conv,
+          members: membersByConv.get(conv.id) || [],
+          membersWithStatus: membersWithStatusByConv.get(conv.id) || [],
+          lastMessage: lastMessageByConv.get(conv.id) || null,
+          unreadCount: unreadCountByConv.get(conv.id) || 0,
+        }))
+        .sort((a, b) => {
+          const aTime = a.lastMessage?.created_at ?? a.updated_at ?? '';
+          const bTime = b.lastMessage?.created_at ?? b.updated_at ?? '';
+          return bTime.localeCompare(aTime);
+        });
     },
 
     /**
@@ -181,12 +189,6 @@ export function createMessagesService(supabase: SupabaseClient<Database>) {
         .single();
 
       if (error) throw error;
-
-      // Update conversation timestamp
-      await supabase
-        .from('conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId);
 
       return data as Message;
     },

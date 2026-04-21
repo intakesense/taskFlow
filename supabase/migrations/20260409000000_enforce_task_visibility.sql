@@ -16,7 +16,9 @@
 
 -- ----------------------------------------------------------------------------
 -- Helper: get the level of a user (SECURITY DEFINER to bypass RLS)
+-- Drop first to allow renaming the parameter from 'user_id' to 'p_user_id'
 -- ----------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS get_user_level(UUID);
 CREATE OR REPLACE FUNCTION get_user_level(p_user_id UUID)
 RETURNS INTEGER
 LANGUAGE SQL

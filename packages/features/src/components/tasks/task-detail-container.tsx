@@ -18,8 +18,13 @@ import {
   useDeleteTask,
   useUpdateTaskAssignees,
   useDialog,
+  useDriveAttachments,
+  useInvalidateDriveAttachments,
 } from '../../hooks';
 import { TaskDetailView } from './task-detail-view';
+import type { DriveFile } from '../messages/drive-picker';
+import { useConfig } from '../../providers/config-context';
+
 
 interface TaskDetailContainerProps {
   taskId: string;
@@ -28,6 +33,7 @@ interface TaskDetailContainerProps {
 export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   const { navigate } = useNavigation();
   const { user, profile } = useAuth();
+  const { apiBaseUrl } = useConfig();
 
   // Queries
   const { data: task, isLoading: loadingTask } = useTask(taskId);
@@ -49,6 +55,10 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   const [newNote, setNewNote] = useState('');
   const [noteVisibility, setNoteVisibility] = useState<Visibility>('private');
   const [onHoldReason, setOnHoldReason] = useState('');
+
+  // Drive attachments via React Query (cached, loading state, refetchable)
+  const { data: driveAttachments = [] } = useDriveAttachments(taskId);
+  const invalidateDriveAttachments = useInvalidateDriveAttachments();
 
   // Dialogs
   const deleteDialog = useDialog();
@@ -129,6 +139,33 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
     toast.success('Task archived');
   };
 
+  const handleAttachDriveFile = async (driveFile: DriveFile) => {
+    if (!user) return
+    const res = await fetch(`${apiBaseUrl}/api/google/drive`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileId: driveFile.id,
+        fileName: driveFile.name,
+        mimeType: driveFile.mimeType,
+        webViewLink: driveFile.url,
+        iconLink: driveFile.iconUrl,
+        taskId,
+      }),
+    })
+    if (res.ok) {
+      invalidateDriveAttachments(taskId)
+      toast.success(`${driveFile.name} attached and shared`)
+    } else {
+      const body = await res.json().catch(() => ({}))
+      if (body.code === 'NO_TOKEN') {
+        toast.error('Connect Google account in Settings to attach Drive files')
+      } else {
+        toast.error('Failed to attach file')
+      }
+    }
+  }
+
   const handleUpdateAssignees = async (userIds: string[]) => {
     await updateAssignees.mutateAsync({
       taskId,
@@ -186,6 +223,8 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
         onArchive={handleArchive}
         onUpdateAssignees={handleUpdateAssignees}
         updatingAssignees={updateAssignees.isPending}
+        driveAttachments={driveAttachments}
+        onAttachDriveFile={handleAttachDriveFile}
       />
   );
 }

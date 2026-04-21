@@ -15,6 +15,8 @@ import { ThemePreset, ChatPatternType } from '@/lib/theme/types'
 import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
 import { registerForPushNotifications, unregisterFromPushNotifications } from '@/lib/firebase/notifications'
 import { AIBotSettings } from '@/components/settings/ai-bot-settings'
+import { HrmsSettings } from '@/components/settings/hrms-settings'
+import { GoogleConnectionCard } from '@taskflow/features'
 import { toast } from 'sonner'
 import { User as UserType } from '@/lib/types'
 import { useSyncExternalStore } from 'react'
@@ -366,6 +368,12 @@ function SettingsContent({ profile, maskedAsUser, effectiveUser }: { profile: Us
 
                         {/* AI Bot Settings - Admin Only */}
                         {profile?.is_admin && !maskedAsUser && <AIBotSettings />}
+
+                        {/* HRMS Account Linking */}
+                        {!maskedAsUser && <HrmsSettings />}
+
+                        {/* Google Integration */}
+                        {!maskedAsUser && <GoogleConnectionCard />}
 
                         {/* Notifications Card */}
                         <Card data-slot="card">

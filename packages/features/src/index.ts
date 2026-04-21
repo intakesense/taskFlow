@@ -36,5 +36,8 @@ export * from './components/messages';
 // Re-export voice components
 export * from './components/voice';
 
+// Re-export attendance components
+export * from './components/attendance';
+
 // Re-export utilities
 export * from './utils';

@@ -23,7 +23,15 @@ export function createBrowserClient() {
 
   browserClient = createBrowserClientSSR<Database>(
     getSupabaseUrl(),
-    getSupabaseAnonKey()
+    getSupabaseAnonKey(),
+    {
+      realtime: {
+        // Offload heartbeats to a Web Worker so the browser's background-tab
+        // throttling (which delays setTimeout > 1min) doesn't starve heartbeats
+        // and cause TIMED_OUT disconnects when the app is idle.
+        worker: true,
+      },
+    }
   );
 
   return browserClient;

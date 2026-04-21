@@ -7,6 +7,7 @@ import { NavigationProvider, type NavigateOptions, type LinkProps } from './navi
 import { ServicesProvider } from './services-context';
 import { AuthProvider, type AuthContextValue } from './auth-context';
 import { ImageProvider, type ImageProps } from './image-context';
+import { ConfigProvider, type FeaturesConfig } from './config-context';
 
 export interface FeaturesProviderProps {
   children: ReactNode;
@@ -27,6 +28,9 @@ export interface FeaturesProviderProps {
 
   /** Optional: Optimized image component (Next.js Image) */
   Image?: ComponentType<ImageProps>;
+
+  /** Platform-specific config (API base URL, Google keys, etc.) */
+  config?: Partial<FeaturesConfig>;
 }
 
 /**
@@ -70,21 +74,29 @@ export function FeaturesProvider({
   supabase,
   auth,
   Image,
+  config,
 }: FeaturesProviderProps) {
+  const resolvedConfig: FeaturesConfig = {
+    apiBaseUrl: config?.apiBaseUrl ?? '',
+    googleApiKey: config?.googleApiKey ?? '',
+  }
+
   return (
-    <NavigationProvider
-      currentPath={navigation.currentPath}
-      navigate={navigation.navigate}
-      goBack={navigation.goBack}
-      Link={navigation.Link}
-    >
-      <ServicesProvider supabase={supabase}>
-        <AuthProvider value={auth}>
-          <ImageProvider Image={Image}>
-            {children}
-          </ImageProvider>
-        </AuthProvider>
-      </ServicesProvider>
-    </NavigationProvider>
+    <ConfigProvider config={resolvedConfig}>
+      <NavigationProvider
+        currentPath={navigation.currentPath}
+        navigate={navigation.navigate}
+        goBack={navigation.goBack}
+        Link={navigation.Link}
+      >
+        <ServicesProvider supabase={supabase}>
+          <AuthProvider value={auth}>
+            <ImageProvider Image={Image}>
+              {children}
+            </ImageProvider>
+          </AuthProvider>
+        </ServicesProvider>
+      </NavigationProvider>
+    </ConfigProvider>
   );
 }
