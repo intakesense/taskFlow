@@ -123,14 +123,20 @@ export interface MessageWithSender extends Message {
 export type VoiceChannel = Database['public']['Tables']['voice_channels']['Row'];
 export type VoiceChannelParticipant = Database['public']['Tables']['voice_channel_participants']['Row'];
 export type VoiceChannelSession = Database['public']['Tables']['voice_channel_sessions']['Row'];
+export type VoiceChannelMember = Database['public']['Tables']['voice_channel_members']['Row'];
 
 export interface VoiceParticipantWithUser extends VoiceChannelParticipant {
+    user: UserBasic;
+}
+
+export interface VoiceChannelMemberWithUser extends VoiceChannelMember {
     user: UserBasic;
 }
 
 export interface VoiceChannelWithParticipants extends VoiceChannel {
     participants: VoiceParticipantWithUser[];
     participantCount: number;
+    members?: VoiceChannelMemberWithUser[];
 }
 
 // Daily.co specific types

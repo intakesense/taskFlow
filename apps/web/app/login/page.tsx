@@ -18,7 +18,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@taskflow/ui'
-import { ClipboardList, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import Image from 'next/image'
 
 function LoginPageContent() {
     const { signIn, signInWithGoogle, user, loading } = useAuth()
@@ -79,8 +80,8 @@ function LoginPageContent() {
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
             <Card className="w-full max-w-md" data-slot="card">
                 <CardHeader className="text-center space-y-2">
-                    <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg mb-2">
-                        <ClipboardList className="w-8 h-8 text-primary-foreground" />
+                    <div className="mx-auto mb-2">
+                        <Image src="/logo.png" alt="TaskFlow" width={64} height={64} className="rounded-2xl shadow-lg" />
                     </div>
                     <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
                     <CardDescription>
@@ -164,7 +165,7 @@ function LoginPageContent() {
                         </div>
                     </CardContent>
 
-                    <CardFooter>
+                    <CardFooter className="pt-4">
                         <Button
                             type="submit"
                             className="w-full"

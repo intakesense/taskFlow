@@ -83,11 +83,19 @@ export type UsersService = ReturnType<typeof createUsersService>;
 
 // Utility functions (pure, no Supabase dependency)
 
+const LEVEL_NAMES: Record<number, string> = {
+  1: 'Director',
+  2: 'Manager',
+  3: 'Team Lead',
+  4: 'Senior',
+  5: 'Junior',
+};
+
 /**
  * Get display label for user level.
  */
 export function getLevelLabel(level: number): string {
-  return `L${level}`;
+  return LEVEL_NAMES[level] ?? `L${level}`;
 }
 
 /**

@@ -70,28 +70,6 @@ export function VoiceChannelProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [currentChannel, effectiveUser])
 
-  // Sync state to Supabase when it changes
-  useEffect(() => {
-    if (!currentChannel || !effectiveUser || !isConnected) return
-
-    const syncState = async () => {
-      try {
-        await voiceChannelService.updateParticipantState(
-          currentChannel.id,
-          effectiveUser.id,
-          {
-            is_muted: isMuted,
-            is_video_on: isVideoEnabled,
-            is_screen_sharing: isScreenSharing,
-          }
-        )
-      } catch (error) {
-        console.error('Failed to sync participant state:', error)
-      }
-    }
-
-    syncState()
-  }, [isMuted, isVideoEnabled, isScreenSharing, currentChannel, effectiveUser, isConnected])
 
   const joinChannel = useCallback(async (channel: VoiceChannel) => {
     if (!effectiveUser) {

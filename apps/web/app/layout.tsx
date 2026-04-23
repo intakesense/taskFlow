@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider, QueryProvider, MotionProvider, WebFeaturesProvider } from "@/components/providers";
+import { BottomNavProvider } from "@taskflow/features";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { RealtimeHealthMonitor } from "@/components/realtime-health-monitor";
 import { ServiceWorkerRegister } from "@/components/pwa";
@@ -64,11 +65,13 @@ export default function RootLayout({
               <MotionProvider>
                 <AuthProvider>
                   <WebFeaturesProvider>
-                    {children}
+                    <BottomNavProvider>
+                      {children}
 
-                    <Toaster />
-                    <RealtimeHealthMonitor />
-                    <ServiceWorkerRegister />
+                      <Toaster />
+                      <RealtimeHealthMonitor />
+                      <ServiceWorkerRegister />
+                    </BottomNavProvider>
                   </WebFeaturesProvider>
                 </AuthProvider>
               </MotionProvider>

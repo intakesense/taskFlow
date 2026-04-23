@@ -29,7 +29,7 @@ import {
   DialogTitle,
   cn,
 } from '@taskflow/ui';
-import { KANBAN_COLUMNS, type TaskWithUsers, type TaskStatus } from '@taskflow/core';
+import { KANBAN_COLUMNS, type TaskWithUsers, type TaskStatus, type TaskPriority } from '@taskflow/core';
 import { useMediaQuery } from '../../../hooks/use-media-query';
 import { KanbanColumn } from './kanban-column';
 import { KanbanCardOverlay } from './kanban-card';
@@ -43,9 +43,11 @@ interface KanbanViewProps {
   isFetchingMore?: boolean;
   searchQuery: string;
   typeFilter: FilterType;
+  priorityFilter?: TaskPriority | 'all';
   currentUserId?: string;
   onSearchChange: (query: string) => void;
   onTypeFilterChange: (type: FilterType) => void;
+  onPriorityFilterChange?: (priority: TaskPriority | 'all') => void;
   onStatusChange: (taskId: string, status: string, onHoldReason?: string) => void;
   onDelete?: (taskId: string) => void;
   onLoadMore?: () => void;
@@ -58,6 +60,13 @@ const TYPE_OPTIONS: { value: FilterType; icon: typeof ClipboardList; label: stri
   { value: 'created', icon: PenLine, label: 'Created', short: 'Created' },
   { value: 'assigned', icon: UserCheck, label: 'Assigned', short: 'Assigned' },
   { value: 'team', icon: Users2, label: 'Team', short: 'Team' },
+];
+
+const PRIORITY_OPTIONS: { value: TaskPriority | 'all'; label: string; dot?: string }[] = [
+  { value: 'all', label: 'Any Priority' },
+  { value: 'high', label: 'High', dot: 'bg-red-500' },
+  { value: 'medium', label: 'Medium', dot: 'bg-orange-400' },
+  { value: 'low', label: 'Low', dot: 'bg-green-500' },
 ];
 
 const dropAnimation = {
@@ -78,9 +87,11 @@ export function KanbanView({
   isFetchingMore,
   searchQuery,
   typeFilter,
+  priorityFilter = 'all',
   currentUserId,
   onSearchChange,
   onTypeFilterChange,
+  onPriorityFilterChange,
   onStatusChange,
   onDelete,
   onLoadMore,
@@ -251,6 +262,26 @@ export function KanbanView({
             </button>
           )}
         </div>
+
+        {onPriorityFilterChange && (
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {PRIORITY_OPTIONS.map(({ value, label, dot }) => (
+              <button
+                key={value}
+                onClick={() => onPriorityFilterChange(value)}
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all',
+                  priorityFilter === value
+                    ? 'bg-foreground/10 border-foreground/20 text-foreground'
+                    : 'bg-transparent border-border text-muted-foreground hover:text-foreground hover:border-foreground/20'
+                )}
+              >
+                {dot && <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', dot)} />}
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {isLoading ? (

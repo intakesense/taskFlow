@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type {
   VoiceChannel,
-  VoiceChannelParticipant,
   VoiceParticipantWithUser,
 } from '@/lib/types'
 
@@ -136,25 +135,6 @@ export const voiceChannelService = {
     const { error } = await supabase
       .from('voice_channel_participants')
       .delete()
-      .eq('channel_id', channelId)
-      .eq('user_id', userId)
-
-    if (error) throw error
-  },
-
-  /**
-   * Update participant state (muted, video, etc.)
-   */
-  async updateParticipantState(
-    channelId: string,
-    userId: string,
-    state: Partial<Pick<VoiceChannelParticipant,
-      'is_muted' | 'is_video_on' | 'is_screen_sharing' | 'is_speaking' | 'connection_quality'
-    >>
-  ): Promise<void> {
-    const { error } = await supabase
-      .from('voice_channel_participants')
-      .update(state)
       .eq('channel_id', channelId)
       .eq('user_id', userId)
 

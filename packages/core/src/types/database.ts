@@ -992,34 +992,49 @@ export type Database = {
           },
         ]
       }
+      voice_channel_members: {
+        Row: {
+          channel_id: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_channel_members_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "voice_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_channel_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_channel_participants: {
         Row: {
           channel_id: string
-          connection_quality: string | null
-          is_muted: boolean | null
-          is_screen_sharing: boolean | null
-          is_speaking: boolean | null
-          is_video_on: boolean | null
           joined_at: string | null
           user_id: string
         }
         Insert: {
           channel_id: string
-          connection_quality?: string | null
-          is_muted?: boolean | null
-          is_screen_sharing?: boolean | null
-          is_speaking?: boolean | null
-          is_video_on?: boolean | null
           joined_at?: string | null
           user_id: string
         }
         Update: {
           channel_id?: string
-          connection_quality?: string | null
-          is_muted?: boolean | null
-          is_screen_sharing?: boolean | null
-          is_speaking?: boolean | null
-          is_video_on?: boolean | null
           joined_at?: string | null
           user_id?: string
         }
@@ -1088,6 +1103,7 @@ export type Database = {
           description: string | null
           id: string
           is_default: boolean | null
+          is_private: boolean
           max_participants: number | null
           name: string
           updated_at: string | null
@@ -1100,6 +1116,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_default?: boolean | null
+          is_private?: boolean
           max_participants?: number | null
           name: string
           updated_at?: string | null
@@ -1112,6 +1129,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_default?: boolean | null
+          is_private?: boolean
           max_participants?: number | null
           name?: string
           updated_at?: string | null

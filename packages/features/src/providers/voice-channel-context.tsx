@@ -269,12 +269,7 @@ export function VoiceChannelProvider({
     callObjectRef.current.setLocalAudio(!newMuted);
     setIsMuted(newMuted);
 
-    if (currentChannel && profile) {
-      voiceService.updateParticipantState(currentChannel.id, profile.id, {
-        is_muted: newMuted,
-      });
-    }
-  }, [isMuted, currentChannel, profile, voiceService]);
+  }, [isMuted]);
 
   const toggleVideo = useCallback(() => {
     if (!callObjectRef.current) return;
@@ -283,12 +278,7 @@ export function VoiceChannelProvider({
     callObjectRef.current.setLocalVideo(newVideoOn);
     setIsVideoOn(newVideoOn);
 
-    if (currentChannel && profile) {
-      voiceService.updateParticipantState(currentChannel.id, profile.id, {
-        is_video_on: newVideoOn,
-      });
-    }
-  }, [isVideoOn, currentChannel, profile, voiceService]);
+  }, [isVideoOn]);
 
   const toggleScreenShare = useCallback(async () => {
     if (!callObjectRef.current) return;
@@ -302,16 +292,11 @@ export function VoiceChannelProvider({
         setIsScreenSharing(true);
       }
 
-      if (currentChannel && profile) {
-        voiceService.updateParticipantState(currentChannel.id, profile.id, {
-          is_screen_sharing: !isScreenSharing,
-        });
-      }
     } catch (error) {
       console.error('Screen share error:', error);
       toast.error('Failed to toggle screen share');
     }
-  }, [isScreenSharing, currentChannel, profile, voiceService]);
+  }, [isScreenSharing]);
 
   const value = useMemo(
     () => ({

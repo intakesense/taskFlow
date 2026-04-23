@@ -4,11 +4,9 @@ import {
   useState,
   useEffect,
   useCallback,
-  useRef,
   useTransition,
   type ReactNode,
 } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '../../providers/auth-context';
 import { useServices } from '../../providers/services-context';
@@ -23,8 +21,6 @@ import {
   useConversationRealtime,
   useSendChatMessage,
   useSetTyping,
-  chatMessageKeys,
-  createFetchMessages,
 } from '../../hooks/use-chat-messages';
 import { useMobile, useBackNavigation } from '../../hooks';
 import { MessagesView } from './messages-view';
@@ -47,7 +43,7 @@ export function MessagesContainer({
   renderConversationListHeaderActions,
 }: MessagesContainerProps) {
   const { user, profile, effectiveUser } = useAuth();
-  const { fileUpload, supabase } = useServices();
+  const { fileUpload } = useServices();
   const [selectedConversation, setSelectedConversation] =
     useState<ConversationWithMembers | null>(null);
   const [showNewChat, setShowNewChat] = useState(false);
@@ -79,24 +75,9 @@ export function MessagesContainer({
   // NOTE: Server handles auth redirect in page.tsx, no need for client-side check
 
   // Hooks - pass initialData from server for instant first paint
-  const queryClient = useQueryClient();
   const { data: conversations = [], isLoading: loadingConversations } =
     useConversations(effectiveUser?.id, { initialData: initialConversations });
 
-  // AGGRESSIVE PREFETCHING: Preload ALL conversation messages on mount
-  // Since we only have ~20 employees, this is fast and makes switching instant
-  useEffect(() => {
-    if (conversations.length === 0) return;
-
-    const fetchMessages = createFetchMessages(supabase);
-    conversations.forEach((conv) => {
-      queryClient.prefetchQuery({
-        queryKey: chatMessageKeys.conversation(conv.id),
-        queryFn: () => fetchMessages(conv.id),
-        staleTime: 60_000, // Consider fresh for 1 minute
-      });
-    });
-  }, [conversations, queryClient, supabase]);
 
   const { data: messages = [], isLoading: loadingMessages } = useChatMessages(
     selectedConversation?.id
@@ -108,67 +89,15 @@ export function MessagesContainer({
   const markAsRead = useMarkAsRead();
   const { setTyping, clearTyping } = useSetTyping();
 
-  // Debounced mark as read - prevents rapid-fire DB writes when multiple messages arrive
-  const markAsReadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastMarkedConversationRef = useRef<string | null>(null);
-
-  const debouncedMarkAsRead = useCallback(
-    (conversationId: string, userId: string) => {
-      // Clear any pending timeout
-      if (markAsReadTimeoutRef.current) {
-        clearTimeout(markAsReadTimeoutRef.current);
-      }
-
-      // Debounce: wait 300ms before actually marking as read
-      // This batches multiple rapid messages into a single DB write
-      markAsReadTimeoutRef.current = setTimeout(() => {
-        markAsRead.mutate({ conversationId, userId });
-        lastMarkedConversationRef.current = conversationId;
-        markAsReadTimeoutRef.current = null;
-      }, 300);
-    },
-    [markAsRead]
-  );
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (markAsReadTimeoutRef.current) {
-        clearTimeout(markAsReadTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Callback when new messages arrive while chat is open
-  const handleNewMessageArrived = useCallback(
-    (message: { sender_id: string }) => {
-      // Only mark as read if message is from someone else
-      if (
-        selectedConversation?.id &&
-        effectiveUser?.id &&
-        message.sender_id !== effectiveUser.id
-      ) {
-        debouncedMarkAsRead(selectedConversation.id, effectiveUser.id);
-      }
-    },
-    [selectedConversation?.id, effectiveUser?.id, debouncedMarkAsRead]
-  );
-
   // CONSOLIDATED: Single hook for messages + typing + online status
   const { typingUsers, isUserOnline } = useConversationRealtime(
     selectedConversation?.id,
     effectiveUser?.id,
-    handleNewMessageArrived
   );
 
-  // Mark as read when opening a conversation (immediate, not debounced)
+  // Mark as read when opening a conversation
   useEffect(() => {
     if (selectedConversation?.id && effectiveUser?.id) {
-      // Skip if we just marked this conversation as read via the debounced handler
-      if (lastMarkedConversationRef.current === selectedConversation.id) {
-        lastMarkedConversationRef.current = null;
-        return;
-      }
       markAsRead.mutate({
         conversationId: selectedConversation.id,
         userId: effectiveUser.id,

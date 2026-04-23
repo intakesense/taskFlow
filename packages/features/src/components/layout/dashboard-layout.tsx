@@ -2,13 +2,17 @@
 
 import { Sidebar } from './sidebar';
 import { BottomNav } from './bottom-nav';
-import { BottomNavProvider, useBottomNavVisibility } from './bottom-nav-context';
+import { useBottomNavVisibility } from './bottom-nav-context';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-function DashboardLayoutContent({ children }: DashboardLayoutProps) {
+/**
+ * Main dashboard layout with sidebar and bottom nav.
+ * BottomNavProvider must be mounted above this component (e.g. in app/layout.tsx).
+ */
+export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { visible: bottomNavVisible } = useBottomNavVisibility();
 
   return (
@@ -24,16 +28,5 @@ function DashboardLayoutContent({ children }: DashboardLayoutProps) {
       {/* Mobile Bottom Navigation */}
       {bottomNavVisible && <BottomNav />}
     </div>
-  );
-}
-
-/**
- * Main dashboard layout with sidebar and bottom nav.
- */
-export function DashboardLayout({ children }: DashboardLayoutProps) {
-  return (
-    <BottomNavProvider>
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
-    </BottomNavProvider>
   );
 }

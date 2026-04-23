@@ -58,11 +58,19 @@ export function useTasks(options?: {
   useEffect(() => {
     const channel = supabase
       .channel('tasks-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+        const taskId = (payload.new as { id?: string })?.id ?? (payload.old as { id?: string })?.id;
+        if (taskId) {
+          queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+        }
+        queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, () => {
-        queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, (payload) => {
+        const taskId = (payload.new as { task_id?: string })?.task_id ?? (payload.old as { task_id?: string })?.task_id;
+        if (taskId) {
+          queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+        }
+        queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
       })
       .subscribe();
 
@@ -94,10 +102,18 @@ export function useTasksInfinite(options?: {
   useEffect(() => {
     const channel = supabase
       .channel('tasks-infinite-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+        const taskId = (payload.new as { id?: string })?.id ?? (payload.old as { id?: string })?.id;
+        if (taskId) {
+          queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+        }
         queryClient.invalidateQueries({ queryKey: taskKeys.infinite(options?.filters) });
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, (payload) => {
+        const taskId = (payload.new as { task_id?: string })?.task_id ?? (payload.old as { task_id?: string })?.task_id;
+        if (taskId) {
+          queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+        }
         queryClient.invalidateQueries({ queryKey: taskKeys.infinite(options?.filters) });
       })
       .subscribe();
@@ -149,7 +165,7 @@ export function useCreateTask() {
     },
     onSuccess: (createdTask, { userId, input }) => {
       haptics.success();
-      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
       // Fire-and-forget: sync to Google Calendar if deadline is set
       if (input.deadline && createdTask?.id) {
         syncTaskToCalendar({
@@ -225,8 +241,9 @@ export function useUpdateTask() {
         }).catch(() => { /* non-fatal */ })
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    onSettled: (_, __, { id }) => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
     },
   });
 }
@@ -277,7 +294,8 @@ export function useDeleteTask() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+      // detail is gone after delete — no need to refetch it
     },
   });
 }
@@ -294,9 +312,10 @@ export function useArchiveTask() {
     onMutate: () => {
       haptics.medium();
     },
-    onSuccess: () => {
+    onSuccess: (_, taskId) => {
       haptics.success();
-      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
     },
     onError: (error) => {
       haptics.error();
@@ -375,8 +394,9 @@ export function useChangeTaskStatus() {
         }
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    onSettled: (_, __, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
     },
   });
 }
@@ -394,9 +414,10 @@ export function useUpdateTaskAssignees() {
     onMutate: () => {
       haptics.light();
     },
-    onSuccess: () => {
+    onSuccess: (_, { taskId }) => {
       haptics.success();
-      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
     },
     onError: (error) => {
       haptics.error();
@@ -419,9 +440,10 @@ export function useAddTaskAssignee() {
     onMutate: () => {
       haptics.light();
     },
-    onSuccess: () => {
+    onSuccess: (_, { taskId }) => {
       haptics.success();
-      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
     },
     onError: (error) => {
       haptics.error();
@@ -444,9 +466,10 @@ export function useRemoveTaskAssignee() {
     onMutate: () => {
       haptics.light();
     },
-    onSuccess: () => {
+    onSuccess: (_, { taskId }) => {
       haptics.success();
-      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
     },
     onError: (error) => {
       haptics.error();

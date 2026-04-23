@@ -54,14 +54,12 @@ export default function AdminUsersPage() {
     const [editName, setEditName] = useState('')
     const [editLevel, setEditLevel] = useState(4)
     const [editIsAdmin, setEditIsAdmin] = useState(false)
-    const [editReportsTo, setEditReportsTo] = useState<string | null>(null)
 
     const openEditDialog = (user: User) => {
         setEditingUser(user)
         setEditName(user.name)
         setEditLevel(user.level)
         setEditIsAdmin(user.is_admin)
-        setEditReportsTo(user.reports_to)
         setEditDialogOpen(true)
     }
 
@@ -73,7 +71,6 @@ export default function AdminUsersPage() {
                 name: editName,
                 level: editLevel,
                 is_admin: editIsAdmin,
-                reports_to: editReportsTo,
             })
             queryClient.invalidateQueries({ queryKey: userKeys.all })
             toast.success('User updated successfully')
@@ -195,30 +192,9 @@ export default function AdminUsersPage() {
                                     <SelectContent>
                                         {[1, 2, 3, 4, 5].map((level) => (
                                             <SelectItem key={level} value={String(level)}>
-                                                {getLevelLabel(level)} (Level {level})
+                                                {getLevelLabel(level)}
                                             </SelectItem>
                                         ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Reports To</Label>
-                                <Select
-                                    value={editReportsTo || 'none'}
-                                    onValueChange={(v) => setEditReportsTo(v === 'none' ? null : v)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select supervisor" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">None</SelectItem>
-                                        {users
-                                            .filter((u) => u.id !== editingUser?.id)
-                                            .map((user) => (
-                                                <SelectItem key={user.id} value={user.id}>
-                                                    {user.name} ({getLevelLabel(user.level)})
-                                                </SelectItem>
-                                            ))}
                                     </SelectContent>
                                 </Select>
                             </div>

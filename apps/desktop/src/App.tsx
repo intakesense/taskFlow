@@ -7,7 +7,7 @@ import { createDesktopLink } from '@/lib/desktop-link';
 import { supabase } from '@/lib/supabase';
 import { LoginPage } from '@/pages/Login';
 import { DashboardPage } from '@/pages/Dashboard';
-import { FeaturesProvider } from '@taskflow/features';
+import { FeaturesProvider, BottomNavProvider } from '@taskflow/features';
 import { MotionProvider } from '@/providers/motion-provider';
 import { Toaster } from '@taskflow/ui';
 import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
@@ -110,8 +110,10 @@ function AppWithFeatures() {
         googleApiKey: import.meta.env.VITE_GOOGLE_API_KEY ?? '',
       }}
     >
-      <DashboardPage currentPath={currentPath} />
-      <Toaster theme="dark" />
+      <BottomNavProvider>
+        <DashboardPage currentPath={currentPath} />
+        <Toaster theme="dark" />
+      </BottomNavProvider>
     </FeaturesProvider>
   );
 }

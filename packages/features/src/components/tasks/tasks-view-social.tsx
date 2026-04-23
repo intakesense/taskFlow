@@ -1,6 +1,6 @@
 import { Plus, Search, X, ClipboardList, UserCheck, PenLine, Users2 } from 'lucide-react';
 import { Button, Input, cn } from '@taskflow/ui';
-import type { TaskWithUsers, TaskStatus } from '@taskflow/core';
+import type { TaskWithUsers, TaskStatus, TaskPriority } from '@taskflow/core';
 import { SwipeableTaskCard } from './swipeable-task-card';
 import type { FilterType } from './types';
 
@@ -9,9 +9,11 @@ interface TasksViewSocialProps {
   isLoading: boolean;
   searchQuery: string;
   statusFilter: TaskStatus | 'all';
+  priorityFilter?: TaskPriority | 'all';
   typeFilter: FilterType;
   onSearchChange: (query: string) => void;
   onStatusFilterChange: (status: TaskStatus | 'all') => void;
+  onPriorityFilterChange?: (priority: TaskPriority | 'all') => void;
   onTypeFilterChange: (type: FilterType) => void;
   onStatusChange?: (taskId: string, status: string) => void;
   onDelete?: (taskId: string) => void;
@@ -34,14 +36,23 @@ const STATUS_OPTIONS: { value: TaskStatus | 'all'; label: string; dot?: string }
   { value: 'archived', label: 'Done', dot: 'bg-emerald-500' },
 ];
 
+const PRIORITY_OPTIONS: { value: TaskPriority | 'all'; label: string; dot?: string }[] = [
+  { value: 'all', label: 'Any Priority' },
+  { value: 'high', label: 'High', dot: 'bg-red-500' },
+  { value: 'medium', label: 'Medium', dot: 'bg-orange-400' },
+  { value: 'low', label: 'Low', dot: 'bg-green-500' },
+];
+
 export function TasksViewSocial({
   tasks,
   isLoading,
   searchQuery,
   statusFilter,
+  priorityFilter = 'all',
   typeFilter,
   onSearchChange,
   onStatusFilterChange,
+  onPriorityFilterChange,
   onTypeFilterChange,
   onStatusChange,
   onDelete,
@@ -120,6 +131,26 @@ export function TasksViewSocial({
             ))}
           </div>
         </div>
+
+        {onPriorityFilterChange && (
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {PRIORITY_OPTIONS.map(({ value, label, dot }) => (
+            <button
+              key={value}
+              onClick={() => onPriorityFilterChange(value)}
+              className={cn(
+                'flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all',
+                priorityFilter === value
+                  ? 'bg-foreground/10 border-foreground/20 text-foreground'
+                  : 'bg-transparent border-border text-muted-foreground hover:text-foreground hover:border-foreground/20'
+              )}
+            >
+              {dot && <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', dot)} />}
+              {label}
+            </button>
+          ))}
+        </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">

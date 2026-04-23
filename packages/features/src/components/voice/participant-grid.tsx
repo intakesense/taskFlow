@@ -42,11 +42,7 @@ export function ParticipantGrid() {
   const count = sortedIds.length;
 
   if (count === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p>Waiting for participants...</p>
-      </div>
-    );
+    return null;
   }
 
   // Fullscreen: single participant fills the entire area

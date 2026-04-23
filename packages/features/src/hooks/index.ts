@@ -107,6 +107,8 @@ export {
   useVoiceChannels,
   useVoiceChannelsRealtime,
   useDefaultVoiceChannel,
+  useCreateVoiceChannel,
+  useDeleteVoiceChannel,
   voiceChannelKeys,
 } from './use-voice-channels';
 

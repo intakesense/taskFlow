@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DashboardLayout } from '@/components/layout'
 import { useAuth } from '@/lib/auth-context'
-import { useUsers, userKeys } from '@/hooks'
+import { userKeys } from '@/hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,13 +25,11 @@ export default function CreateUserPage() {
     const { profile } = useAuth()
     const router = useRouter()
     const queryClient = useQueryClient()
-    const { data: users = [] } = useUsers()
 
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [level, setLevel] = useState(4)
-    const [reportsTo, setReportsTo] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
@@ -68,7 +66,7 @@ export default function CreateUserPage() {
                 password,
                 name,
                 level,
-                reportsTo,
+                reportsTo: null,
             })
 
             if (result.error) {
@@ -192,23 +190,6 @@ export default function CreateUserPage() {
                                     <p className="text-xs text-muted-foreground">
                                         Lower number = higher authority. L1 can assign to everyone, L5 only to self.
                                     </p>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Reports To (Optional)</Label>
-                                    <Select value={reportsTo || 'none'} onValueChange={(v) => setReportsTo(v === 'none' ? null : v)}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select supervisor" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none">None</SelectItem>
-                                            {users.map((user) => (
-                                                <SelectItem key={user.id} value={user.id}>
-                                                    {user.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
                                 </div>
 
                                 <div className="flex gap-4 pt-4">

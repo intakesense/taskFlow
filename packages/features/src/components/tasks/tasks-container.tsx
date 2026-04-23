@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
-import type { TaskStatus, TaskWithUsers, User } from '@taskflow/core';
+import type { TaskStatus, TaskPriority, TaskWithUsers, User } from '@taskflow/core';
 import { useAuth } from '../../providers/auth-context';
 import { useTasks, useUpdateTask, useDeleteTask, useAssignableUsers } from '../../hooks';
 import { KanbanView } from './kanban';
@@ -32,6 +32,7 @@ export function TasksContainer({ renderCreateTask, renderProgressFeed }: TasksCo
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<FilterType>('all');
   const [showCreateDrawer, setShowCreateDrawer] = useState(false);
   const [preselectedUserId, setPreselectedUserId] = useState<string | undefined>();
@@ -52,6 +53,10 @@ export function TasksContainer({ renderCreateTask, renderProgressFeed }: TasksCo
         return false;
       }
 
+      if (priorityFilter !== 'all' && task.priority !== priorityFilter) {
+        return false;
+      }
+
       if (typeFilter === 'assigned' && !task.assignees?.some((a) => a.id === effectiveUser?.id)) {
         return false;
       }
@@ -61,7 +66,7 @@ export function TasksContainer({ renderCreateTask, renderProgressFeed }: TasksCo
 
       return true;
     });
-  }, [tasks, searchQuery, statusFilter, typeFilter, effectiveUser?.id]);
+  }, [tasks, searchQuery, statusFilter, priorityFilter, typeFilter, effectiveUser?.id]);
 
   const handleStatusChange = async (taskId: string, status: string) => {
     try {
@@ -102,14 +107,22 @@ export function TasksContainer({ renderCreateTask, renderProgressFeed }: TasksCo
   }, [tasks]);
 
   const kanbanTasks = useMemo(() => {
-    if (!searchQuery) return tasks;
-    const query = searchQuery.toLowerCase();
-    return tasks.filter(
-      (task) =>
-        task.title.toLowerCase().includes(query) ||
-        task.description?.toLowerCase().includes(query)
-    );
-  }, [tasks, searchQuery]);
+    return tasks.filter((task) => {
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        if (
+          !task.title.toLowerCase().includes(query) &&
+          !task.description?.toLowerCase().includes(query)
+        ) {
+          return false;
+        }
+      }
+      if (priorityFilter !== 'all' && task.priority !== priorityFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [tasks, searchQuery, priorityFilter]);
 
   const handleCreateTask = (userId?: string) => {
     setPreselectedUserId(userId);
@@ -130,9 +143,11 @@ export function TasksContainer({ renderCreateTask, renderProgressFeed }: TasksCo
             isLoading={isLoading}
             searchQuery={searchQuery}
             typeFilter={typeFilter}
+            priorityFilter={priorityFilter}
             currentUserId={effectiveUser?.id}
             onSearchChange={setSearchQuery}
             onTypeFilterChange={setTypeFilter}
+            onPriorityFilterChange={setPriorityFilter}
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
             onCreateTask={() => handleCreateTask()}
@@ -163,9 +178,11 @@ export function TasksContainer({ renderCreateTask, renderProgressFeed }: TasksCo
             isLoading={isLoading}
             searchQuery={searchQuery}
             statusFilter={statusFilter}
+            priorityFilter={priorityFilter}
             typeFilter={typeFilter}
             onSearchChange={setSearchQuery}
             onStatusFilterChange={setStatusFilter}
+            onPriorityFilterChange={setPriorityFilter}
             onTypeFilterChange={setTypeFilter}
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}

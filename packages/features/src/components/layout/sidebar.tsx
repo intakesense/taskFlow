@@ -34,7 +34,7 @@ interface SidebarProps {
 const navigation = [
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
   { name: 'Messages', href: '/chat', icon: MessageSquare },
-  { name: 'ChitChat', href: '/chitchat', icon: Headphones },
+  { name: 'Voice', href: '/chitchat', icon: Headphones },
 ];
 
 const adminNavigation = [

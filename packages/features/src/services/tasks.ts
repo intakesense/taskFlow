@@ -45,36 +45,25 @@ export type UpdateTaskInput = Partial<Omit<CreateTaskInput, 'assigned_to'>> & {
  * Creates a tasks service bound to a Supabase client.
  */
 export function createTasksService(supabase: SupabaseClient<Database>) {
-  // Helper to fetch assignees for tasks from junction table
-  async function fetchAssigneesForTasks(taskIds: string[]): Promise<Map<string, AssigneeWithDetails[]>> {
-    if (taskIds.length === 0) return new Map();
+  // Shared select fragment — fetches assigner and assignees in a single query
+  const TASK_SELECT = `
+    *,
+    assigner:users!tasks_assigned_by_fkey(id, name, email, level, avatar_url),
+    task_assignees(
+      assigned_at,
+      user:users!task_assignees_user_id_fkey(id, name, email, level, avatar_url)
+    )
+  `;
 
-    const { data, error } = await supabase
-      .from('task_assignees')
-      .select(`
-        task_id,
-        assigned_at,
-        user:users!task_assignees_user_id_fkey(id, name, email, level, avatar_url)
-      `)
-      .in('task_id', taskIds);
+  // Normalise raw Supabase row into TaskWithUsers shape
+  function normaliseTask(task: Record<string, unknown>): TaskWithUsers {
+    const rows = (task.task_assignees as Array<{ assigned_at: string | null; user: UserBasic | null }> | null) ?? [];
+    const assignees: AssigneeWithDetails[] = rows
+      .filter(r => r.user)
+      .map(r => ({ ...(r.user as UserBasic), assigned_at: r.assigned_at ?? new Date().toISOString() }));
 
-    if (error) throw error;
-
-    const assigneesByTask = new Map<string, AssigneeWithDetails[]>();
-    data?.forEach(item => {
-      if (!assigneesByTask.has(item.task_id)) {
-        assigneesByTask.set(item.task_id, []);
-      }
-      if (item.user) {
-        const user = item.user as unknown as UserBasic;
-        assigneesByTask.get(item.task_id)!.push({
-          ...user,
-          assigned_at: item.assigned_at || new Date().toISOString()
-        });
-      }
-    });
-
-    return assigneesByTask;
+    const { task_assignees: _, ...rest } = task;
+    return { ...rest, assigner: (task.assigner as UserBasic | null), assignees } as TaskWithUsers;
   }
 
   return {
@@ -97,11 +86,7 @@ export function createTasksService(supabase: SupabaseClient<Database>) {
         if (taskIds.length === 0) return [];
       }
 
-      // Build main query
-      let query = supabase.from('tasks').select(`
-        *,
-        assigner:users!tasks_assigned_by_fkey(id, name, email, level, avatar_url)
-      `);
+      let query = supabase.from('tasks').select(TASK_SELECT);
 
       if (filters?.status) query = query.eq('status', filters.status);
       if (filters?.assignerId) query = query.eq('assigned_by', filters.assignerId);
@@ -110,19 +95,7 @@ export function createTasksService(supabase: SupabaseClient<Database>) {
       const { data: tasks, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
 
-      // Fetch assignees from junction table
-      const allTaskIds = tasks?.map(t => t.id) || [];
-      const assigneesByTask = await fetchAssigneesForTasks(allTaskIds);
-
-      // Combine data
-      return (tasks || []).map(task => {
-        const assignees = assigneesByTask.get(task.id) || [];
-        return {
-          ...task,
-          assigner: task.assigner as UserBasic | null,
-          assignees
-        };
-      }) as TaskWithUsers[];
+      return (tasks || []).map(t => normaliseTask(t as unknown as Record<string, unknown>));
     },
 
     /**
@@ -147,17 +120,12 @@ export function createTasksService(supabase: SupabaseClient<Database>) {
         }
       }
 
-      // Build main query
-      let query = supabase.from('tasks').select(`
-        *,
-        assigner:users!tasks_assigned_by_fkey(id, name, email, level, avatar_url)
-      `);
+      let query = supabase.from('tasks').select(TASK_SELECT);
 
       if (filters?.status) query = query.eq('status', filters.status);
       if (filters?.assignerId) query = query.eq('assigned_by', filters.assignerId);
       if (taskIds !== null) query = query.in('id', taskIds);
 
-      // Cursor-based pagination: fetch tasks older than cursor
       if (filters?.cursor) {
         query = query.lt('created_at', filters.cursor);
       }
@@ -172,52 +140,29 @@ export function createTasksService(supabase: SupabaseClient<Database>) {
       const hasMore = (tasks?.length || 0) > limit;
       const actualTasks = hasMore ? tasks!.slice(0, limit) : (tasks || []);
 
-      // Fetch assignees from junction table
-      const allTaskIds = actualTasks.map(t => t.id);
-      const assigneesByTask = await fetchAssigneesForTasks(allTaskIds);
+      const tasksWithUsers = actualTasks.map(t => normaliseTask(t as unknown as Record<string, unknown>));
 
-      // Combine data
-      const tasksWithUsers = actualTasks.map(task => {
-        const assignees = assigneesByTask.get(task.id) || [];
-        return {
-          ...task,
-          assigner: task.assigner as UserBasic | null,
-          assignees
-        };
-      }) as TaskWithUsers[];
-
-      // Next cursor is the created_at of the last item
       const nextCursor = hasMore && actualTasks.length > 0
         ? actualTasks[actualTasks.length - 1].created_at
         : null;
 
-      return {
-        data: tasksWithUsers,
-        nextCursor,
-        hasMore,
-      };
+      return { data: tasksWithUsers, nextCursor, hasMore };
     },
 
     /**
      * Get a single task by ID.
      */
     async getTaskById(taskId: string): Promise<TaskWithUsers | null> {
-      const { data, error } = await supabase.from('tasks').select(`
-        *,
-        assigner:users!tasks_assigned_by_fkey(id, name, email, level, avatar_url)
-      `).eq('id', taskId).maybeSingle();
+      const { data, error } = await supabase
+        .from('tasks')
+        .select(TASK_SELECT)
+        .eq('id', taskId)
+        .maybeSingle();
 
       if (error) throw error;
       if (!data) return null;
 
-      const assigneesByTask = await fetchAssigneesForTasks([taskId]);
-      const assignees = assigneesByTask.get(taskId) || [];
-
-      return {
-        ...data,
-        assigner: data.assigner as UserBasic | null,
-        assignees
-      } as TaskWithUsers;
+      return normaliseTask(data as unknown as Record<string, unknown>);
     },
 
     /**
@@ -358,8 +303,19 @@ export function createTasksService(supabase: SupabaseClient<Database>) {
      * Get all assignees for a task.
      */
     async getTaskAssignees(taskId: string): Promise<AssigneeWithDetails[]> {
-      const assigneesByTask = await fetchAssigneesForTasks([taskId]);
-      return assigneesByTask.get(taskId) || [];
+      const { data, error } = await supabase
+        .from('task_assignees')
+        .select(`
+          assigned_at,
+          user:users!task_assignees_user_id_fkey(id, name, email, level, avatar_url)
+        `)
+        .eq('task_id', taskId);
+
+      if (error) throw error;
+
+      return (data ?? [])
+        .filter(r => r.user)
+        .map(r => ({ ...(r.user as unknown as UserBasic), assigned_at: r.assigned_at ?? new Date().toISOString() }));
     },
 
     /**

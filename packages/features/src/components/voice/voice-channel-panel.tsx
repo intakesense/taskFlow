@@ -1,7 +1,7 @@
 'use client';
 
 import { cn, Avatar, AvatarFallback, AvatarImage } from '@taskflow/ui';
-import { Headphones, Mic, MicOff, Video } from 'lucide-react';
+import { Headphones } from 'lucide-react';
 import type { VoiceChannelWithParticipants } from '@taskflow/core';
 
 interface VoiceChannelPanelProps {
@@ -53,16 +53,6 @@ export function VoiceChannelPanel({
                 </AvatarFallback>
               </Avatar>
               <span className="truncate flex-1">{participant.user.name}</span>
-              <div className="flex items-center gap-1">
-                {participant.is_video_on && (
-                  <Video className="h-3 w-3 opacity-70" />
-                )}
-                {participant.is_muted ? (
-                  <MicOff className="h-3 w-3 text-red-400" />
-                ) : (
-                  <Mic className="h-3 w-3 text-green-400" />
-                )}
-              </div>
             </div>
           ))}
         </div>
