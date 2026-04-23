@@ -106,11 +106,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
       });
 
-      // Set up deep link listener for OAuth PKCE callback.
-      // signInWithOAuth uses PKCE (skipBrowserRedirect: true), so Supabase stores
-      // the code_verifier in this client's localStorage. The browser callback page
-      // forwards the raw ?code= back via taskflow://auth/callback?code=..., and
-      // only this client can complete the exchange.
+      // Set up deep link listener for OAuth implicit flow callback.
+      // signInWithOAuth with skipBrowserRedirect:true uses implicit flow — Supabase
+      // returns access_token and refresh_token directly in the URL hash fragment.
+      // The browser callback page forwards these via taskflow://auth/callback#...
       if (isTauri() && !deepLinkInitialized) {
         deepLinkInitialized = true;
         try {
@@ -123,18 +122,31 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             if (!tryAcquireCallbackLock()) return;
 
             try {
-              const code = new URL(url).searchParams.get('code');
-              if (!code) {
+              const hash = new URL(url).hash.slice(1); // strip leading '#'
+              if (!hash) {
                 releaseCallbackLock();
                 return;
               }
 
-              const { error } = await supabase.auth.exchangeCodeForSession(code);
+              const params = new URLSearchParams(hash);
+              const accessToken = params.get('access_token');
+              const refreshToken = params.get('refresh_token');
+
+              if (!accessToken || !refreshToken) {
+                releaseCallbackLock();
+                return;
+              }
+
+              const { error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+
               if (error) {
-                console.error('[auth] PKCE exchange failed:', error.message);
+                console.error('[auth] setSession failed:', error.message);
               }
               // onAuthStateChange fires SIGNED_IN and updates store state —
-              // no manual reload or setState needed here.
+              // no manual reload needed.
             } catch (e) {
               console.error('[auth] OAuth callback error:', e);
             } finally {

@@ -12,23 +12,31 @@ export default function DesktopCallbackPage() {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
 
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
+    // Supabase implicit flow delivers tokens in the URL hash fragment.
+    // Next.js SSR strips the hash before rendering, so we must read it
+    // client-side here — it is always present in window.location.hash.
+    const hash = window.location.hash;
 
-    if (!code) {
-      setErrorMessage('No authentication code received from the provider.');
+    if (!hash || hash.length <= 1) {
+      setErrorMessage('No authentication data received from the provider.');
       setStatus('error');
       return;
     }
 
-    // Forward the PKCE code to the desktop app via deep link.
-    // The desktop Supabase client holds the matching code_verifier in its
-    // localStorage and is the only party that can exchange this code.
-    //
-    // We use a hidden <a> click (rel="opener") rather than window.location.href
-    // so the browser does not navigate away from this page — custom-scheme
-    // redirects leave the tab open on a blank/error page otherwise.
-    const deepLink = `taskflow://auth/callback?${params.toString()}`;
+    const params = new URLSearchParams(hash.slice(1));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      setErrorMessage('Incomplete authentication data received.');
+      setStatus('error');
+      return;
+    }
+
+    // Forward the full hash to the desktop app via deep link.
+    // Hidden anchor click keeps this tab open — assigning window.location.href
+    // to a custom scheme navigates the tab away to a blank/error page.
+    const deepLink = `taskflow://auth/callback${hash}`;
     const anchor = document.createElement('a');
     anchor.href = deepLink;
     anchor.style.display = 'none';
@@ -39,19 +47,17 @@ export default function DesktopCallbackPage() {
     setStatus('success');
   }, []);
 
-  // Auto-close countdown once the deep link has been dispatched
+  // Auto-close once deep link has been dispatched
   useEffect(() => {
     if (status !== 'success') return;
 
-    // Attempt programmatic close first (works when the tab was opened by the app)
     window.close();
 
-    // Start a countdown in case window.close() was blocked
     const interval = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
           clearInterval(interval);
-          window.close(); // final attempt
+          window.close();
           return 0;
         }
         return c - 1;
@@ -93,7 +99,7 @@ export default function DesktopCallbackPage() {
         <h1 style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0 0 0.5rem' }}>
           Sign-In Failed
         </h1>
-        <p style={{ color: '#888', margin: '0 0 2rem', fontSize: '0.95rem' }}>
+        <p style={{ color: '#888', margin: '0 0 1.5rem', fontSize: '0.95rem' }}>
           {errorMessage}
         </p>
         <p style={{ color: '#555', fontSize: '0.85rem' }}>
@@ -117,7 +123,6 @@ export default function DesktopCallbackPage() {
     );
   }
 
-  // status === 'success'
   return (
     <div style={containerStyle}>
       <div style={iconStyle('linear-gradient(135deg, #22c55e 0%, #16a34a 100%)')}>✓</div>
