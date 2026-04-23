@@ -108,6 +108,7 @@ function AppWithFeatures() {
       config={{
         apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
         googleApiKey: import.meta.env.VITE_GOOGLE_API_KEY ?? '',
+        logoSrc: '/logo.png',
       }}
     >
       <BottomNavProvider>

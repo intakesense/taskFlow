@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useNavigation } from '../../providers/navigation-context';
 import { useAuth } from '../../providers/auth-context';
+import { useConfig } from '../../providers/config-context';
 import { NavigationLink } from '../primitives/navigation-link';
 import { getLevelLabel } from '../../services/users';
 import { AttendanceWidget } from '../attendance';
@@ -166,6 +167,7 @@ function UserMenu() {
 }
 
 export function Sidebar({ className }: SidebarProps) {
+  const { logoSrc } = useConfig();
   return (
     <aside
       className={cn(
@@ -175,7 +177,7 @@ export function Sidebar({ className }: SidebarProps) {
     >
       <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
         <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
-          <img src="/logo.png" alt="TaskFlow" width={40} height={40} className="w-full h-full object-cover" />
+          {logoSrc && <img src={logoSrc} alt="TaskFlow" width={40} height={40} className="w-full h-full object-cover" />}
         </div>
         <div>
           <h1 className="text-lg font-bold text-foreground">TaskFlow</h1>
@@ -191,6 +193,7 @@ export function Sidebar({ className }: SidebarProps) {
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
+  const { logoSrc } = useConfig();
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -202,7 +205,7 @@ export function MobileNav() {
       <SheetContent side="left" className="w-64 p-0 bg-card border-r border-border">
         <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
           <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
-            <img src="/logo.png" alt="TaskFlow" width={40} height={40} className="w-full h-full object-cover" />
+            {logoSrc && <img src={logoSrc} alt="TaskFlow" width={40} height={40} className="w-full h-full object-cover" />}
           </div>
           <div>
             <h1 className="text-lg font-bold text-foreground">TaskFlow</h1>

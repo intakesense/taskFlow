@@ -7,6 +7,8 @@ export interface FeaturesConfig {
   apiBaseUrl: string
   /** Google API key for Drive Picker (restricts to your project) */
   googleApiKey: string
+  /** Logo URL. Web uses '/logo.png', desktop uses a bundled asset import. */
+  logoSrc?: string
 }
 
 const ConfigContext = createContext<FeaturesConfig>({

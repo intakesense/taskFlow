@@ -79,6 +79,7 @@ export function FeaturesProvider({
   const resolvedConfig: FeaturesConfig = {
     apiBaseUrl: config?.apiBaseUrl ?? '',
     googleApiKey: config?.googleApiKey ?? '',
+    logoSrc: config?.logoSrc,
   }
 
   return (

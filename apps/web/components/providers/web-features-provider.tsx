@@ -71,6 +71,7 @@ export function WebFeaturesProvider({ children }: WebFeaturesProviderProps) {
       config={{
         apiBaseUrl: '',
         googleApiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? '',
+        logoSrc: '/logo.png',
       }}
     >
       <VoiceChannelProvider>
