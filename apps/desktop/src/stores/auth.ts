@@ -106,7 +106,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
       });
 
-      // Set up deep link listener for OAuth callback
+      // Set up deep link listener for OAuth PKCE callback.
+      // signInWithOAuth uses PKCE (skipBrowserRedirect: true), so Supabase stores
+      // the code_verifier in this client's localStorage. The browser callback page
+      // forwards the raw ?code= back via taskflow://auth/callback?code=..., and
+      // only this client can complete the exchange.
       if (isTauri() && !deepLinkInitialized) {
         deepLinkInitialized = true;
         try {
@@ -119,39 +123,26 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             if (!tryAcquireCallbackLock()) return;
 
             try {
-              const hashPart = url.split('#')[1];
-              if (!hashPart) {
+              const code = new URL(url).searchParams.get('code');
+              if (!code) {
                 releaseCallbackLock();
                 return;
               }
 
-              const hashParams = new URLSearchParams(hashPart);
-              const accessToken = hashParams.get('access_token');
-              const refreshToken = hashParams.get('refresh_token');
-
-              if (accessToken && refreshToken) {
-                const { error } = await supabase.auth.setSession({
-                  access_token: accessToken,
-                  refresh_token: refreshToken,
-                });
-
-                if (error) {
-                  console.error('OAuth session error:', error);
-                  releaseCallbackLock();
-                  return;
-                }
-
-                setTimeout(() => window.location.reload(), 200);
-              } else {
-                releaseCallbackLock();
+              const { error } = await supabase.auth.exchangeCodeForSession(code);
+              if (error) {
+                console.error('[auth] PKCE exchange failed:', error.message);
               }
+              // onAuthStateChange fires SIGNED_IN and updates store state —
+              // no manual reload or setState needed here.
             } catch (e) {
-              console.error('OAuth callback error:', e);
+              console.error('[auth] OAuth callback error:', e);
+            } finally {
               releaseCallbackLock();
             }
           });
         } catch {
-          // Deep link not available
+          // Deep link plugin unavailable — non-fatal
         }
       }
 

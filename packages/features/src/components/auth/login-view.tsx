@@ -15,15 +15,16 @@ import {
   CardDescription,
   CardFooter,
 } from '@taskflow/ui';
-import { ClipboardList, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface LoginViewProps {
   onEmailSignIn: (data: LoginFormData) => Promise<void>;
   onGoogleSignIn: () => Promise<void>;
   isGoogleLoading: boolean;
+  logoSrc?: string;
 }
 
-export function LoginView({ onEmailSignIn, onGoogleSignIn, isGoogleLoading }: LoginViewProps) {
+export function LoginView({ onEmailSignIn, onGoogleSignIn, isGoogleLoading, logoSrc }: LoginViewProps) {
   const {
     register,
     handleSubmit,
@@ -36,8 +37,16 @@ export function LoginView({ onEmailSignIn, onGoogleSignIn, isGoogleLoading }: Lo
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md" data-slot="card">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg mb-2">
-            <ClipboardList className="w-8 h-8 text-primary-foreground" />
+          <div className="mx-auto mb-2">
+            {logoSrc ? (
+              <img src={logoSrc} alt="Logo" width={64} height={64} className="rounded-2xl shadow-lg" />
+            ) : (
+              <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="w-8 h-8 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="8" y="2" width="8" height="4" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M12 11h4" /><path d="M12 16h4" /><path d="M8 11h.01" /><path d="M8 16h.01" />
+                </svg>
+              </div>
+            )}
           </div>
           <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
           <CardDescription>Sign in to your account to continue</CardDescription>
@@ -116,7 +125,7 @@ export function LoginView({ onEmailSignIn, onGoogleSignIn, isGoogleLoading }: Lo
             </div>
           </CardContent>
 
-          <CardFooter>
+          <CardFooter className="pt-4">
             <Button type="submit" className="w-full" disabled={isSubmitting || isGoogleLoading}>
               {isSubmitting ? (
                 <>
