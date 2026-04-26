@@ -1,324 +1,67 @@
 # Future Fixes
 
----
+## Architecture
 
-## Architecture & Layout
-
-### BottomNavProvider Architecture Refactor
-
-**Issue:** `DashboardLayout` creates its own `BottomNavProvider`, so multiple layouts = multiple isolated contexts. This causes state fragmentation and unnecessary re-renders.
-
-**Current workaround:** Hide logic placed inside child components (e.g., `VoiceChannelPanel`) that render within the same `DashboardLayout` instance.
-
-**Proper fix:**
-1. Move `BottomNavProvider` to `app/layout.tsx` (single root provider)
-2. Remove provider from `DashboardLayout`, keep only consumer logic
-3. `DashboardLayout` uses `useBottomNavVisibility()` directly
-
-**Files involved:**
-- `app/layout.tsx`
-- `components/layout/dashboard-layout.tsx`
-- `components/layout/bottom-nav-context.tsx`
+- **BottomNavProvider in root** — Move from `DashboardLayout` to `app/layout.tsx` to avoid isolated contexts per layout instance. Files: `app/layout.tsx`, `dashboard-layout.tsx`, `bottom-nav-context.tsx`
 
 ---
 
 ## Tasks
 
-### ~~Assignees Cannot Complete Their Own Work~~ ✅ Done
-Two-step completion implemented. Assignee clicks "Mark as Done" → task enters `completed` (Awaiting Review) state. Creator sees amber banner + "Accept" or "Request Changes" buttons. Request Changes posts feedback as a task message and reopens to `in_progress`. Kanban cards stay in the In Progress column with an amber top border and "Awaiting Review" badge — no new column added.
-
----
-
-### ~~On-Hold Reason Is Collected But Unused~~ ✅ Done
-On-hold reason is displayed in `task-detail-chat-view.tsx` when task status is `on_hold`.
-
----
-
-### Three Task Views With Inconsistent Behavior
-**Issue:** `tasks-container.tsx` renders three different components depending on filter: KanbanView ('all'), TeamView ('team'), TasksViewSocial (others). Search and filtering behave differently in each. Users don't know what they'll see when switching.
-
-**Fix:** Unify into a single view component that handles all filter modes. Or at minimum make search work consistently across all three.
-
-**Files involved:**
-- `packages/features/src/components/tasks/tasks-container.tsx`
-
----
-
-### ~~Priority Filter Missing From UI~~ ✅ Done
-Priority filter with visual indicator dots implemented in `kanban-view.tsx`, state managed in `tasks-container.tsx`.
-
----
-
-### Visibility Field Shown But Not Editable
-**Issue:** Task detail view displays the visibility setting (read-only label) but there is no control to change it after creation. Tasks are always created as `private` with no way to update.
-
-**Fix:** Add visibility selector to task detail edit mode, or remove the display entirely until editing is supported.
-
-**Files involved:**
-- `packages/features/src/components/tasks/task-detail-view.tsx`
-- `packages/features/src/components/tasks/create-task-drawer.tsx`
-
----
-
-### No Task Dependencies / Subtasks
-**Issue (Industry Gap):** No way to say "Task B depends on Task A" or break work into subtasks. A core feature of every task management product (Asana, Linear, Jira, Todoist). Without it, complex work coordination happens in chat instead of the task system.
-
-**Fix:** Add `parent_task_id` column to tasks table for subtasks. Add `task_dependencies(task_id, depends_on_task_id)` table. Surface in UI as a subtask list and dependency indicator on task cards.
-
----
-
-### No Recurring Tasks
-**Issue (Industry Gap):** All tasks are one-off. No way to create a task that repeats weekly, monthly, etc. Common in every standard task tool.
-
-**Fix:** Add `recurrence_rule` (RRULE string) to tasks table. Add recurrence picker to create task drawer. Background job generates the next occurrence when current one is archived.
-
----
-
-### No Task Templates
-**Issue (Industry Gap):** Can't save a task pattern (name, description, assignees, priority) as a reusable template. Every recurring task type has to be recreated manually.
-
-**Fix:** Add `task_templates` table. Add "Save as template" and "Create from template" options in the task drawer.
-
----
-
-### No Bulk Actions
-**Issue (Industry Gap):** Can't select multiple tasks to update status, reassign, or archive them together. Required for any manager handling more than a handful of tasks.
-
-**Fix:** Add multi-select mode to task list/kanban. Implement bulk status change and bulk reassign actions.
-
----
-
-### No Team Capacity View
-**Issue (Industry Gap):** No way to see how many open tasks someone has before assigning them more. Managers assign work blind with no workload visibility.
-
-**Fix:** Add a team view that shows each member's open task count and current assignments. Consider an optional "capacity" field per user.
-
----
-
-### No Task Search History / Saved Filters
-**Issue (Industry Gap):** Search and filter state is ephemeral. Can't save "show me all high-priority in-progress tasks assigned to me" as a named view.
-
-**Fix:** Add saved filter sets stored per user in the database or localStorage.
-
----
-
-### No Soft Deletes — Deleted Users Break Task History
-**Issue:** `task_assignees` uses `ON DELETE CASCADE`. If a user account is deleted, all their task assignments and history disappear. You can't see who created or was assigned to a task if that person's account was removed.
-
-**Fix:** Add soft delete to users (`deleted_at` column). Replace `ON DELETE CASCADE` with `ON DELETE SET NULL` or retain a display name snapshot on task records.
-
-**Files involved:**
-- `supabase/schema.sql`
-- All `task_assignees` foreign key constraints
+- **Three views, inconsistent behavior** — `tasks-container.tsx` switches between KanbanView, TeamView, TasksViewSocial with different search/filter behavior. Unify or at minimum make search consistent. File: `tasks-container.tsx`
+- **Visibility field not editable** — Displayed as read-only in task detail but no selector to change it. Add editor or remove display. Files: `task-detail-view.tsx`, `create-task-drawer.tsx`
+- **No subtasks / dependencies** — Add `parent_task_id` for subtasks, `task_dependencies` table for blockers. Surface in task detail and kanban cards.
+- **No recurring tasks** — Add `recurrence_rule` (RRULE) to tasks table + recurrence picker in create drawer.
+- **No task templates** — Add `task_templates` table + "Save as template" / "Create from template" in the drawer.
+- **No bulk actions** — Multi-select on kanban/list for bulk status change and reassign.
+- **No team capacity view** — Show each member's open task count before assigning more.
+- **No saved filters** — Search/filter state is ephemeral. Store named filter sets per user.
+- **Soft deletes missing** — `ON DELETE CASCADE` on `task_assignees` destroys history when a user is deleted. Add `deleted_at` to users, switch to `ON DELETE SET NULL`. File: `schema.sql`
 
 ---
 
 ## Messages
 
-### ~~Aggressive Prefetching Hardcoded for Small Team Size~~ ✅ Done
-No prefetch-all-conversations logic found — lazy loading already in place.
-
----
-
-### ~~Task Messages and Progress Updates Share a Table But Split the UI~~ ✅ Done
-Separate hooks and components handle each type. Progress feed is its own sheet component.
-
----
-
-### ~~No Way to Leave a Group Chat~~ ✅ Done
-"Leave Group" button with confirmation dialog fully implemented in `group-settings-dialog.tsx`.
-
----
-
-### ~~Read Receipts Over-Engineered For No Visible Output~~ ✅ Done
-Simplified to a straightforward `markAsRead.mutate()` call on conversation open, no debounce complexity.
-
----
-
-### No Message Search
-**Issue (Industry Gap):** No way to search across message history. Standard in every messaging product (Slack, Teams, WhatsApp).
-
-**Fix:** Add full-text search on `messages.content` using Postgres `tsvector`. Add search bar to messages UI.
-
----
-
-### ~~No Message Reactions~~ ✅ Done
-`message_reactions` table exists, `ReactionBadges` and `QuickReactionsBar` components fully implemented.
-
----
-
-### No Message Editing or Deletion
-**Issue (Industry Gap):** Once sent, messages cannot be edited or deleted by the sender. Every major messaging product supports this.
-
-**Fix:** Add `edited_at` column to messages. Add edit/delete actions to message context menu for the sender.
-
----
-
-### No Thread / Reply Feature in Conversations
-**Issue (Industry Gap):** No way to reply to a specific message in a thread (like Slack threads). All messages are flat.
-
-**Fix:** Add `reply_to_id` foreign key to messages. Show quoted message in the reply UI.
+- **No message search** — Full-text search on `messages.content` via Postgres `tsvector` + search bar in UI.
+- **No message editing or deletion** — Add `edited_at` column + edit/delete actions in message context menu for sender.
+- **No thread / reply** — Add `reply_to_id` FK to messages. Show quoted message in reply UI.
 
 ---
 
 ## Voice / ChitChat
 
-### Multi-Channel Schema, Single-Channel UI
-**Issue:** The database has a `voice_channels` table designed for multiple rooms. The UI shows exactly one hardcoded "ChitChat" channel. No way to create new rooms, no scheduled meetings, no "private call with my team."
-
-**Fix:** Add channel creation UI. Allow naming rooms. Consider scheduled/ad-hoc room types.
-
-**Files involved:**
-- `packages/features/src/components/voice/`
-- `supabase/schema.sql` — `voice_channels` table
-
----
-
-### Participant State Sync Never Implemented
-**Issue:** `voice_channel_participants` stores `is_muted`, `is_video_on`, `is_screen_sharing` as "synced from Daily for UI display." There is no webhook handler or realtime bridge that actually syncs Daily.co participant events to Supabase. The columns are always stale after join.
-
-**Fix:** Either (a) implement a Daily.co webhook that updates participant state in Supabase on mute/unmute events, or (b) remove the columns and rely solely on Daily.co's local participant state.
-
-**Files involved:**
-- `apps/web/app/api/daily/`
-- `supabase/schema.sql` — `voice_channel_participants`
-
----
-
-### ~~Being Alone in a Voice Room Shows "Waiting for Participants" Forever~~ ✅ Done
-`participant-grid.tsx` returns `null` when count is 0, no blocking waiting state.
-
----
-
-### No Screen Sharing UI
-**Issue (Industry Gap):** Screen sharing is in the data model (`is_screen_sharing` column) and Daily.co supports it, but there is no screen share button or viewer in the UI.
-
-**Fix:** Add screen share toggle button. Render screen share track in the participant grid when active.
-
----
-
-### No Meeting Recording
-**Issue (Industry Gap):** No way to record a voice/video call. Standard feature in Teams, Zoom, Google Meet.
-
-**Fix:** Use Daily.co's cloud recording API. Add record button for admins/room owners. Store recording URLs in a `voice_recordings` table.
+- **Multi-channel schema, single-channel UI** — DB supports multiple rooms but UI hardcodes one "ChitChat" channel. Add room creation UI. Files: `components/voice/`, `schema.sql`
+- **Participant state never synced** — `is_muted`, `is_video_on`, `is_screen_sharing` columns always stale. Either implement Daily.co webhook to sync state or remove columns and rely on Daily's local state. Files: `app/api/daily/`, `schema.sql`
+- **No screen sharing UI** — Daily.co supports it, data model has the column, but no button or viewer exists.
+- **No meeting recording** — Use Daily.co cloud recording API. Store URLs in `voice_recordings` table.
 
 ---
 
 ## Admin / User Management
 
-### Level Numbering Is Inverted vs Every Convention
-**Issue:** L1 = highest authority (Director), L5 = lowest (Junior). This is backwards from how levels are understood everywhere else (L5 in tech = senior, level 1 in games = beginner). No explanation in the UI. Admins will assign levels wrong on first use.
-
-**Fix:** Either (a) flip the numbering so L5 = Director and L1 = Junior, or (b) remove level numbers entirely from the user-facing label and show only the role name (Director, Manager, etc.) while keeping the numeric comparison internal.
-
-**Files involved:**
-- `apps/web/app/admin/users/`
-- `packages/features/src/components/` — anywhere levels are displayed
+- **`reports_to` collected but unused** — Stored in DB, never used in permissions, notifications, or org chart. Build org chart or remove from admin form. Files: `app/admin/users/`, `schema.sql`
+- **No circular hierarchy validation** — Nothing prevents A → B → A in `reports_to` chain. Add acyclic check on update.
+- **No user offboarding** — Hard delete only option. Add `deactivated_at` + deactivation flow that prompts to reassign open tasks.
+- **No role-based permission config** — Permissions hardcoded by level. Add `role_permissions` table configurable from admin UI.
 
 ---
 
-### `reports_to` Field Collected But Never Used
-**Issue:** Users have a `reports_to` supervisor field. It's set in admin, stored in the database, and never queried, displayed, or used in any permission, notification, or org chart logic anywhere in the app.
-
-**Fix:** Either (a) build the org chart view and escalation routing that uses it, or (b) remove it from the admin form until it's needed.
-
-**Files involved:**
-- `apps/web/app/admin/users/`
-- `supabase/schema.sql`
 
 ---
 
-### No Circular Hierarchy Validation
-**Issue:** No validation prevents A reporting to B while B reports to A, or a user being assigned a level that contradicts their `reports_to` chain.
+## Backlog (Industry Standard Gaps)
 
-**Fix:** Add a database constraint or service-layer check that validates the org chart is acyclic when `reports_to` is set.
-
----
-
-### No User Offboarding Workflow
-**Issue (Industry Gap):** When an employee leaves, there's no way to reassign their open tasks, archive their conversations, or deactivate their account without deleting it (which destroys history). Hard delete is the only option.
-
-**Fix:** Add `is_active` / `deactivated_at` to the users table. Deactivated users can't log in but their task history and messages remain. Add a "deactivate user" flow in admin that prompts to reassign open tasks.
-
----
-
-### No Role-Based Permission Configuration
-**Issue (Industry Gap):** Permissions are hardcoded by level number. Admins cannot configure what each level can or cannot do — it's a code change, not a settings change.
-
-**Fix:** Consider a `role_permissions` table that maps level to allowed actions. Expose in admin UI for configuring permissions per level.
-
----
-
-## Desktop App
-
-### ~~No Auto-Updater~~ ✅ Done
-`tauri-plugin-updater` integrated. Update check runs on login with a toast + "Install & Restart" button. Manual check available in Settings → About. GitHub Actions workflow builds and publishes releases automatically via `pnpm release:desktop`.
-
----
-
-### Stronghold Encryption Initialized But Not Used
-**Issue:** `tauri-plugin-stronghold` is set up in Rust with Argon2 hashing, but the frontend still stores the Supabase session in plain localStorage (with a TODO comment noting the intended migration). Sensitive tokens are unencrypted on disk.
-
-**Fix:** Complete the migration: store Supabase `access_token` and `refresh_token` in Stronghold instead of localStorage.
-
-**Files involved:**
-- `apps/desktop/src/lib/supabase.ts`
-- `apps/desktop/src-tauri/src/lib.rs`
-
----
-
-### ~~No Offline Indicator or Graceful Offline Handling~~ ✅ Done (partial)
-Red banner shown at top of app when network is lost (`navigator.onLine` events). Offline mutation queue not yet implemented — actions still fail silently when offline, they just fail with a visible indicator now.
-
----
-
-### No Multi-Account Support
-**Issue:** Single login only. Users who have access to multiple organizations or need to switch between accounts must sign out and back in.
-
-**Fix:** Add account switcher in settings. Store multiple sessions in Stronghold keyed by user ID.
-
----
-
-## Realtime
-
-### Task Subscription Invalidates All Queries on Any Change
-**Issue:** Any change to any task invalidates ALL task queries for ALL users — `queryClient.invalidateQueries({ queryKey: taskKeys.all })`. With concurrent users, one task update causes everyone to refetch everything.
-
-**Fix:** Use granular invalidation: `invalidateQueries({ queryKey: taskKeys.detail(taskId) })`. Filter subscriptions by the current user's visible tasks.
-
-**Files involved:**
-- `packages/features/src/hooks/use-tasks.ts`
-
----
-
-## Performance
-
-### N+1 Query Pattern on Task Assignee Fetch
-**Issue:** `getTasks()` runs one query for tasks then a second query for all assignees in that batch. For large task lists this compounds. Should be a single JOIN.
-
-**Fix:** Use Supabase's relational query syntax to fetch assignees in the same request as tasks: `.select('*, task_assignees(user_id, users(name, avatar_url))')`.
-
-**Files involved:**
-- `packages/features/src/services/tasks.ts`
-
----
-
-## Missing Industry-Standard Features (Backlog)
-
-These are features present in comparable products (Asana, Linear, Notion, ClickUp, Monday) that are completely absent and would be expected by employees used to those tools:
-
-| Feature | Why It Matters |
+| Feature | Notes |
 |---|---|
-| Task due date reminders | Proactive notifications before a deadline, not just a date field |
-| @mentions in task descriptions | Tag someone to loop them in without adding as assignee |
-| ~~Task activity feed (visible)~~ ✅ Done | Activity tab added to task detail — human-readable sentences, colored by action type, avatar + timestamp |
-| Email notifications | Not every employee will run the desktop app all day |
-| Task import (CSV) | Migrating from another tool requires manual re-entry today |
-| Keyboard shortcuts | Power users expect to navigate without a mouse |
-| Task duplication | Copy a task as a starting point for similar work |
-| Pinned messages in conversations | Highlight important messages in a group chat |
-| Conversation notifications per-chat | Mute specific groups without disabling all notifications |
-| Task tags / labels | Freeform categorization beyond status and priority |
-| Dashboard / home screen | Overview of "my tasks due today", "unread messages", "blocked tasks" |
-| Time tracking | Log hours against a task for billing or capacity analysis |
-| Guest / external user access | Invite a contractor without giving them full employee access |
+| Task due date reminders | Proactive push before deadline |
+| @mentions in task descriptions | Loop someone in without adding as assignee |
+| Email notifications | Not everyone runs the desktop app all day |
+| Task import (CSV) | Migration path from other tools |
+| Keyboard shortcuts | Power user navigation |
+| Task duplication | Copy task as starting point |
+| Pinned messages | Highlight important messages in group chats |
+| Per-chat notification settings | Mute specific groups |
+| Task tags / labels | Freeform categorization beyond status + priority |
+| Dashboard / home screen | "My tasks due today", unread messages, blocked tasks |
+| Time tracking | Log hours for billing or capacity |
+| Guest / external user access | Contractor access without full employee permissions |
