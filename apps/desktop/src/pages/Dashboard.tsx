@@ -189,24 +189,25 @@ function DesktopSettingsView() {
         return;
       }
       const { toast } = await import('sonner');
-      toast.info(`Update available — v${update.version}`, {
-        description: update.body || 'A new version of TaskFlow is ready.',
-        duration: Infinity,
-        action: {
-          label: 'Install & Restart',
-          onClick: async () => {
-            const id = toast.loading('Downloading update…');
-            try {
-              await update.downloadAndInstall();
-              toast.dismiss(id);
+      const id = toast.loading(`Downloading v${update.version}…`);
+      try {
+        await update.download();
+        toast.dismiss(id);
+        toast.info(`v${update.version} ready to install`, {
+          description: 'Restart TaskFlow to apply the update.',
+          duration: Infinity,
+          action: {
+            label: 'Restart Now',
+            onClick: async () => {
+              await update.install();
               await relaunch();
-            } catch {
-              toast.dismiss(id);
-              toast.error('Update failed. Please reinstall manually.');
-            }
+            },
           },
-        },
-      });
+        });
+      } catch {
+        toast.dismiss(id);
+        toast.error('Download failed. Check your connection.');
+      }
     } catch {
       const { toast } = await import('sonner');
       toast.error('Could not check for updates. Check your connection.');

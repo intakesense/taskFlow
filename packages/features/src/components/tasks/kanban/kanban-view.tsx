@@ -30,6 +30,9 @@ import {
   cn,
 } from '@taskflow/ui';
 import { KANBAN_COLUMNS, type TaskWithUsers, type TaskStatus, type TaskPriority } from '@taskflow/core';
+
+// Runtime column list — includes only the 4 board columns (completed is not a column)
+const BOARD_COLUMNS: string[] = [...KANBAN_COLUMNS];
 import { useMediaQuery } from '../../../hooks/use-media-query';
 import { KanbanColumn } from './kanban-column';
 import { KanbanCardOverlay } from './kanban-card';
@@ -153,7 +156,7 @@ export function KanbanView({
         return;
       }
       const overId = over.id as string;
-      if (KANBAN_COLUMNS.includes(overId as TaskStatus)) {
+      if (BOARD_COLUMNS.includes(overId)) {
         setActiveColumnId(overId as TaskStatus);
         return;
       }
@@ -179,7 +182,7 @@ export function KanbanView({
       const overId = over.id as string;
       let targetStatus: TaskStatus | null = null;
 
-      if (KANBAN_COLUMNS.includes(overId as TaskStatus)) {
+      if (BOARD_COLUMNS.includes(overId)) {
         targetStatus = overId as TaskStatus;
       } else {
         const targetTask = tasks.find((t) => t.id === overId);

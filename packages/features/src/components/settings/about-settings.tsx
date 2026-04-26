@@ -1,6 +1,7 @@
+'use client';
+
 import { useState } from 'react';
 import { Info, RefreshCw } from 'lucide-react';
-import { toast } from 'sonner';
 import { SettingsSection } from './settings-view';
 import { Button } from '@taskflow/ui';
 

@@ -68,9 +68,6 @@ function AppWithFeatures() {
     });
   }, []);
 
-  // Check for app updates once on mount
-  useAppUpdater();
-
   // Initialize desktop notifications for native OS notifications
   // Pass navigate callback for click-to-navigate functionality
   useDesktopNotifications({
@@ -119,6 +116,9 @@ function AppWithFeatures() {
 
 function App() {
   const { user, loading, initialized, initialize } = useAuthStore();
+
+  // Check for updates on every launch, download silently, prompt restart when ready
+  useAppUpdater();
 
   useEffect(() => {
     initialize();

@@ -1,8 +1,12 @@
 /**
  * useAppUpdater
  *
- * Checks for a new version once on mount (Tauri only).
- * Shows a toast with an install button; installs and relaunches on confirm.
+ * Runs on every app launch (in the root App component, outside auth).
+ * - Checks for update silently
+ * - Downloads in the background with no user interaction
+ * - Once ready, shows a persistent "Restart to update" toast
+ *
+ * User only has to click restart — never has to wait for a download.
  */
 
 import { useEffect } from 'react';
@@ -22,26 +26,28 @@ export function useAppUpdater() {
         const update = await check();
         if (cancelled || !update?.available) return;
 
-        toast.info(`Update available — v${update.version}`, {
-          description: update.body || 'A new version of TaskFlow is ready to install.',
+        // Download silently in the background — no toast yet
+        await update.download();
+        if (cancelled) return;
+
+        // Download complete — now prompt to restart (persistent, dismissible)
+        toast.info(`TaskFlow v${update.version} is ready`, {
+          description: 'Downloaded in the background. Restart to apply the update.',
           duration: Infinity,
           action: {
-            label: 'Install & Restart',
+            label: 'Restart Now',
             onClick: async () => {
-              const installToast = toast.loading('Downloading update…');
               try {
-                await update.downloadAndInstall();
-                toast.dismiss(installToast);
+                await update.install();
                 await relaunch();
               } catch {
-                toast.dismiss(installToast);
-                toast.error('Update failed. Please reinstall manually.');
+                toast.error('Restart failed. Please close and reopen TaskFlow.');
               }
             },
           },
         });
       } catch {
-        // Updater unavailable or network error — silent fail, not critical
+        // Network error, updater unavailable — silent fail, not critical
       }
     })();
 

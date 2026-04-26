@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock, CheckCircle2, Timer, PauseCircle } from 'lucide-react';
+import { Clock, CheckCircle2, Timer, PauseCircle, ClockArrowUp } from 'lucide-react';
 import { cn } from '@taskflow/ui';
 import {
   formatCompactDuration,
@@ -20,6 +20,7 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; icon: ty
   pending: { label: 'Pending', color: 'text-amber-600 bg-amber-500/10', icon: Clock },
   in_progress: { label: 'In Progress', color: 'text-blue-600 bg-blue-500/10', icon: Clock },
   on_hold: { label: 'On Hold', color: 'text-yellow-600 bg-yellow-500/10', icon: Clock },
+  completed: { label: 'Awaiting Review', color: 'text-amber-600 bg-amber-500/10', icon: ClockArrowUp },
   archived: { label: 'Done', color: 'text-emerald-600 bg-emerald-500/10', icon: CheckCircle2 },
 };
 
@@ -54,6 +55,8 @@ export function TaskMiniCard({ task }: TaskMiniCardProps) {
           isWarning:
             task.on_hold_at && getDurationMs(task.on_hold_at) > DURATION_THRESHOLDS.ON_HOLD_WARNING,
         };
+      case 'completed':
+        return { timestamp: (task as TaskWithUsers & { completed_at?: string | null }).completed_at, icon: ClockArrowUp };
       case 'archived':
         return { timestamp: task.archived_at, icon: CheckCircle2 };
       default:
