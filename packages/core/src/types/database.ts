@@ -822,6 +822,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           assigned_by: string
+          completed_at: string | null
           created_at: string
           deadline: string | null
           description: string
@@ -838,6 +839,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           assigned_by: string
+          completed_at?: string | null
           created_at?: string
           deadline?: string | null
           description?: string
@@ -854,6 +856,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           assigned_by?: string
+          completed_at?: string | null
           created_at?: string
           deadline?: string | null
           description?: string

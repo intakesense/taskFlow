@@ -6,6 +6,7 @@ import type {
   TaskWithUsers,
   TaskMessageWithSender,
   TaskNoteWithAuthor,
+  TaskAuditLogWithUser,
   Visibility,
   TaskStatus,
   TaskPriority,
@@ -62,9 +63,13 @@ import {
   Eye,
   Lock,
   Pencil,
+  ClockArrowUp,
+  RotateCcw,
+  History,
 } from 'lucide-react';
 import { NavigationLink } from '../primitives';
 import { StackedAvatars } from './stacked-avatars';
+import { TaskActivityFeed } from './task-activity-feed';
 import { MultiUserSelector } from './multi-user-selector';
 import { AttachMenu } from '../messages/attach-menu';
 import type { DriveFile } from '../messages/drive-picker';
@@ -87,6 +92,10 @@ interface TaskDetailViewProps {
   setOnHoldReason: (value: string) => void;
   deleteDialog: UseDialogReturn;
   onHoldDialog: UseDialogReturn;
+  requestChangesDialog: UseDialogReturn;
+  requestChangesReason: string;
+  setRequestChangesReason: (value: string) => void;
+  auditLog: TaskAuditLogWithUser[];
   sendingMessage: boolean;
   addingNote: boolean;
   updatingStatus: boolean;
@@ -95,6 +104,7 @@ interface TaskDetailViewProps {
   onAddNote: () => void;
   onStatusChange: (status: string) => void;
   onOnHoldConfirm: () => void;
+  onRequestChangesConfirm: () => void;
   onDelete: () => void;
   onArchive: () => void;
   onUpdateAssignees: (userIds: string[]) => void;
@@ -121,6 +131,10 @@ export function TaskDetailView({
   setOnHoldReason,
   deleteDialog,
   onHoldDialog,
+  requestChangesDialog,
+  requestChangesReason,
+  setRequestChangesReason,
+  auditLog,
   sendingMessage,
   addingNote,
   updatingStatus,
@@ -129,6 +143,7 @@ export function TaskDetailView({
   onAddNote,
   onStatusChange,
   onOnHoldConfirm,
+  onRequestChangesConfirm,
   onDelete,
   onArchive,
   onUpdateAssignees,
@@ -165,79 +180,143 @@ export function TaskDetailView({
               </Badge>
             </div>
             <h1 className="text-2xl lg:text-3xl font-bold text-foreground">{task.title}</h1>
+            {task.status === 'completed' && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                <ClockArrowUp className="h-4 w-4 shrink-0" />
+                {isAssigner
+                  ? 'This task is awaiting your review. Accept it or request changes.'
+                  : 'Marked as done — waiting for the creator to review.'}
+              </div>
+            )}
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
-            {/* Status changes - assignee can start/pause/resume, creator can complete/reopen */}
-            {isAssignee && task.status !== 'archived' && (
+          <div className="flex items-center gap-2 flex-wrap">
+
+            {/* ── Assignee actions ──────────────────────────────────── */}
+            {isAssignee && task.status === 'pending' && (
+              <Button onClick={() => onStatusChange('in_progress')} disabled={updatingStatus}>
+                <Play className="h-4 w-4 mr-2" />
+                Start
+              </Button>
+            )}
+
+            {isAssignee && task.status === 'in_progress' && (
               <>
-                {task.status === 'pending' && (
-                  <Button onClick={() => onStatusChange('in_progress')} disabled={updatingStatus}>
-                    <Play className="h-4 w-4 mr-2" />
-                    Start
-                  </Button>
-                )}
-                {task.status === 'in_progress' && (
-                  <Dialog open={onHoldDialog.open} onOpenChange={onHoldDialog.toggleDialog}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline">
-                        <PauseCircle className="h-4 w-4 mr-2" />
-                        On Hold
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Put Task On Hold</DialogTitle>
-                        <DialogDescription>Optionally provide a reason</DialogDescription>
-                      </DialogHeader>
-                      <Textarea
-                        placeholder="Reason for holding..."
-                        value={onHoldReason}
-                        onChange={(e) => setOnHoldReason(e.target.value)}
-                      />
-                      <DialogFooter>
-                        <Button variant="outline" onClick={onHoldDialog.closeDialog}>
-                          Cancel
-                        </Button>
-                        <Button onClick={onOnHoldConfirm}>Confirm</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                )}
-                {task.status === 'on_hold' && (
-                  <Button onClick={() => onStatusChange('in_progress')} disabled={updatingStatus}>
-                    <Play className="h-4 w-4 mr-2" />
-                    Resume
-                  </Button>
-                )}
+                {/* Mark as Done — triggers review flow */}
+                <Button
+                  onClick={() => onStatusChange('completed')}
+                  disabled={updatingStatus}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Mark as Done
+                </Button>
+
+                {/* On Hold */}
+                <Dialog open={onHoldDialog.open} onOpenChange={onHoldDialog.toggleDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <PauseCircle className="h-4 w-4 mr-2" />
+                      On Hold
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Put Task On Hold</DialogTitle>
+                      <DialogDescription>
+                        Let the creator know why work is paused.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Textarea
+                      placeholder="e.g. Waiting for design approval..."
+                      value={onHoldReason}
+                      onChange={(e) => setOnHoldReason(e.target.value)}
+                      className="min-h-[80px]"
+                      autoFocus
+                    />
+                    <DialogFooter>
+                      <Button variant="outline" onClick={onHoldDialog.closeDialog}>Cancel</Button>
+                      <Button onClick={onOnHoldConfirm} disabled={!onHoldReason.trim()}>Confirm</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </>
             )}
-            {/* Complete - only creator can mark complete */}
-            {isAssigner && task.status === 'in_progress' && (
+
+            {isAssignee && task.status === 'on_hold' && (
+              <Button onClick={() => onStatusChange('in_progress')} disabled={updatingStatus}>
+                <Play className="h-4 w-4 mr-2" />
+                Resume
+              </Button>
+            )}
+
+            {/* ── Creator review actions (when assignee marked done) ── */}
+            {isAssigner && task.status === 'completed' && (
+              <>
+                <Button
+                  onClick={onArchive}
+                  disabled={updatingStatus}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Accept
+                </Button>
+
+                <Dialog open={requestChangesDialog.open} onOpenChange={requestChangesDialog.toggleDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" disabled={updatingStatus}>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Request Changes
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Request Changes</DialogTitle>
+                      <DialogDescription>
+                        Tell the assignee what needs to be revised. This will reopen the task and post your feedback as a message.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Textarea
+                      placeholder="Describe what needs to be changed..."
+                      value={requestChangesReason}
+                      onChange={(e) => setRequestChangesReason(e.target.value)}
+                      className="min-h-[100px]"
+                      autoFocus
+                    />
+                    <DialogFooter>
+                      <Button variant="outline" onClick={requestChangesDialog.closeDialog}>Cancel</Button>
+                      <Button onClick={onRequestChangesConfirm} disabled={!requestChangesReason.trim() || updatingStatus}>
+                        Send Feedback
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
+            )}
+
+            {/* ── Creator: direct complete (in_progress, no review needed) ── */}
+            {isAssigner && task.status === 'in_progress' && !isAssignee && (
               <Button onClick={onArchive} disabled={updatingStatus}>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Complete
               </Button>
             )}
-            {/* Reopen - only creator can reopen completed tasks */}
+
+            {/* ── Creator: reopen archived task ── */}
             {isAssigner && task.status === 'archived' && (
-              <Button
-                onClick={() => onStatusChange('in_progress')}
-                disabled={updatingStatus}
-                variant="outline"
-              >
+              <Button onClick={() => onStatusChange('in_progress')} disabled={updatingStatus} variant="outline">
                 <Play className="h-4 w-4 mr-2" />
                 Reopen
               </Button>
             )}
-            {/* Delete - only assigner can delete */}
+
+            {/* ── Creator: delete ── */}
             {isAssigner && task.status !== 'archived' && (
               <Dialog open={deleteDialog.open} onOpenChange={deleteDialog.toggleDialog}>
                 <DialogTrigger asChild>
-                  <Button variant="destructive">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
+                  <Button variant="destructive" size="icon">
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
@@ -246,12 +325,8 @@ export function TaskDetailView({
                     <DialogDescription>This action cannot be undone.</DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
-                    <Button variant="outline" onClick={deleteDialog.closeDialog}>
-                      Cancel
-                    </Button>
-                    <Button variant="destructive" onClick={onDelete} disabled={deleting}>
-                      Delete
-                    </Button>
+                    <Button variant="outline" onClick={deleteDialog.closeDialog}>Cancel</Button>
+                    <Button variant="destructive" onClick={onDelete} disabled={deleting}>Delete</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -402,6 +477,10 @@ export function TaskDetailView({
             <Paperclip className="h-4 w-4 mr-2" />
             Files ({driveAttachments.length})
           </TabsTrigger>
+          <TabsTrigger value="activity">
+            <History className="h-4 w-4 mr-2" />
+            Activity
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="messages">
@@ -541,6 +620,13 @@ export function TaskDetailView({
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="activity">
+          <Card data-slot="card">
+            <CardContent className="p-6">
+              <TaskActivityFeed entries={auditLog} />
             </CardContent>
           </Card>
         </TabsContent>

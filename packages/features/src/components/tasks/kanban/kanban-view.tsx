@@ -119,9 +119,15 @@ export function KanbanView({
     })
   );
 
+  // 'completed' tasks surface inside the In Progress column (amber card indicator)
+  // so they don't create a 5th column and clutter the board.
   const tasksByStatus = KANBAN_COLUMNS.reduce(
     (acc, status) => {
-      acc[status] = tasks.filter((t) => t.status === status);
+      acc[status] = tasks.filter((t) =>
+        status === 'in_progress'
+          ? t.status === 'in_progress' || t.status === 'completed'
+          : t.status === status
+      );
       return acc;
     },
     {} as Record<TaskStatus, TaskWithUsers[]>
@@ -181,6 +187,10 @@ export function KanbanView({
       }
 
       if (targetStatus && targetStatus !== task.status) {
+        // 'completed' cards can only be accepted/rejected from the task detail view,
+        // not via drag — the creator needs to consciously review before archiving.
+        if (task.status === 'completed') return;
+
         if (targetStatus === 'on_hold') {
           setPendingOnHold({ taskId });
           setOnHoldReason('');

@@ -1,4 +1,4 @@
-import { Clock, CircleDashed, PauseCircle, CheckCircle2 } from 'lucide-react';
+import { Clock, CircleDashed, PauseCircle, CheckCircle2, ClockArrowUp } from 'lucide-react';
 import { cn } from '@taskflow/ui';
 import { TASK_STATUS_CONFIG, KANBAN_COLUMNS, type TaskWithUsers, type TaskStatus } from '@taskflow/core';
 import { SwipeableTaskCard } from '../swipeable-task-card';
@@ -17,6 +17,7 @@ const STATUS_ICONS = {
   CircleDashed,
   Clock,
   PauseCircle,
+  ClockArrowUp,
   CheckCircle2,
 } as const;
 
@@ -30,7 +31,11 @@ export function KanbanMobile({
 }: KanbanMobileProps) {
   const tasksByStatus = KANBAN_COLUMNS.reduce(
     (acc, status) => {
-      acc[status] = tasks.filter((t) => t.status === status);
+      acc[status] = tasks.filter((t) =>
+        status === 'in_progress'
+          ? t.status === 'in_progress' || t.status === 'completed'
+          : t.status === status
+      );
       return acc;
     },
     {} as Record<TaskStatus, TaskWithUsers[]>

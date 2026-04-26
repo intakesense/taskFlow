@@ -29,7 +29,8 @@
     "db:reset": "npx supabase@latest db reset",
     "db:diff": "npx supabase@latest db diff",
     "db:migration": "npx supabase@latest migration new",
-    "db:status": "npx supabase@latest migration list"
+    "db:status": "npx supabase@latest migration list",
+    "release:desktop": "node scripts/release-desktop.mjs"
   },
   "devDependencies": {
     "supabase": "^2.81.0",

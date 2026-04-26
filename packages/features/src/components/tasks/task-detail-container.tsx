@@ -12,6 +12,7 @@ import {
   useTaskMessages,
   useTaskMessagesRealtime,
   useTaskNotes,
+  useTaskAuditLog,
   useSendTaskMessage,
   useAddTaskNote,
   useUpdateTask,
@@ -39,6 +40,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   const { data: task, isLoading: loadingTask } = useTask(taskId);
   const { data: messages = [], isLoading: loadingMessages } = useTaskMessages(taskId);
   const { data: notes = [], isLoading: loadingNotes } = useTaskNotes(taskId);
+  const { data: auditLog = [] } = useTaskAuditLog(taskId);
 
   // Realtime
   useTaskMessagesRealtime(taskId);
@@ -55,6 +57,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   const [newNote, setNewNote] = useState('');
   const [noteVisibility, setNoteVisibility] = useState<Visibility>('private');
   const [onHoldReason, setOnHoldReason] = useState('');
+  const [requestChangesReason, setRequestChangesReason] = useState('');
 
   // Drive attachments via React Query (cached, loading state, refetchable)
   const { data: driveAttachments = [] } = useDriveAttachments(taskId);
@@ -63,6 +66,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   // Dialogs
   const deleteDialog = useDialog();
   const onHoldDialog = useDialog();
+  const requestChangesDialog = useDialog();
 
   // Permissions - use the user from auth context
   const effectiveUser = user;
@@ -105,10 +109,14 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
 
     await updateTask.mutateAsync({
       id: taskId,
-      input: { status: status as 'pending' | 'in_progress' | 'on_hold' | 'archived' },
+      input: { status: status as 'pending' | 'in_progress' | 'on_hold' | 'completed' | 'archived' },
     });
 
-    toast.success('Status updated');
+    if (status === 'completed') {
+      toast.success('Marked as done — waiting for creator review');
+    } else {
+      toast.success('Status updated');
+    }
   };
 
   const handleOnHoldConfirm = async () => {
@@ -136,7 +144,28 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
       id: taskId,
       input: { status: 'archived' },
     });
-    toast.success('Task archived');
+    toast.success('Task completed');
+  };
+
+  const handleRequestChangesConfirm = async () => {
+    if (!requestChangesReason.trim() || !effectiveUser) return;
+
+    // Post feedback as a task message so the assignee sees it in the thread
+    await sendMessage.mutateAsync({
+      taskId,
+      senderId: effectiveUser.id,
+      content: `🔄 Changes requested: ${requestChangesReason.trim()}`,
+    });
+
+    // Revert to in_progress
+    await updateTask.mutateAsync({
+      id: taskId,
+      input: { status: 'in_progress' },
+    });
+
+    toast.success('Changes requested — task reopened');
+    setRequestChangesReason('');
+    requestChangesDialog.closeDialog();
   };
 
   const handleAttachDriveFile = async (driveFile: DriveFile) => {
@@ -198,6 +227,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
         task={task}
         messages={messages}
         notes={notes}
+        auditLog={auditLog}
         isAssigner={isAssigner}
         isAssignee={isAssignee}
         isParticipant={isParticipant}
@@ -209,8 +239,11 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
         setNoteVisibility={setNoteVisibility}
         onHoldReason={onHoldReason}
         setOnHoldReason={setOnHoldReason}
+        requestChangesReason={requestChangesReason}
+        setRequestChangesReason={setRequestChangesReason}
         deleteDialog={deleteDialog}
         onHoldDialog={onHoldDialog}
+        requestChangesDialog={requestChangesDialog}
         sendingMessage={sendMessage.isPending}
         addingNote={addNote.isPending}
         updatingStatus={updateTask.isPending}
@@ -219,6 +252,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
         onAddNote={handleAddNote}
         onStatusChange={handleStatusChange}
         onOnHoldConfirm={handleOnHoldConfirm}
+        onRequestChangesConfirm={handleRequestChangesConfirm}
         onDelete={handleDelete}
         onArchive={handleArchive}
         onUpdateAssignees={handleUpdateAssignees}

@@ -7,6 +7,7 @@ export const TaskStatusValues = {
   PENDING: 'pending',
   IN_PROGRESS: 'in_progress',
   ON_HOLD: 'on_hold',
+  COMPLETED: 'completed',
   ARCHIVED: 'archived',
 } as const;
 
@@ -40,6 +41,11 @@ export const STATUS_CONFIG = {
     label: 'On Hold',
     color: 'bg-muted text-muted-foreground border-border',
     dotColor: 'bg-orange-500',
+  },
+  [TaskStatusValues.COMPLETED]: {
+    label: 'Awaiting Review',
+    color: 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30',
+    dotColor: 'bg-amber-500',
   },
   [TaskStatusValues.ARCHIVED]: {
     label: 'Completed',
@@ -166,6 +172,12 @@ export const TASK_STATUS_CONFIG = {
     color: 'text-yellow-600',
     bg: 'bg-yellow-500/10',
     iconName: 'PauseCircle' as const,
+  },
+  completed: {
+    label: 'Awaiting Review',
+    color: 'text-amber-600',
+    bg: 'bg-amber-500/10',
+    iconName: 'ClockArrowUp' as const,
   },
   archived: {
     label: 'Done',

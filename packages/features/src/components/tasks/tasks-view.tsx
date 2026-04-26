@@ -40,6 +40,7 @@ const STATUS_CHIP_OPTIONS: { value: TaskStatusType | 'all'; label: string; dot?:
   { value: 'all', label: 'All' },
   { value: 'pending', label: 'Pending', dot: 'bg-amber-500' },
   { value: 'in_progress', label: 'In Progress', dot: 'bg-blue-500' },
+  { value: 'completed', label: 'Awaiting Review', dot: 'bg-amber-400' },
   { value: 'archived', label: 'Completed', dot: 'bg-emerald-500' },
 ];
 

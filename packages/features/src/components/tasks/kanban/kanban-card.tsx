@@ -2,8 +2,8 @@
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Clock, GripVertical, Timer, PauseCircle, CheckCircle2 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage, cn } from '@taskflow/ui';
+import { Clock, GripVertical, Timer, PauseCircle, CheckCircle2, ClockArrowUp } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage, Badge, cn } from '@taskflow/ui';
 import {
   formatCompactDuration,
   getDurationMs,
@@ -58,6 +58,7 @@ export function KanbanCard({ task, isDragging, isOverlay }: KanbanCardProps) {
   };
 
   const priorityConfig = TASK_PRIORITY_CONFIG[task.priority as TaskPriority];
+  const isAwaitingReview = task.status === 'completed';
   const primaryAssignee = task.assignees?.[0];
   const additionalCount = (task.assignees?.length || 0) - 1;
 
@@ -84,6 +85,8 @@ export function KanbanCard({ task, isDragging, isOverlay }: KanbanCardProps) {
             task.on_hold_at &&
             getDurationMs(task.on_hold_at) > DURATION_THRESHOLDS.ON_HOLD_WARNING,
         };
+      case 'completed':
+        return { timestamp: task.completed_at, icon: ClockArrowUp, label: 'Awaiting review' };
       case 'archived':
         return { timestamp: task.archived_at, icon: CheckCircle2, label: 'Done' };
       default:
@@ -109,6 +112,7 @@ export function KanbanCard({ task, isDragging, isOverlay }: KanbanCardProps) {
         'group bg-card rounded-xl border p-3 cursor-pointer',
         'transition-[box-shadow,border-color] duration-200',
         'hover:shadow-md hover:border-primary/20',
+        isAwaitingReview && 'border-t-2 border-t-amber-500',
         isSortableDragging && 'border-dashed border-primary/40',
         isOverlay && 'shadow-2xl border-primary/30 bg-card/95 backdrop-blur-sm'
       )}
@@ -137,6 +141,14 @@ export function KanbanCard({ task, isDragging, isOverlay }: KanbanCardProps) {
               title={priorityConfig?.label}
             />
           </div>
+          {isAwaitingReview && (
+            <div className="mb-2">
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1">
+                <ClockArrowUp className="h-2.5 w-2.5" />
+                Awaiting Review
+              </Badge>
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">

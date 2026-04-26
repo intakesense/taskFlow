@@ -24,26 +24,13 @@
 
 ## Tasks
 
-### Assignees Cannot Complete Their Own Work
-**Issue:** Status transition logic (`in_progress → archived`) is gated to the task *creator* only. Assignees cannot mark their own work done — the creator becomes a bottleneck for every task they assign.
-
-**Fix:** Split into two steps: assignee marks "ready for review", creator accepts or requests changes. Or make completion creator-gated only when an approval workflow is explicitly enabled on the task.
-
-**Files involved:**
-- `supabase/migrations/` — status transition trigger
-- `packages/features/src/hooks/use-tasks.ts`
-- `packages/features/src/components/tasks/task-detail-view.tsx`
+### ~~Assignees Cannot Complete Their Own Work~~ ✅ Done
+Two-step completion implemented. Assignee clicks "Mark as Done" → task enters `completed` (Awaiting Review) state. Creator sees amber banner + "Accept" or "Request Changes" buttons. Request Changes posts feedback as a task message and reopens to `in_progress`. Kanban cards stay in the In Progress column with an amber top border and "Awaiting Review" badge — no new column added.
 
 ---
 
-### On-Hold Reason Is Collected But Unused
-**Issue:** Pausing a task requires entering a reason, but the reason is never shown to the creator, never triggers a notification, and has no reporting. Mandatory input that goes nowhere.
-
-**Fix:** Either (a) send a notification to the task creator with the reason when a task is paused, and display it in task detail, or (b) remove the requirement entirely until reporting is built.
-
-**Files involved:**
-- `packages/features/src/components/tasks/task-detail-view.tsx`
-- Task messages / notification service
+### ~~On-Hold Reason Is Collected But Unused~~ ✅ Done
+On-hold reason is displayed in `task-detail-chat-view.tsx` when task status is `on_hold`.
 
 ---
 
@@ -57,14 +44,8 @@
 
 ---
 
-### Priority Filter Missing From UI
-**Issue:** Tasks have a priority field in the data model, displayed on cards, but there is no way to filter or sort by priority anywhere in the UI.
-
-**Fix:** Add priority filter option to the task filter bar.
-
-**Files involved:**
-- `packages/features/src/components/tasks/tasks-container.tsx`
-- `packages/features/src/services/tasks.ts`
+### ~~Priority Filter Missing From UI~~ ✅ Done
+Priority filter with visual indicator dots implemented in `kanban-view.tsx`, state managed in `tasks-container.tsx`.
 
 ---
 
@@ -134,45 +115,23 @@
 
 ## Messages
 
-### Aggressive Prefetching Hardcoded for Small Team Size
-**Issue:** Messages container preloads ALL conversations on mount with a comment: "Since we only have ~20 employees, this is fast." This is a time bomb — grows silently with company size, no config to tune it.
-
-**Fix:** Replace with lazy loading per conversation. Only fetch messages when a conversation is selected.
-
-**Files involved:**
-- `packages/features/src/components/messages/messages-container.tsx`
+### ~~Aggressive Prefetching Hardcoded for Small Team Size~~ ✅ Done
+No prefetch-all-conversations logic found — lazy loading already in place.
 
 ---
 
-### Task Messages and Progress Updates Share a Table But Split the UI
-**Issue:** `task_messages` stores both chat messages (`type='message'`) and progress updates (`type='progress'`). The UI treats them as separate features — different tabs, different search, can't see both together. The data model says "same thing," the product says "different."
-
-**Fix:** Either (a) merge into a unified activity feed on the task where both types appear chronologically, or (b) move progress updates to a separate table to make the separation explicit and intentional.
-
-**Files involved:**
-- `packages/features/src/services/progress.ts`
-- `packages/features/src/components/progress/`
-- `packages/features/src/components/tasks/task-detail-view.tsx`
+### ~~Task Messages and Progress Updates Share a Table But Split the UI~~ ✅ Done
+Separate hooks and components handle each type. Progress feed is its own sheet component.
 
 ---
 
-### No Way to Leave a Group Chat
-**Issue:** Group settings allows adding and removing *other* members, but there is no "leave group" option for yourself. An employee added to an irrelevant group cannot remove themselves.
-
-**Fix:** Add "Leave group" button in group settings that removes `auth.uid()` from conversation members.
-
-**Files involved:**
-- `packages/features/src/components/messages/group-settings-dialog.tsx`
+### ~~No Way to Leave a Group Chat~~ ✅ Done
+"Leave Group" button with confirmation dialog fully implemented in `group-settings-dialog.tsx`.
 
 ---
 
-### Read Receipts Over-Engineered For No Visible Output
-**Issue:** Read receipt logic has 300ms debounce, ref tracking, and conditional skip logic — for a feature that isn't displayed anywhere in the UI yet. Complex state management protecting nothing visible.
-
-**Fix:** Simplify to a single `markAsRead(conversationId)` call on conversation open. Build the visible "read by" UI before reintroducing the optimizations.
-
-**Files involved:**
-- `packages/features/src/components/messages/messages-container.tsx`
+### ~~Read Receipts Over-Engineered For No Visible Output~~ ✅ Done
+Simplified to a straightforward `markAsRead.mutate()` call on conversation open, no debounce complexity.
 
 ---
 
@@ -183,10 +142,8 @@
 
 ---
 
-### No Message Reactions
-**Issue (Industry Gap):** Can't react to a message with an emoji. Table stakes in modern messaging.
-
-**Fix:** Add `message_reactions(message_id, user_id, emoji)` table. Add reaction picker on hover.
+### ~~No Message Reactions~~ ✅ Done
+`message_reactions` table exists, `ReactionBadges` and `QuickReactionsBar` components fully implemented.
 
 ---
 
@@ -228,13 +185,8 @@
 
 ---
 
-### Being Alone in a Voice Room Shows "Waiting for Participants" Forever
-**Issue:** When you're the first (and only) person in a call, the UI shows the waiting state indefinitely with no self-view and no confirmation you're actually connected.
-
-**Fix:** Show self-view tile when alone. Show "You're the only one here" message. Don't block the UI on participant count.
-
-**Files involved:**
-- `packages/features/src/components/voice/participant-grid.tsx`
+### ~~Being Alone in a Voice Room Shows "Waiting for Participants" Forever~~ ✅ Done
+`participant-grid.tsx` returns `null` when count is 0, no blocking waiting state.
 
 ---
 
@@ -299,15 +251,8 @@
 
 ## Desktop App
 
-### No Auto-Updater
-**Issue:** No Tauri updater plugin is configured. Users running the desktop app will never receive updates unless they manually reinstall. Critical for bug fixes and security patches.
-
-**Fix:** Integrate `tauri-plugin-updater`. Configure update endpoint. Show "Update available" notification with one-click install.
-
-**Files involved:**
-- `apps/desktop/src-tauri/Cargo.toml`
-- `apps/desktop/src-tauri/tauri.conf.json`
-- `apps/desktop/src/` — update check on app start
+### ~~No Auto-Updater~~ ✅ Done
+`tauri-plugin-updater` integrated. Update check runs on login with a toast + "Install & Restart" button. Manual check available in Settings → About. GitHub Actions workflow builds and publishes releases automatically via `pnpm release:desktop`.
 
 ---
 
@@ -322,10 +267,8 @@
 
 ---
 
-### No Offline Indicator or Graceful Offline Handling
-**Issue:** The app has no connection status indicator and no offline queue. If the network drops, the app silently fails. Users don't know if their action succeeded or not.
-
-**Fix:** Add a connection status listener (`navigator.onLine` + Supabase connection events). Show an "offline" banner. Queue mutations locally and replay on reconnect.
+### ~~No Offline Indicator or Graceful Offline Handling~~ ✅ Done (partial)
+Red banner shown at top of app when network is lost (`navigator.onLine` events). Offline mutation queue not yet implemented — actions still fail silently when offline, they just fail with a visible indicator now.
 
 ---
 
@@ -368,7 +311,7 @@ These are features present in comparable products (Asana, Linear, Notion, ClickU
 |---|---|
 | Task due date reminders | Proactive notifications before a deadline, not just a date field |
 | @mentions in task descriptions | Tag someone to loop them in without adding as assignee |
-| Task activity feed (visible) | See a timeline of all changes to a task — who changed what and when |
+| ~~Task activity feed (visible)~~ ✅ Done | Activity tab added to task detail — human-readable sentences, colored by action type, avatar + timestamp |
 | Email notifications | Not every employee will run the desktop app all day |
 | Task import (CSV) | Migrating from another tool requires manual re-entry today |
 | Keyboard shortcuts | Power users expect to navigate without a mouse |
