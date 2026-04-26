@@ -45,3 +45,8 @@ export {
   VoiceChannelProvider,
   useVoiceChannel,
 } from './voice-channel-context';
+
+export {
+  ThemeProvider,
+  useThemeContext,
+} from './theme-context';

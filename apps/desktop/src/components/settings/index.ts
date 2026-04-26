@@ -1,2 +1,3 @@
-export { DesktopNotificationsSettings } from './desktop-notifications';
-export { DesktopAboutSettings } from './desktop-about';
+// Desktop-specific settings components have been replaced by shared components
+// from @taskflow/features. See apps/desktop/src/pages/Dashboard.tsx for usage.
+export {};

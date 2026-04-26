@@ -28,9 +28,11 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLinked: () => void;
+  /** Base URL for the HRMS API. Defaults to '' (same origin). Desktop passes the web server URL. */
+  apiBaseUrl?: string;
 }
 
-export function LinkHrmsDialog({ open, onOpenChange, onLinked }: Props) {
+export function LinkHrmsDialog({ open, onOpenChange, onLinked, apiBaseUrl = '' }: Props) {
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -42,7 +44,7 @@ export function LinkHrmsDialog({ open, onOpenChange, onLinked }: Props) {
 
   const onSubmit = async (data: FormData) => {
     try {
-      const res = await fetch('/api/hrms/link', {
+      const res = await fetch(`${apiBaseUrl}/api/hrms/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

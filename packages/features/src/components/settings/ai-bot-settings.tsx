@@ -1,33 +1,38 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { toast } from 'sonner'
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import {
+  Button,
+  Input,
+  Label,
+  Switch,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Bot, Loader2, Plus, X, Volume2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+  Badge,
+} from '@taskflow/ui';
+import { Bot, Loader2, Plus, X, Volume2 } from 'lucide-react';
 
-interface BotConfig {
-  name: string
-  voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
-  isEnabled: boolean
-  triggerPhrases: string[]
+export interface BotConfig {
+  name: string;
+  voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+  isEnabled: boolean;
+  triggerPhrases: string[];
+}
+
+export interface AIBotSettingsProps {
+  /** Load bot config from the platform's backend */
+  onLoadConfig: () => Promise<BotConfig>;
+  /** Persist bot config to the platform's backend */
+  onSaveConfig: (config: BotConfig) => Promise<void>;
 }
 
 const VOICE_OPTIONS = [
@@ -37,86 +42,54 @@ const VOICE_OPTIONS = [
   { value: 'onyx', label: 'Onyx', description: 'Deep and authoritative' },
   { value: 'nova', label: 'Nova', description: 'Friendly and upbeat' },
   { value: 'shimmer', label: 'Shimmer', description: 'Clear and professional' },
-] as const
+] as const;
 
-export function AIBotSettings() {
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [newPhrase, setNewPhrase] = useState('')
+export function AIBotSettings({ onLoadConfig, onSaveConfig }: AIBotSettingsProps) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newPhrase, setNewPhrase] = useState('');
 
   const [config, setConfig] = useState<BotConfig>({
     name: 'Bot',
     voice: 'alloy',
     isEnabled: true,
     triggerPhrases: ['Bot', 'Hey Bot'],
-  })
+  });
 
   useEffect(() => {
-    async function loadConfig() {
-      try {
-        const res = await fetch('/api/ai/bot/config')
-        if (res.ok) {
-          const data = await res.json()
-          setConfig({
-            name: data.name,
-            voice: data.voice,
-            isEnabled: data.isEnabled,
-            triggerPhrases: data.triggerPhrases,
-          })
-        }
-      } catch (error) {
-        console.error('Failed to load config:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadConfig()
-  }, [])
+    onLoadConfig()
+      .then(setConfig)
+      .catch(() => { /* use defaults */ })
+      .finally(() => setLoading(false));
+  }, [onLoadConfig]);
 
   const addTriggerPhrase = () => {
-    const phrase = newPhrase.trim()
+    const phrase = newPhrase.trim();
     if (phrase && !config.triggerPhrases.includes(phrase)) {
-      setConfig({
-        ...config,
-        triggerPhrases: [...config.triggerPhrases, phrase],
-      })
-      setNewPhrase('')
+      setConfig({ ...config, triggerPhrases: [...config.triggerPhrases, phrase] });
+      setNewPhrase('');
     }
-  }
+  };
 
   const removeTriggerPhrase = (phrase: string) => {
     if (config.triggerPhrases.length > 1) {
-      setConfig({
-        ...config,
-        triggerPhrases: config.triggerPhrases.filter((p) => p !== phrase),
-      })
+      setConfig({ ...config, triggerPhrases: config.triggerPhrases.filter((p) => p !== phrase) });
     } else {
-      toast.error('At least one trigger phrase is required')
+      toast.error('At least one trigger phrase is required');
     }
-  }
+  };
 
   const handleSave = async () => {
-    setSaving(true)
+    setSaving(true);
     try {
-      const res = await fetch('/api/ai/bot/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      })
-
-      if (res.ok) {
-        toast.success('Bot settings saved')
-      } else {
-        const error = await res.json()
-        toast.error(error.error || 'Failed to save settings')
-      }
+      await onSaveConfig(config);
+      toast.success('Bot settings saved');
     } catch (error) {
-      console.error('Failed to save config:', error)
-      toast.error('Failed to save bot settings')
+      toast.error(error instanceof Error ? error.message : 'Failed to save bot settings');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -131,7 +104,7 @@ export function AIBotSettings() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
@@ -225,8 +198,8 @@ export function AIBotSettings() {
               onChange={(e) => setNewPhrase(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  e.preventDefault()
-                  addTriggerPhrase()
+                  e.preventDefault();
+                  addTriggerPhrase();
                 }
               }}
               disabled={!config.isEnabled}
@@ -251,5 +224,5 @@ export function AIBotSettings() {
         </Button>
       </CardContent>
     </Card>
-  )
+  );
 }

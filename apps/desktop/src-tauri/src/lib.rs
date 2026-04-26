@@ -171,6 +171,8 @@ pub fn run() {
                 .map(|hash| hash.hash.unwrap().as_bytes().to_vec())
                 .unwrap_or_else(|_| password.as_bytes().to_vec())
         }).build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_deep_link::init())
         // Single instance: when another instance is launched with deep link,
         // pass the URL to the existing instance

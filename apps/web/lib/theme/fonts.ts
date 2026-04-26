@@ -1,34 +1,5 @@
-// Google Fonts for each theme preset
-import { ThemeFonts, ThemePreset } from './types';
-
-// Font configurations per theme
-export const THEME_FONTS: Record<ThemePreset, ThemeFonts> = {
-    modern: {
-        heading: 'Inter',
-        body: 'Inter',
-        mono: 'JetBrains Mono',
-    },
-    glass: {
-        heading: 'Outfit',
-        body: 'DM Sans',
-        mono: 'Fira Code',
-    },
-    neumorphism: {
-        heading: 'Nunito',
-        body: 'Nunito Sans',
-        mono: 'Source Code Pro',
-    },
-    y2k: {
-        heading: 'Space Grotesk',
-        body: 'Rubik',
-        mono: 'IBM Plex Mono',
-    },
-    custom: {
-        heading: 'Inter',
-        body: 'Inter',
-        mono: 'JetBrains Mono',
-    },
-};
+// Web-only: Google Fonts URL map for each theme preset
+import type { ThemePreset } from '@taskflow/core';
 
 // Google Fonts import URLs
 export const FONT_IMPORTS: Record<ThemePreset, string> = {

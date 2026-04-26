@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
+import { createClientFromRequest } from '@/lib/supabase/server';
 
 const HRMS_BASE = 'https://hrms-backend.up.railway.app/api';
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const { supabase, user, error } = await createClientFromRequest(req);
+  if (error) return NextResponse.json({ error }, { status: 401 });
 
   const { email, password } = await req.json();
   if (!email || !password) {
@@ -56,9 +50,9 @@ export async function POST(req: NextRequest) {
   const employeeId  = (payload.employeeId as string) || '';
   const hrmsUserId  = (payload.userId as string) || '';
 
-  const { error } = await supabase.from('hrms_links').upsert(
+  const { error: upsertError } = await supabase.from('hrms_links').upsert(
     {
-      user_id: user.id,
+      user_id: user!.id,
       hrms_user_id: hrmsUserId,
       hrms_employee_id: employeeId,
       hrms_employee_name: employeeName,
@@ -69,7 +63,7 @@ export async function POST(req: NextRequest) {
     { onConflict: 'user_id' }
   );
 
-  if (error) {
+  if (upsertError) {
     return NextResponse.json({ error: 'Failed to save link' }, { status: 500 });
   }
 
@@ -80,15 +74,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user, error } = await createClientFromRequest(req);
+  if (error) return NextResponse.json({ error }, { status: 401 });
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  await supabase.from('hrms_links').delete().eq('user_id', user.id);
+  await supabase.from('hrms_links').delete().eq('user_id', user!.id);
 
   return NextResponse.json({ unlinked: true });
 }

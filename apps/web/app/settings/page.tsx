@@ -1,25 +1,24 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout'
 import { useAuth } from '@/lib/auth-context'
-import { useThemeContext } from '@/components/providers/theme-provider'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Settings, Moon, Sun, Monitor, Palette, User, Loader2, Bell, BellOff, Camera, Trash2, LogOut, Eye, X } from 'lucide-react'
-import { ThemePreset, ChatPatternType } from '@/lib/theme/types'
+import {
+  SettingsView,
+  AppearanceSettings,
+  AIBotSettings,
+  HrmsSettings,
+  GoogleConnectionCard,
+  NotificationsSettings,
+  AboutSettings,
+  type BotConfig,
+} from '@taskflow/features'
 import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
 import { registerForPushNotifications, unregisterFromPushNotifications } from '@/lib/firebase/notifications'
-import { AIBotSettings } from '@/components/settings/ai-bot-settings'
-import { HrmsSettings } from '@/components/settings/hrms-settings'
-import { GoogleConnectionCard } from '@taskflow/features'
 import { toast } from 'sonner'
 import { User as UserType } from '@/lib/types'
-import { useSyncExternalStore } from 'react'
 
 // Minimal hydration guard - avoids SSR mismatch without showing spinner
 const emptySubscribe = () => () => { }
@@ -27,415 +26,159 @@ const useIsClient = () => useSyncExternalStore(emptySubscribe, () => true, () =>
 
 export default function SettingsPage() {
     const isClient = useIsClient()
-    const { profile, maskedAsUser, effectiveUser } = useAuth()
+    const { profile, maskedAsUser } = useAuth()
 
-    // During SSR, return null briefly - loading.tsx skeleton handles this
     if (!isClient) return null
 
-    return <SettingsContent profile={profile} maskedAsUser={maskedAsUser} effectiveUser={effectiveUser} />
+    return <SettingsContent profile={profile} maskedAsUser={maskedAsUser} />
 }
 
-function SettingsContent({ profile, maskedAsUser, effectiveUser }: { profile: UserType | null; maskedAsUser: UserType | null; effectiveUser: UserType | null }) {
+function SettingsContent({ profile, maskedAsUser }: { profile: UserType | null; maskedAsUser: UserType | null }) {
     const { refreshProfile, signOut, maskAs } = useAuth()
     const router = useRouter()
-    const { mode, preset, theme, setMode, setPreset, updateCustomTheme } = useThemeContext()
-    const chatPattern = theme.effects.chatPattern || 'none'
-    const [notificationsEnabled, setNotificationsEnabled] = useState(false)
-    const [notificationStatus, setNotificationStatus] = useState<'loading' | 'granted' | 'denied' | 'default'>('loading')
-    const [isTogglingNotifications, setIsTogglingNotifications] = useState(false)
-    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
-    const [isDeletingAvatar, setIsDeletingAvatar] = useState(false)
     const [isSigningOut, setIsSigningOut] = useState(false)
-    const fileInputRef = useRef<HTMLInputElement>(null)
 
-    // Check notification status on mount
-    useEffect(() => {
-        const checkNotificationStatus = () => {
-            if (typeof window === 'undefined' || !('Notification' in window)) {
-                setNotificationStatus('denied')
-                return
-            }
-
-            const permission = Notification.permission
-            setNotificationStatus(permission as 'granted' | 'denied' | 'default')
-            setNotificationsEnabled(permission === 'granted')
-        }
-        checkNotificationStatus()
-    }, [])
-
-
-    const handleNotificationToggle = useCallback(async () => {
-        if (!profile?.id) return
-
-        if (notificationStatus === 'denied') {
-            toast.error(
-                'Notifications are blocked in your browser. Click the lock icon in the address bar → Notifications → Allow, then refresh.',
-                { duration: 8000 }
-            )
-            return
-        }
-
-        setIsTogglingNotifications(true)
+    // ── Sign out ──────────────────────────────────────────────────────────
+    const handleSignOut = async () => {
+        setIsSigningOut(true)
         try {
-            if (!notificationsEnabled) {
-                const token = await registerForPushNotifications(profile.id)
-                if (token) {
-                    setNotificationsEnabled(true)
-                    setNotificationStatus('granted')
-                    toast.success('Push notifications enabled')
-                } else {
-                    const permission = Notification.permission
-                    setNotificationStatus(permission as 'granted' | 'denied' | 'default')
-                    if (permission === 'denied') {
-                        toast.error('Notification permission was denied')
-                    } else {
-                        toast.error('Failed to enable notifications')
-                    }
-                }
-            } else {
-                await unregisterFromPushNotifications(profile.id)
-                setNotificationsEnabled(false)
-                toast.success('Push notifications disabled')
-            }
-        } catch (error) {
-            console.error('Failed to toggle notifications:', error)
-            toast.error('Failed to update notification preference')
+            await signOut()
+            router.push('/login')
         } finally {
-            setIsTogglingNotifications(false)
+            setIsSigningOut(false)
         }
-    }, [notificationsEnabled, notificationStatus, profile?.id])
-
-    const handleAvatarClick = () => {
-        fileInputRef.current?.click()
     }
 
-    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file || !profile?.id) return
-
-        setIsUploadingAvatar(true)
-        try {
+    // ── Avatar ────────────────────────────────────────────────────────────
+    const avatarHandlers = maskedAsUser ? undefined : {
+        onUpload: async (file: File) => {
+            if (!profile?.id) return
             await uploadAvatar(file, profile.id)
             await refreshProfile()
             toast.success('Avatar updated successfully')
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Failed to upload avatar')
-        } finally {
-            setIsUploadingAvatar(false)
-            // Reset input so same file can be selected again
-            if (fileInputRef.current) {
-                fileInputRef.current.value = ''
-            }
-        }
-    }
-
-    const handleDeleteAvatar = async () => {
-        if (!profile?.id) return
-
-        setIsDeletingAvatar(true)
-        try {
+        },
+        onDelete: async () => {
+            if (!profile?.id) return
             await deleteAvatar(profile.id)
             await refreshProfile()
             toast.success('Avatar removed')
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Failed to remove avatar')
-        } finally {
-            setIsDeletingAvatar(false)
-        }
+        },
     }
 
-    const handleSignOut = async () => {
-        setIsSigningOut(true)
-        await signOut()
-        router.push('/login')
-    }
+    // ── Notifications ─────────────────────────────────────────────────────
+    const handleLoadNotifications = useCallback(async () => {
+        const permission = typeof window !== 'undefined' && 'Notification' in window
+            ? Notification.permission
+            : 'denied'
+        return {
+            enabled: permission === 'granted',
+            sound: false,
+            messages: true,
+            tasks: true,
+            progress: true,
+            mentions: true,
+        }
+    }, [])
+
+    const handleNotificationToggle = useCallback(async (enabled: boolean) => {
+        if (!profile?.id) return
+        if (enabled) {
+            const token = await registerForPushNotifications(profile.id)
+            if (token) {
+                toast.success('Push notifications enabled')
+            } else {
+                const permission = Notification.permission
+                if (permission === 'denied') {
+                    toast.error('Notification permission was denied')
+                } else {
+                    toast.error('Failed to enable notifications')
+                }
+                throw new Error('Registration failed')
+            }
+        } else {
+            await unregisterFromPushNotifications(profile.id)
+            toast.success('Push notifications disabled')
+        }
+    }, [profile?.id])
+
+    const isNotificationBlocked =
+        typeof window !== 'undefined' && 'Notification' in window
+            ? Notification.permission === 'denied'
+            : false
+
+    // ── AI Bot ────────────────────────────────────────────────────────────
+    const handleLoadBotConfig = useCallback(async () => {
+        const res = await fetch('/api/ai/bot/config')
+        if (!res.ok) throw new Error('Failed to load config')
+        return res.json()
+    }, [])
+
+    const handleSaveBotConfig = useCallback(async (config: BotConfig) => {
+        const res = await fetch('/api/ai/bot/config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config),
+        })
+        if (!res.ok) {
+            const error = await res.json()
+            throw new Error(error.error || 'Failed to save settings')
+        }
+    }, [])
+
+    // ── HRMS ──────────────────────────────────────────────────────────────
+    const handleFetchHrmsStatus = useCallback(async () => {
+        const res = await fetch('/api/hrms/status')
+        if (!res.ok) throw new Error('Failed to fetch status')
+        return res.json()
+    }, [])
+
+    const handleUnlinkHrms = useCallback(async () => {
+        const res = await fetch('/api/hrms/link', { method: 'DELETE' })
+        if (!res.ok) throw new Error('Failed to unlink HRMS account')
+    }, [])
 
     return (
         <DashboardLayout>
-            <div className="p-6 lg:p-8">
-                <div className="max-w-2xl mx-auto">
-                    {/* Header */}
-                    <div className="mb-6">
-                        <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-3">
-                            <Settings className="h-8 w-8" />
-                            Settings
-                        </h1>
-                        <p className="text-muted-foreground mt-1">
-                            Customize your TaskFlow experience
-                        </p>
-                    </div>
+            <SettingsView
+                onSignOut={handleSignOut}
+                isSigningOut={isSigningOut}
+                avatarHandlers={avatarHandlers}
+                maskedAsName={maskedAsUser?.name}
+                onExitMask={() => maskAs(null)}
+                renderProfileImage={({ src, alt, className }) => (
+                    <Image src={src} alt={alt} width={80} height={80} className={className} />
+                )}
+            >
+                <AppearanceSettings />
 
-                    <div className="space-y-6">
-                        {/* Mask-as banner */}
-                        {maskedAsUser && (
-                            <div className="p-3 bg-amber-500/20 border border-amber-500/30 rounded-lg">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-amber-300 text-sm">
-                                        <Eye className="h-4 w-4" />
-                                        <span>Viewing as <strong>{maskedAsUser.name}</strong> — profile shown is read-only</span>
-                                    </div>
-                                    <button
-                                        onClick={() => maskAs(null)}
-                                        className="text-amber-300 hover:text-amber-200 transition-colors"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                {profile?.is_admin && !maskedAsUser && (
+                    <AIBotSettings
+                        onLoadConfig={handleLoadBotConfig}
+                        onSaveConfig={handleSaveBotConfig}
+                    />
+                )}
 
-                        {/* Profile Card */}
-                        <Card data-slot="card">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <User className="h-5 w-5" />
-                                    Profile
-                                </CardTitle>
-                                <CardDescription>{maskedAsUser ? `${maskedAsUser.name}'s account information` : 'Your account information'}</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex flex-col sm:flex-row items-center gap-4">
-                                    {/* Avatar with upload (disabled when masking) */}
-                                    <div className={`relative shrink-0 ${!maskedAsUser ? 'group' : ''}`}>
-                                        <input
-                                            ref={fileInputRef}
-                                            type="file"
-                                            accept="image/jpeg,image/png,image/webp,image/gif"
-                                            onChange={handleAvatarChange}
-                                            className="hidden"
-                                        />
-                                        {effectiveUser?.avatar_url ? (
-                                            <Image
-                                                src={effectiveUser.avatar_url}
-                                                alt={effectiveUser.name || 'Avatar'}
-                                                width={80}
-                                                height={80}
-                                                className="w-20 h-20 aspect-square rounded-full object-cover border-2 border-border"
-                                            />
-                                        ) : (
-                                            <div className="w-20 h-20 aspect-square rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold border-2 border-border">
-                                                {effectiveUser?.name?.charAt(0).toUpperCase() || '?'}
-                                            </div>
-                                        )}
-                                        {/* Overlay on hover — hidden when masking */}
-                                        {!maskedAsUser && (
-                                            <button
-                                                onClick={handleAvatarClick}
-                                                disabled={isUploadingAvatar}
-                                                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                            >
-                                                {isUploadingAvatar ? (
-                                                    <Loader2 className="h-6 w-6 text-white animate-spin" />
-                                                ) : (
-                                                    <Camera className="h-6 w-6 text-white" />
-                                                )}
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 text-center sm:text-left min-w-0">
-                                        <p className="text-lg font-semibold truncate">{effectiveUser?.name}</p>
-                                        <p className="text-muted-foreground text-sm truncate">{effectiveUser?.email}</p>
-                                        {/* Avatar buttons hidden when masking */}
-                                        {!maskedAsUser && (
-                                            <div className="flex justify-center sm:justify-start gap-2 mt-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={handleAvatarClick}
-                                                    disabled={isUploadingAvatar}
-                                                >
-                                                    {isUploadingAvatar ? (
-                                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    ) : (
-                                                        <Camera className="h-4 w-4 mr-2" />
-                                                    )}
-                                                    {profile?.avatar_url ? 'Change' : 'Add Photo'}
-                                                </Button>
-                                                {profile?.avatar_url && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={handleDeleteAvatar}
-                                                        disabled={isDeletingAvatar}
-                                                        className="text-destructive hover:text-destructive"
-                                                    >
-                                                        {isDeletingAvatar ? (
-                                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                        ) : (
-                                                            <Trash2 className="h-4 w-4 mr-2" />
-                                                        )}
-                                                        Remove
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                {!maskedAsUser && (
-                                    <p className="text-xs text-muted-foreground text-center sm:text-left">
-                                        Square image, at least 200×200px. Max 5MB.
-                                    </p>
-                                )}
-                            </CardContent>
-                        </Card>
+                {!maskedAsUser && (
+                    <HrmsSettings
+                        onFetchStatus={handleFetchHrmsStatus}
+                        onUnlink={handleUnlinkHrms}
+                    />
+                )}
 
-                        {/* Appearance Card */}
-                        <Card data-slot="card">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Palette className="h-5 w-5" />
-                                    Appearance
-                                </CardTitle>
-                                <CardDescription>Customize the look and feel</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {/* Theme Mode */}
-                                <div className="space-y-2">
-                                    <Label className="text-sm">Mode</Label>
-                                    <div className="grid grid-cols-3 gap-1.5 rounded-lg bg-muted p-1">
-                                        {[
-                                            { value: 'light', icon: Sun, label: 'Light' },
-                                            { value: 'dark', icon: Moon, label: 'Dark' },
-                                            { value: 'system', icon: Monitor, label: 'Auto' },
-                                        ].map(({ value, icon: Icon, label }) => (
-                                            <button
-                                                key={value}
-                                                onClick={() => setMode(value as 'light' | 'dark' | 'system')}
-                                                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mode === value
-                                                    ? 'bg-background shadow-sm text-foreground'
-                                                    : 'text-muted-foreground hover:text-foreground'
-                                                    }`}
-                                            >
-                                                <Icon className="h-3.5 w-3.5" />
-                                                {label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                {!maskedAsUser && <GoogleConnectionCard />}
 
-                                {/* Theme Preset */}
-                                <div className="space-y-2">
-                                    <Label className="text-sm">Style</Label>
-                                    <div className="grid grid-cols-4 gap-1.5 rounded-lg bg-muted p-1">
-                                        {[
-                                            { value: 'modern', label: 'Modern' },
-                                            { value: 'glass', label: 'Glass' },
-                                            { value: 'neumorphism', label: 'Soft' },
-                                            { value: 'y2k', label: 'Retro' },
-                                        ].map(({ value, label }) => (
-                                            <button
-                                                key={value}
-                                                onClick={() => setPreset(value as ThemePreset)}
-                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${preset === value
-                                                    ? 'bg-background shadow-sm text-foreground'
-                                                    : 'text-muted-foreground hover:text-foreground'
-                                                    }`}
-                                            >
-                                                {label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                <NotificationsSettings
+                    onLoad={handleLoadNotifications}
+                    onToggle={handleNotificationToggle}
+                    blocked={isNotificationBlocked}
+                />
 
-                                {/* Chat Background Pattern */}
-                                <div className="space-y-2">
-                                    <Label className="text-sm">Chat Pattern</Label>
-                                    <div className="grid grid-cols-5 gap-1.5 rounded-lg bg-muted p-1">
-                                        {[
-                                            { value: 'none', label: 'None' },
-                                            { value: 'dots', label: 'Dots' },
-                                            { value: 'grid', label: 'Grid' },
-                                            { value: 'waves', label: 'Waves' },
-                                            { value: 'confetti', label: 'Confetti' },
-                                        ].map(({ value, label }) => (
-                                            <button
-                                                key={value}
-                                                onClick={() => updateCustomTheme({
-                                                    effects: { ...theme.effects, chatPattern: value as ChatPatternType }
-                                                })}
-                                                className={`px-2 py-1.5 rounded-md text-xs font-medium transition-all ${chatPattern === value
-                                                    ? 'bg-background shadow-sm text-foreground'
-                                                    : 'text-muted-foreground hover:text-foreground'
-                                                    }`}
-                                            >
-                                                {label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* AI Bot Settings - Admin Only */}
-                        {profile?.is_admin && !maskedAsUser && <AIBotSettings />}
-
-                        {/* HRMS Account Linking */}
-                        {!maskedAsUser && <HrmsSettings />}
-
-                        {/* Google Integration */}
-                        {!maskedAsUser && <GoogleConnectionCard />}
-
-                        {/* Notifications Card */}
-                        <Card data-slot="card">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    {notificationsEnabled ? (
-                                        <Bell className="h-5 w-5" />
-                                    ) : (
-                                        <BellOff className="h-5 w-5" />
-                                    )}
-                                    Notifications
-                                </CardTitle>
-                                <CardDescription>Manage push notification preferences</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-0.5">
-                                        <Label>Push Notifications</Label>
-                                        <p className="text-xs text-muted-foreground">
-                                            {notificationStatus === 'loading' && 'Checking status...'}
-                                            {notificationStatus === 'granted' && 'You will receive task updates and messages'}
-                                            {notificationStatus === 'denied' && 'Notifications are blocked in browser settings'}
-                                            {notificationStatus === 'default' && 'Enable to receive task updates'}
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        checked={notificationsEnabled}
-                                        onCheckedChange={handleNotificationToggle}
-                                        disabled={notificationStatus === 'loading' || isTogglingNotifications}
-                                    />
-                                </div>
-                                {notificationStatus === 'denied' && (
-                                    <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
-                                        <p className="text-sm text-destructive">
-                                            Notifications are blocked. To enable them:
-                                        </p>
-                                        <ol className="text-xs text-muted-foreground mt-2 list-decimal list-inside space-y-1">
-                                            <li>Click the lock/info icon in your browser&apos;s address bar</li>
-                                            <li>Find &quot;Notifications&quot; and change to &quot;Allow&quot;</li>
-                                            <li>Refresh this page</li>
-                                        </ol>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* Sign Out */}
-                        <button
-                            onClick={handleSignOut}
-                            disabled={isSigningOut}
-                            className="w-full flex items-center justify-center gap-2 py-3 text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            {isSigningOut ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <LogOut className="h-4 w-4" />
-                            )}
-                            <span className="text-sm font-medium">Sign Out</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
+                <AboutSettings
+                    version="1.0.0"
+                    platform="Web"
+                    buildMode={process.env.NODE_ENV === 'production' ? 'Release' : 'Development'}
+                />
+            </SettingsView>
         </DashboardLayout>
     )
 }

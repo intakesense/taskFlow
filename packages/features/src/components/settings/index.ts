@@ -1,3 +1,12 @@
 export { SettingsView, SettingsSection, SettingsRow } from './settings-view';
+export type { AvatarHandlers } from './settings-view';
 export { AppearanceSettings } from './appearance-settings';
 export { GoogleConnectionCard } from './google-connection-card';
+export { HrmsSettings } from './hrms-settings';
+export type { HrmsStatus, HrmsSettingsProps } from './hrms-settings';
+export { AIBotSettings } from './ai-bot-settings';
+export type { BotConfig, AIBotSettingsProps } from './ai-bot-settings';
+export { NotificationsSettings } from './notifications-settings';
+export type { NotificationPreferences, NotificationsSettingsProps } from './notifications-settings';
+export { AboutSettings } from './about-settings';
+export type { AboutSettingsProps } from './about-settings';

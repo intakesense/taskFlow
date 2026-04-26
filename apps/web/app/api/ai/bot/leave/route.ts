@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClientFromRequest } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { cookies } from 'next/headers'
 
 const AI_BOT_USER_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -14,25 +13,14 @@ const AI_BOT_USER_ID = '00000000-0000-0000-0000-000000000001'
  */
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { supabase, user, error } = await createClientFromRequest(request)
+    if (error) return NextResponse.json({ error }, { status: 401 })
 
     const { channelId, force, transcript } = await request.json()
-
     if (!channelId) {
       return NextResponse.json({ error: 'Channel ID required' }, { status: 400 })
     }
 
-    // Get active session
     const { data: session } = await supabase
       .from('ai_sessions')
       .select('id, host_user_id, transcript')
@@ -41,22 +29,16 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (!session) {
-      return NextResponse.json({
-        success: true,
-        message: 'Bot was not active',
-      })
+      return NextResponse.json({ success: true, message: 'Bot was not active' })
     }
 
-    // Check if user has permission to deactivate
-    // Either they are the host, or they're forcing (admin) or no humans remain
-    const isHost = session.host_user_id === user.id
+    const isHost = session.host_user_id === user!.id
 
     if (!isHost && !force) {
-      // Check if user is admin
       const { data: userProfile } = await supabase
         .from('users')
         .select('is_admin')
-        .eq('id', user.id)
+        .eq('id', user!.id)
         .single()
 
       if (!userProfile?.is_admin) {
@@ -89,7 +71,6 @@ export async function POST(request: NextRequest) {
       .eq('channel_id', channelId)
       .eq('user_id', AI_BOT_USER_ID)
 
-    // Get bot config for name
     const { data: botConfig } = await adminClient
       .from('ai_bot_config')
       .select('name')
@@ -100,11 +81,8 @@ export async function POST(request: NextRequest) {
       message: `${botConfig?.name || 'Bot'} deactivated`,
       sessionId: session.id,
     })
-  } catch (error) {
-    console.error('Bot leave error:', error)
-    return NextResponse.json(
-      { error: 'Failed to deactivate bot' },
-      { status: 500 }
-    )
+  } catch (err) {
+    console.error('Bot leave error:', err)
+    return NextResponse.json({ error: 'Failed to deactivate bot' }, { status: 500 })
   }
 }

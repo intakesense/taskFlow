@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
+import { createClientFromRequest } from '@/lib/supabase/server';
 
 const HRMS_BASE = 'https://hrms-backend.up.railway.app/api';
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const { supabase, user, error } = await createClientFromRequest(req);
+  if (error) return NextResponse.json({ error }, { status: 401 });
 
   const { data: link } = await supabase
     .from('hrms_links')
     .select('hrms_token, hrms_token_expires_at')
-    .eq('user_id', user.id)
+    .eq('user_id', user!.id)
     .single();
 
   if (!link) {
@@ -30,8 +24,6 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const { latitude, longitude, accuracy, tasks } = body;
 
-  // tasks is an array of strings — daily report
-  // HRMS accepts it as optional; we always send if provided
   const payload: Record<string, unknown> = {
     capturedAt: new Date().toISOString(),
   };
@@ -64,7 +56,6 @@ export async function POST(req: NextRequest) {
   const data = await hrmsRes.json();
 
   if (!hrmsRes.ok) {
-    // Surface task report requirement clearly
     const taskRequired = data.details?.taskReportRequired === true;
     return NextResponse.json(
       {
@@ -75,11 +66,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Update last_checkout_at
   await supabase
     .from('hrms_links')
     .update({ last_checkout_at: new Date().toISOString() })
-    .eq('user_id', user.id);
+    .eq('user_id', user!.id);
 
   return NextResponse.json({ success: true, attendance: data.data?.attendance });
 }

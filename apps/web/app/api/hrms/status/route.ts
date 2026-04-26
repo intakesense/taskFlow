@@ -1,20 +1,14 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClientFromRequest } from '@/lib/supabase/server';
 
-export async function GET() {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const { supabase, user, error } = await createClientFromRequest(req);
+  if (error) return NextResponse.json({ error }, { status: 401 });
 
   const { data: link } = await supabase
     .from('hrms_links')
     .select('hrms_employee_name, hrms_employee_id, hrms_token_expires_at, linked_at')
-    .eq('user_id', user.id)
+    .eq('user_id', user!.id)
     .single();
 
   if (!link) {
