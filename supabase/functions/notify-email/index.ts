@@ -187,14 +187,16 @@ function taskStatusChangedTemplate(params: {
     pending: 'Pending',
     in_progress: 'In Progress',
     on_hold: 'On Hold',
-    archived: 'Completed',
+    completed: 'Completed',
+    archived: 'Archived',
   }
 
   const statusColors: Record<string, string> = {
     pending: '#71717a',
     in_progress: '#3b82f6',
     on_hold: '#f59e0b',
-    archived: '#22c55e',
+    completed: '#22c55e',
+    archived: '#a1a1aa',
   }
 
   const newLabel = statusLabels[params.newStatus] || params.newStatus
@@ -207,7 +209,7 @@ function taskStatusChangedTemplate(params: {
       </div>`
     : ''
 
-  const isCompleted = params.newStatus === 'archived'
+  const isCompleted = params.newStatus === 'completed'
   const headline = isCompleted
     ? `"${escapeHtml(params.taskTitle)}" was completed`
     : `"${escapeHtml(params.taskTitle)}" is now ${newLabel}`
@@ -299,14 +301,16 @@ async function getTaskAssigneeEmails(supabase: ReturnType<typeof createClient>, 
 }
 
 function getAppUrl(): string {
-  return Deno.env.get('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000'
+  return Deno.env.get('APP_URL') || Deno.env.get('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000'
 }
 
 // ─── Main Handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   try {
-    const payload: BasePayload = await req.json()
+    const raw = await req.text()
+    console.log('[notify-email] raw payload:', raw)
+    const payload: BasePayload = JSON.parse(raw)
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -381,8 +385,10 @@ Deno.serve(async (req) => {
       const emailableTransitions = new Set([
         'pending:in_progress',
         'in_progress:on_hold',
+        'in_progress:completed',
         'in_progress:archived',
         'on_hold:in_progress',
+        'completed:archived',
         'archived:in_progress',
       ])
 
@@ -405,8 +411,10 @@ Deno.serve(async (req) => {
         sendEmail({
           to: recipient.email,
           toName: recipient.name,
-          subject: record.status === 'archived'
+          subject: record.status === 'completed'
             ? `Task completed: ${record.title}`
+            : record.status === 'archived'
+            ? `Task archived: ${record.title}`
             : `Task updated: ${record.title}`,
           html: taskStatusChangedTemplate({
             recipientName: recipient.name,
