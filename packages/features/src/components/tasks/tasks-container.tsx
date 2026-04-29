@@ -4,10 +4,11 @@ import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import type { TaskStatus, TaskPriority, TaskWithUsers, User } from '@taskflow/core';
 import { useAuth } from '../../providers/auth-context';
-import { useTasks, useUpdateTask, useDeleteTask, useAssignableUsers } from '../../hooks';
+import { useTasks, useChangeTaskStatus, useDeleteTask, useAssignableUsers } from '../../hooks';
 import { KanbanView } from './kanban';
 import { TeamView } from './team-view';
 import { TasksViewSocial } from './tasks-view-social';
+import { ErrorBoundary } from '../error-boundary';
 import type { FilterType } from './types';
 
 interface TasksContainerProps {
@@ -27,7 +28,7 @@ export function TasksContainer({ renderCreateTask, renderProgressFeed }: TasksCo
   const { data: assignableUsers = [], isLoading: isLoadingUsers } = useAssignableUsers(
     effectiveUser?.level
   );
-  const updateTask = useUpdateTask();
+  const changeTaskStatus = useChangeTaskStatus();
   const deleteTask = useDeleteTask();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -68,17 +69,12 @@ export function TasksContainer({ renderCreateTask, renderProgressFeed }: TasksCo
     });
   }, [tasks, searchQuery, statusFilter, priorityFilter, typeFilter, effectiveUser?.id]);
 
-  const handleStatusChange = async (taskId: string, status: string) => {
-    try {
-      await updateTask.mutateAsync({
-        id: taskId,
-        input: { status: status as TaskStatus },
-      });
-      toast.success('Task updated');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update task';
-      toast.error(message);
-    }
+  const handleStatusChange = async (taskId: string, status: string, onHoldReason?: string) => {
+    await changeTaskStatus.mutateAsync({
+      taskId,
+      status: status as TaskStatus,
+      onHoldReason,
+    });
   };
 
   const handleDelete = async (taskId: string) => {
@@ -196,7 +192,9 @@ export function TasksContainer({ renderCreateTask, renderProgressFeed }: TasksCo
 
   return (
     <>
-      {renderView()}
+      <ErrorBoundary label="tasks view">
+        {renderView()}
+      </ErrorBoundary>
       {renderCreateTask?.({
         open: showCreateDrawer,
         onOpenChange: handleDrawerClose,

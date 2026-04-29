@@ -29,118 +29,124 @@ export interface SendMessageInput {
 export function createMessagesService(supabase: SupabaseClient<Database>) {
   return {
     /**
-     * Fetch all conversations for a user with members and last message.
-     * Optimized: Uses 4 parallel queries instead of N+1.
+     * Fetch all conversations for a user with members, last message, and unread count.
+     *
+     * Single PostgREST query via nested selects — replaces the previous 4-query approach.
+     * Unread is derived from last_read_at vs last message timestamp, no extra scan needed.
      */
     async getConversations(userId: string): Promise<ConversationWithMembers[]> {
-      // Step 1: Get conversation IDs
-      const { data: memberOf, error: memberError } = await supabase
+      const { data, error } = await supabase
         .from('conversation_members')
-        .select('conversation_id, last_read_at')
-        .eq('user_id', userId);
+        .select(`
+          last_read_at,
+          joined_at,
+          conversation:conversations!conversation_members_conversation_id_fkey(
+            id, name, is_group, avatar_url, created_by, created_at, updated_at,
+            members:conversation_members!conversation_members_conversation_id_fkey(
+              last_read_at,
+              joined_at,
+              user:users!conversation_members_user_id_fkey(id, name, email, level, avatar_url)
+            ),
+            last_message:messages!messages_conversation_id_fkey(
+              id, content, file_url, file_name, file_type, created_at, sender_id,
+              sender:users!messages_sender_id_fkey(id, name, email, level, avatar_url)
+            )
+          )
+        `)
+        .eq('user_id', userId)
+        .order('joined_at', { ascending: false });
 
-      if (memberError) throw memberError;
-      if (!memberOf?.length) return [];
+      if (error) throw error;
+      if (!data?.length) return [];
 
-      const conversationIds = memberOf.map(m => m.conversation_id);
-
-      // Step 2: Fetch all data in parallel
-      const [conversationsResult, membersResult, messagesResult, unreadMessagesResult] = await Promise.all([
-        supabase
-          .from('conversations')
-          .select('*')
-          .in('id', conversationIds)
-          .order('updated_at', { ascending: false }),
-        supabase
-          .from('conversation_members')
-          .select(`
-            conversation_id,
-            last_read_at,
-            joined_at,
-            user:users!conversation_members_user_id_fkey(id, name, email, level, avatar_url)
-          `)
-          .in('conversation_id', conversationIds),
-        supabase
-          .from('messages')
-          .select(`
-            *,
-            sender:users!messages_sender_id_fkey(id, name, email, level, avatar_url)
-          `)
-          .in('conversation_id', conversationIds)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('messages')
-          .select('conversation_id, created_at, sender_id')
-          .in('conversation_id', conversationIds)
-      ]);
-
-      if (conversationsResult.error) throw conversationsResult.error;
-      const conversations = conversationsResult.data || [];
-
-      // Step 3: Build lookup maps
-      const membersByConv = new Map<string, UserBasic[]>();
-      const membersWithStatusByConv = new Map<string, ConversationMemberWithUser[]>();
-      const lastMessageByConv = new Map<string, MessageWithSender>();
-      const unreadCountByConv = new Map<string, number>();
-
-      if (membersResult.data) {
-        interface MemberItem {
-          conversation_id: string;
-          last_read_at: string;
-          joined_at: string;
-          user: UserBasic;
-        }
-        (membersResult.data as MemberItem[]).forEach((item) => {
-          const convId = item.conversation_id;
-          if (!membersByConv.has(convId)) {
-            membersByConv.set(convId, []);
-            membersWithStatusByConv.set(convId, []);
-          }
-          if (item.user) {
-            membersByConv.get(convId)!.push(item.user);
-            membersWithStatusByConv.get(convId)!.push({
-              user: item.user,
-              last_read_at: item.last_read_at,
-              joined_at: item.joined_at,
-            });
-          }
-        });
+      interface RawMember {
+        last_read_at: string;
+        joined_at: string;
+        user: UserBasic | null;
       }
 
-      if (messagesResult.data) {
-        (messagesResult.data as MessageWithSender[]).forEach((msg) => {
-          if (!lastMessageByConv.has(msg.conversation_id)) {
-            lastMessageByConv.set(msg.conversation_id, msg);
-          }
-        });
+      interface RawLastMessage {
+        id: string;
+        content: string | null;
+        file_url: string | null;
+        file_name: string | null;
+        file_type: string | null;
+        created_at: string;
+        sender_id: string;
+        sender: UserBasic | null;
       }
 
-      if (unreadMessagesResult.data) {
-        const membershipMap = new Map(memberOf.map(m => [m.conversation_id, m.last_read_at]));
-
-        interface UnreadItem { conversation_id: string; created_at: string; sender_id: string; }
-        (unreadMessagesResult.data as UnreadItem[]).forEach((msg) => {
-          const lastReadAt = membershipMap.get(msg.conversation_id);
-          if (lastReadAt && msg.created_at > lastReadAt && msg.sender_id !== userId) {
-            unreadCountByConv.set(
-              msg.conversation_id,
-              (unreadCountByConv.get(msg.conversation_id) || 0) + 1
-            );
-          }
-        });
+      interface RawConversation {
+        id: string;
+        name: string | null;
+        is_group: boolean;
+        avatar_url: string | null;
+        created_by: string | null;
+        created_at: string;
+        updated_at: string;
+        members: RawMember[];
+        last_message: RawLastMessage | RawLastMessage[] | null;
       }
 
-      // Step 4: Combine, then sort by last message time (most recent first).
-      // We sort client-side using lastMessage.created_at because conversations.updated_at
-      // may be stale for rows that predate the DB trigger.
-      return conversations
-        .map((conv: Conversation) => ({
-          ...conv,
-          members: membersByConv.get(conv.id) || [],
-          membersWithStatus: membersWithStatusByConv.get(conv.id) || [],
-          lastMessage: lastMessageByConv.get(conv.id) || null,
-          unreadCount: unreadCountByConv.get(conv.id) || 0,
-        }))
+      interface RawRow {
+        last_read_at: string;
+        joined_at: string;
+        conversation: RawConversation | null;
+      }
+
+      return (data as RawRow[])
+        .filter((row): row is RawRow & { conversation: RawConversation } => row.conversation !== null)
+        .map((row) => {
+          const conv = row.conversation;
+
+          const membersWithStatus: ConversationMemberWithUser[] = (conv.members || [])
+            .filter((m): m is RawMember & { user: UserBasic } => m.user !== null)
+            .map((m) => ({
+              user: m.user,
+              last_read_at: m.last_read_at,
+              joined_at: m.joined_at,
+            }));
+
+          const members: UserBasic[] = membersWithStatus.map((m) => m.user);
+
+          // PostgREST returns an array for to-many; we want only the latest message.
+          // The DB trigger keeps conversations.updated_at current, so we sort on that
+          // server-side. For last_message we just take the first element of the array.
+          const rawLastMsg = Array.isArray(conv.last_message)
+            ? conv.last_message[0] ?? null
+            : conv.last_message;
+
+          const lastMessage: MessageWithSender | null = rawLastMsg
+            ? ({
+                ...rawLastMsg,
+                conversation_id: conv.id,
+                reply_to_id: null,
+                replyTo: null,
+              } as unknown as MessageWithSender)
+            : null;
+
+          // Unread indicator: any message newer than our last_read_at, not sent by us.
+          const myLastRead = row.last_read_at;
+          const lastMsgTime = rawLastMsg?.created_at ?? null;
+          const isUnread =
+            lastMsgTime !== null &&
+            rawLastMsg?.sender_id !== userId &&
+            (myLastRead === null || lastMsgTime > myLastRead);
+
+          return {
+            id: conv.id,
+            name: conv.name,
+            is_group: conv.is_group,
+            avatar_url: conv.avatar_url,
+            created_by: conv.created_by,
+            created_at: conv.created_at,
+            updated_at: conv.updated_at,
+            members,
+            membersWithStatus,
+            lastMessage,
+            unreadCount: isUnread ? 1 : 0,
+          } as ConversationWithMembers;
+        })
         .sort((a, b) => {
           const aTime = a.lastMessage?.created_at ?? a.updated_at ?? '';
           const bTime = b.lastMessage?.created_at ?? b.updated_at ?? '';

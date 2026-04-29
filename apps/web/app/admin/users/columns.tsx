@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { MoreVertical, Pencil, Trash2, Eye, Shield, ArrowUpDown } from 'lucide-react'
-import { getLevelLabel } from '@/hooks'
+import { getLevelLabel } from '@taskflow/features'
 
 interface ColumnActions {
   onEdit: (user: User) => void

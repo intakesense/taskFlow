@@ -120,11 +120,12 @@ async function sendPushNotification(
 ): Promise<number> {
   const { recipientUserIds, title, body, url, notificationType, collapseId, data } = params
 
-  // Fetch device tokens for all recipients
+  // Fetch device tokens for all recipients — exclude desktop (uses Realtime, not FCM)
   const { data: tokens } = await supabase
     .from('device_tokens')
     .select('token, platform, user_id')
     .in('user_id', recipientUserIds)
+    .neq('platform', 'desktop')
 
   if (!tokens || tokens.length === 0) {
     return 0

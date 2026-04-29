@@ -10,6 +10,7 @@ import { KanbanView } from './kanban';
 import { OnHoldDialog } from './on-hold-dialog';
 import { CreateTaskDrawer } from './create-task-drawer';
 import { ProgressFeedSheet } from '../progress/progress-feed-sheet';
+import { ErrorBoundary } from '../error-boundary';
 import type { TaskStatus, TaskWithUsers } from '@taskflow/core';
 import type { FilterType } from './types';
 
@@ -209,7 +210,9 @@ export function TasksContainerSocial({ initialTasks }: TasksContainerSocialProps
 
   return (
     <>
-      {renderView()}
+      <ErrorBoundary label="tasks view">
+        {renderView()}
+      </ErrorBoundary>
       <CreateTaskDrawer open={showCreateDrawer} onOpenChange={setShowCreateDrawer} />
       <OnHoldDialog
         open={onHoldDialog.open}

@@ -51,12 +51,26 @@ export function useVoiceChannel() {
 
 interface VoiceChannelProviderProps {
   children: ReactNode;
-  apiBaseUrl?: string; // For desktop app to point to web API
+  /**
+   * Full URL for the room endpoint.
+   * Web: leave empty → uses relative /api/daily/room (Next.js route, cookie auth).
+   * Desktop/Mobile: pass Supabase edge function URL → uses Bearer token auth.
+   * Defaults to relative path for web.
+   */
+  roomEndpoint?: string;
+  /**
+   * Full URL for the token endpoint.
+   * Web: leave empty → uses relative /api/daily/token (Next.js route, cookie auth).
+   * Desktop/Mobile: pass Supabase edge function URL → uses Bearer token auth.
+   * Defaults to relative path for web.
+   */
+  tokenEndpoint?: string;
 }
 
 export function VoiceChannelProvider({
   children,
-  apiBaseUrl = '',
+  roomEndpoint = '/api/daily/room',
+  tokenEndpoint = '/api/daily/token',
 }: VoiceChannelProviderProps) {
   const { profile } = useAuth();
   const supabase = useSupabase();
@@ -86,11 +100,7 @@ export function VoiceChannelProvider({
   useEffect(() => {
     const cleanup = () => {
       if (profile?.id) {
-        // Use Beacon API for reliable cleanup on page unload
-        navigator.sendBeacon(
-          `${apiBaseUrl}/api/voice/leave`,
-          JSON.stringify({ userId: profile.id })
-        );
+        voiceService.leaveChannel(profile.id).catch(() => {});
       }
     };
 
@@ -109,7 +119,7 @@ export function VoiceChannelProvider({
         voiceService.leaveChannel(profile.id).catch(() => {});
       }
     };
-  }, [profile?.id, apiBaseUrl, voiceService]);
+  }, [profile?.id, voiceService]);
 
   const updateParticipants = useCallback((callObject: DailyCall) => {
     const allParticipants = callObject.participants();
@@ -135,10 +145,16 @@ export function VoiceChannelProvider({
       try {
         setConnectionState('connecting');
 
+        // Resolve auth header — edge functions need Bearer token, Next.js routes use cookies
+        const { data: { session } } = await supabase.auth.getSession();
+        const authHeaders: Record<string, string> = session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {};
+
         // Get or create Daily room
-        const roomResponse = await fetch(`${apiBaseUrl}/api/daily/room`, {
+        const roomResponse = await fetch(roomEndpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({ channelId: channel.id }),
           credentials: 'include',
         });
@@ -150,9 +166,9 @@ export function VoiceChannelProvider({
         const { roomName, roomUrl } = await roomResponse.json();
 
         // Get meeting token
-        const tokenResponse = await fetch(`${apiBaseUrl}/api/daily/token`, {
+        const tokenResponse = await fetch(tokenEndpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({ roomName }),
           credentials: 'include',
         });
@@ -225,7 +241,7 @@ export function VoiceChannelProvider({
         toast.error('Failed to join voice channel');
       }
     },
-    [profile, voiceService, apiBaseUrl, updateParticipants]
+    [profile, voiceService, supabase, roomEndpoint, tokenEndpoint, updateParticipants]
   );
 
   const leaveChannel = useCallback(async () => {

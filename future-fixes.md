@@ -24,15 +24,12 @@
 
 - **No message search** — Full-text search on `messages.content` via Postgres `tsvector` + search bar in UI.
 - **No message editing or deletion** — Add `edited_at` column + edit/delete actions in message context menu for sender.
-- **No thread / reply** — Add `reply_to_id` FK to messages. Show quoted message in reply UI.
 
 ---
 
 ## Voice / ChitChat
 
-- **Multi-channel schema, single-channel UI** — DB supports multiple rooms but UI hardcodes one "ChitChat" channel. Add room creation UI. Files: `components/voice/`, `schema.sql`
-- **Participant state never synced** — `is_muted`, `is_video_on`, `is_screen_sharing` columns always stale. Either implement Daily.co webhook to sync state or remove columns and rely on Daily's local state. Files: `app/api/daily/`, `schema.sql`
-- **No screen sharing UI** — Daily.co supports it, data model has the column, but no button or viewer exists.
+- **No screen sharing UI** — Daily.co supports it but no button or viewer exists in the UI.
 - **No meeting recording** — Use Daily.co cloud recording API. Store URLs in `voice_recordings` table.
 
 ---

@@ -24,6 +24,7 @@ import {
   useTaskProgressRealtime,
 } from '../../hooks';
 import { TaskDetailChatView } from './task-detail-chat-view';
+import { ErrorBoundary } from '../error-boundary';
 
 interface TaskDetailContainerSocialProps {
   taskId: string;
@@ -242,6 +243,7 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
   }
 
   return (
+    <ErrorBoundary label="task detail">
     <TaskDetailChatView
         task={task}
         messages={messages}
@@ -274,5 +276,6 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
         isCreatingProgress={createProgress.isPending}
         isAddingProgressComment={addProgressComment.isPending}
       />
+    </ErrorBoundary>
   );
 }

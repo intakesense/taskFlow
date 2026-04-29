@@ -258,6 +258,7 @@ export function TaskDetailChatView({
       pending: { label: 'Not Started', color: 'text-muted-foreground', bgColor: 'bg-muted' },
       in_progress: { label: 'In Progress', color: 'text-blue-500', bgColor: 'bg-blue-500/10' },
       on_hold: { label: 'On Hold', color: 'text-yellow-500', bgColor: 'bg-yellow-500/10' },
+      completed: { label: 'Pending Review', color: 'text-purple-500', bgColor: 'bg-purple-500/10' },
       archived: { label: 'Completed', color: 'text-green-500', bgColor: 'bg-green-500/10' },
     };
     return info[status as keyof typeof info] || info.pending;
@@ -377,8 +378,8 @@ export function TaskDetailChatView({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              {/* Assignee status changes: start, pause, resume */}
-              {canChangeStatus && task.status !== 'archived' && (
+              {/* Assignee: start, pause, resume, mark done */}
+              {canChangeStatus && task.status !== 'archived' && task.status !== 'completed' && (
                 <>
                   {task.status === 'pending' && (
                     <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>
@@ -387,10 +388,16 @@ export function TaskDetailChatView({
                     </DropdownMenuItem>
                   )}
                   {task.status === 'in_progress' && (
-                    <DropdownMenuItem onClick={() => handleStatusChange('on_hold')}>
-                      <Pause className="h-4 w-4 mr-2" />
-                      Put On Hold
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuItem onClick={() => handleStatusChange('on_hold')}>
+                        <Pause className="h-4 w-4 mr-2" />
+                        Put On Hold
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStatusChange('completed')}>
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Mark as Done
+                      </DropdownMenuItem>
+                    </>
                   )}
                   {task.status === 'on_hold' && (
                     <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>
@@ -401,12 +408,16 @@ export function TaskDetailChatView({
                   <DropdownMenuSeparator />
                 </>
               )}
-              {/* Creator can mark complete or reopen */}
-              {canComplete && task.status === 'in_progress' && (
+              {/* Creator: accept completion or request changes */}
+              {canComplete && task.status === 'completed' && (
                 <>
                   <DropdownMenuItem onClick={() => handleStatusChange('archived')}>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Mark Complete
+                    Accept &amp; Close
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusChange('in_progress')}>
+                    <Clock className="h-4 w-4 mr-2" />
+                    Request Changes
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
@@ -420,7 +431,7 @@ export function TaskDetailChatView({
                   <DropdownMenuSeparator />
                 </>
               )}
-              {isAssignedByMe && task.status !== 'archived' && (
+              {isAssignedByMe && task.status !== 'archived' && task.status !== 'completed' && (
                 <>
                   <DropdownMenuItem
                     onClick={() => {
@@ -509,7 +520,7 @@ export function TaskDetailChatView({
                 <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
                   Assigned to
                 </span>
-                {isAssignedByMe && task.status !== 'archived' && !isEditingAssignees && (
+                {isAssignedByMe && task.status !== 'archived' && task.status !== 'completed' && !isEditingAssignees && (
                   <button
                     type="button"
                     onClick={() => {
@@ -820,13 +831,12 @@ export function TaskDetailChatView({
             )}
           </AnimatePresence>
 
-          {/* Quick Actions Bar - Assignee can start/pause/resume, Creator can complete/reopen */}
-          {/* Only show when at least one action button would be rendered */}
-          {((canChangeStatus && task.status !== 'archived') ||
-            (canComplete && (task.status === 'in_progress' || task.status === 'archived'))) && (
+          {/* Quick Actions Bar */}
+          {((canChangeStatus && task.status !== 'archived' && task.status !== 'completed') ||
+            (canComplete && (task.status === 'completed' || task.status === 'archived'))) && (
             <div className="flex-shrink-0 px-4 py-2 border-t bg-muted/30">
               <div className="flex gap-2">
-                {/* Assignee actions: start, pause, resume */}
+                {/* Assignee: start */}
                 {canChangeStatus && task.status === 'pending' && (
                   <Button
                     size="sm"
@@ -838,17 +848,29 @@ export function TaskDetailChatView({
                     Start
                   </Button>
                 )}
+                {/* Assignee: pause + mark done */}
                 {canChangeStatus && task.status === 'in_progress' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleStatusChange('on_hold')}
-                    className="flex-1 rounded-full"
-                  >
-                    <Pause className="h-4 w-4 mr-2" />
-                    Pause
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleStatusChange('on_hold')}
+                      className="flex-1 rounded-full"
+                    >
+                      <Pause className="h-4 w-4 mr-2" />
+                      Pause
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleStatusChange('completed')}
+                      className="flex-1 rounded-full bg-purple-500 hover:bg-purple-600"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Mark Done
+                    </Button>
+                  </>
                 )}
+                {/* Assignee: resume */}
                 {canChangeStatus && task.status === 'on_hold' && (
                   <Button
                     size="sm"
@@ -860,17 +882,29 @@ export function TaskDetailChatView({
                     Resume
                   </Button>
                 )}
-                {/* Creator actions: complete, reopen */}
-                {canComplete && task.status === 'in_progress' && (
-                  <Button
-                    size="sm"
-                    onClick={() => handleStatusChange('archived')}
-                    className="flex-1 rounded-full bg-green-500 hover:bg-green-600"
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Complete
-                  </Button>
+                {/* Creator: accept or request changes */}
+                {canComplete && task.status === 'completed' && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleStatusChange('in_progress')}
+                      className="flex-1 rounded-full"
+                    >
+                      <Clock className="h-4 w-4 mr-2" />
+                      Request Changes
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleStatusChange('archived')}
+                      className="flex-1 rounded-full bg-green-500 hover:bg-green-600"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Accept
+                    </Button>
+                  </>
                 )}
+                {/* Creator: reopen archived */}
                 {canComplete && task.status === 'archived' && (
                   <Button
                     size="sm"

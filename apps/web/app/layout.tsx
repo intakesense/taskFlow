@@ -4,7 +4,6 @@ import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider, QueryProvider, MotionProvider, WebFeaturesProvider } from "@/components/providers";
 import { BottomNavProvider } from "@taskflow/features";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { RealtimeHealthMonitor } from "@/components/realtime-health-monitor";
 import { ServiceWorkerRegister } from "@/components/pwa";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -69,7 +68,6 @@ export default function RootLayout({
                       {children}
 
                       <Toaster />
-                      <RealtimeHealthMonitor />
                       <ServiceWorkerRegister />
                     </BottomNavProvider>
                   </WebFeaturesProvider>

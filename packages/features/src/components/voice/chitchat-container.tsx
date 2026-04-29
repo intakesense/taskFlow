@@ -18,6 +18,7 @@ import { useBottomNavVisibility } from '../layout/bottom-nav-context';
 import { VoiceChannelPanel } from './voice-channel-panel';
 import { VoiceControls } from './voice-controls';
 import { ParticipantGrid } from './participant-grid';
+import { ErrorBoundary } from '../error-boundary';
 
 export function ChitChatContainer() {
   useVoiceChannelsRealtime();
@@ -196,12 +197,14 @@ export function ChitChatContainer() {
             </p>
           </div>
         ) : connectionState === 'connected' ? (
-          <DailyProvider callObject={callObject}>
-            <ActiveCallView
-              channelName={currentChannel?.name ?? ''}
-              connectionState={connectionState}
-            />
-          </DailyProvider>
+          <ErrorBoundary label="voice call">
+            <DailyProvider callObject={callObject}>
+              <ActiveCallView
+                channelName={currentChannel?.name ?? ''}
+                connectionState={connectionState}
+              />
+            </DailyProvider>
+          </ErrorBoundary>
         ) : (
           <IdleView
             channels={channels || []}

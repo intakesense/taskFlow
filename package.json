@@ -20,6 +20,7 @@
     "lint": "turbo lint",
     "lint:fix": "turbo lint -- --fix",
     "type-check": "turbo type-check",
+    "test": "turbo test",
     "check": "turbo lint type-check",
     "clean": "turbo clean && rm -rf node_modules .turbo",
     "clean:all": "turbo clean && rm -rf node_modules .turbo apps/*/node_modules packages/*/node_modules",

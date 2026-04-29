@@ -50,3 +50,5 @@ export {
   ThemeProvider,
   useThemeContext,
 } from './theme-context';
+
+export { TasksRealtimeProvider } from './tasks-realtime-provider';

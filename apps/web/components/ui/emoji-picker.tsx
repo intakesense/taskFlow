@@ -6,7 +6,7 @@ import { useTheme } from 'next-themes'
 import { Button } from './button'
 import { Smile } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useMobile } from '@/hooks/use-mobile'
+import { useMobile } from '@taskflow/features'
 
 interface EmojiPickerProps {
     onEmojiSelect: (emoji: string) => void

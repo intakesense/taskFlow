@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Sparkles } from 'lucide-react'
-import { haptics } from '@/lib/haptics'
+import { haptics } from '@taskflow/features'
 import { AIVoiceChatModal } from './ai-voice-chat-modal'
 
 /**

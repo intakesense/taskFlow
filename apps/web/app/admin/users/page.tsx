@@ -5,10 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DashboardLayout } from '@/components/layout'
 import { useAuth } from '@/lib/auth-context'
-import { useUsers, getLevelLabel, userKeys } from '@/hooks'
-import { updateUser } from '@/lib/services/users'
+import { useUsers, getLevelLabel, userKeys, useServices } from '@taskflow/features'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { deleteUserAsAdmin } from './actions'
-import { useQueryClient } from '@tanstack/react-query'
 import { User } from '@/lib/types'
 import { DataTable } from '@/components/ui/data-table'
 import { createColumns } from './columns'
@@ -42,18 +41,29 @@ export default function AdminUsersPage() {
     const { profile, maskAs } = useAuth()
     const router = useRouter()
     const queryClient = useQueryClient()
+    const { users: usersService } = useServices()
     const { data: users = [], isLoading: loading } = useUsers()
     const [editingUser, setEditingUser] = useState<User | null>(null)
     const [editDialogOpen, setEditDialogOpen] = useState(false)
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [deletingUser, setDeletingUser] = useState<User | null>(null)
-    const [saving, setSaving] = useState(false)
     const [deleting, setDeleting] = useState(false)
 
     // Edit form state
     const [editName, setEditName] = useState('')
     const [editLevel, setEditLevel] = useState(4)
     const [editIsAdmin, setEditIsAdmin] = useState(false)
+
+    const updateUser = useMutation({
+        mutationFn: ({ id, updates }: { id: string; updates: { name: string; level: number; is_admin: boolean } }) =>
+            usersService.updateUser(id, updates),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: userKeys.all })
+            toast.success('User updated successfully')
+            setEditDialogOpen(false)
+        },
+        onError: () => toast.error('Failed to update user'),
+    })
 
     const openEditDialog = (user: User) => {
         setEditingUser(user)
@@ -63,23 +73,9 @@ export default function AdminUsersPage() {
         setEditDialogOpen(true)
     }
 
-    const handleSaveUser = async () => {
+    const handleSaveUser = () => {
         if (!editingUser) return
-        setSaving(true)
-        try {
-            await updateUser(editingUser.id, {
-                name: editName,
-                level: editLevel,
-                is_admin: editIsAdmin,
-            })
-            queryClient.invalidateQueries({ queryKey: userKeys.all })
-            toast.success('User updated successfully')
-            setEditDialogOpen(false)
-        } catch {
-            toast.error('Failed to update user')
-        } finally {
-            setSaving(false)
-        }
+        updateUser.mutate({ id: editingUser.id, updates: { name: editName, level: editLevel, is_admin: editIsAdmin } })
     }
 
     const openDeleteDialog = (user: User) => {
@@ -215,8 +211,8 @@ export default function AdminUsersPage() {
                             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                                 Cancel
                             </Button>
-                            <Button onClick={handleSaveUser} disabled={saving}>
-                                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            <Button onClick={handleSaveUser} disabled={updateUser.isPending}>
+                                {updateUser.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                                 Save Changes
                             </Button>
                         </DialogFooter>

@@ -7,14 +7,14 @@ import Image from 'next/image'
 import { m, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
-import { navIconVariants, springs } from '@/lib/animations'
+import { navIconVariants, springs } from '@taskflow/ui'
 import {
     MessageSquare,
     ListTodo,
     Users,
     Headphones,
 } from 'lucide-react'
-import { haptics } from '@/lib/haptics'
+import { haptics } from '@taskflow/features'
 
 interface NavItem {
     name: string

@@ -1,7 +1,6 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { useServices } from '../providers/services-context';
 import { useConfig } from '../providers/config-context';
@@ -51,34 +50,9 @@ export function useTasks(options?: {
   filters?: TaskFilters;
   initialData?: TaskWithUsers[];
 }) {
-  const { tasks, supabase } = useServices();
-  const queryClient = useQueryClient();
+  const { tasks } = useServices();
 
-  // Set up real-time subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel('tasks-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
-        const taskId = (payload.new as { id?: string })?.id ?? (payload.old as { id?: string })?.id;
-        if (taskId) {
-          queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
-        }
-        queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, (payload) => {
-        const taskId = (payload.new as { task_id?: string })?.task_id ?? (payload.old as { task_id?: string })?.task_id;
-        if (taskId) {
-          queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
-        }
-        queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase, queryClient]);
-
+  // Real-time updates are handled by TasksRealtimeProvider mounted in FeaturesProvider
   return useQuery({
     queryKey: taskKeys.list(options?.filters),
     queryFn: () => tasks.getTasks(options?.filters),
@@ -94,35 +68,10 @@ export function useTasksInfinite(options?: {
   filters?: Omit<TaskFilters, 'cursor'>;
   limit?: number;
 }) {
-  const { tasks, supabase } = useServices();
-  const queryClient = useQueryClient();
+  const { tasks } = useServices();
   const limit = options?.limit || 25;
 
-  // Set up real-time subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel('tasks-infinite-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
-        const taskId = (payload.new as { id?: string })?.id ?? (payload.old as { id?: string })?.id;
-        if (taskId) {
-          queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
-        }
-        queryClient.invalidateQueries({ queryKey: taskKeys.infinite(options?.filters) });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, (payload) => {
-        const taskId = (payload.new as { task_id?: string })?.task_id ?? (payload.old as { task_id?: string })?.task_id;
-        if (taskId) {
-          queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
-        }
-        queryClient.invalidateQueries({ queryKey: taskKeys.infinite(options?.filters) });
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase, queryClient, options?.filters]);
-
+  // Real-time updates are handled by TasksRealtimeProvider mounted in FeaturesProvider
   return useInfiniteQuery<PaginatedTasksResult>({
     queryKey: taskKeys.infinite(options?.filters),
     queryFn: ({ pageParam }) =>
@@ -381,8 +330,8 @@ export function useChangeTaskStatus() {
     },
     onSuccess: (_, { taskId, status }, context) => {
       haptics.success();
-      // Task marked as done (archived) — remove from calendar
-      if (status === 'archived') {
+      // Task marked done or closed — remove from calendar
+      if (status === 'archived' || status === 'completed') {
         const task = context?.previousTasks?.find(t => t.id === taskId)
         if (task?.assigner?.id) {
           removeTaskFromCalendar({

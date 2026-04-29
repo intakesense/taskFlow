@@ -1,4 +1,4 @@
-import { Clock, CheckCircle2, PauseCircle, CircleDashed } from 'lucide-react'
+import { Clock, CheckCircle2, PauseCircle, CircleDashed, Eye } from 'lucide-react'
 import type { TaskStatus, TaskPriority } from '@/lib/types'
 
 export const TASK_STATUS = {
@@ -29,6 +29,12 @@ export const TASK_STATUS_CONFIG: Record<
     color: 'text-yellow-600',
     bg: 'bg-yellow-500/10',
     icon: PauseCircle,
+  },
+  completed: {
+    label: 'Pending Review',
+    color: 'text-purple-600',
+    bg: 'bg-purple-500/10',
+    icon: Eye,
   },
   archived: {
     label: 'Done',

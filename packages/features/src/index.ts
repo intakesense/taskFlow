@@ -9,6 +9,9 @@ export * from './hooks';
 // Re-export services
 export * from './services';
 
+// Re-export shared utilities
+export { ErrorBoundary } from './components/error-boundary';
+
 // Re-export layout components
 export * from './components/layout';
 

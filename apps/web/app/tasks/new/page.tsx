@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { DashboardLayout } from '@/components/layout'
 import { useAuth } from '@/lib/auth-context'
-import { useAssignableUsers } from '@/hooks'
-import { useCreateTask } from '@/hooks'
+import { useAssignableUsers, useCreateTask } from '@taskflow/features'
+import { VISIBILITY_LABELS } from '@taskflow/core'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -170,11 +170,11 @@ export default function NewTaskPage() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="private">Private (Assignee only)</SelectItem>
-                                            <SelectItem value="supervisor">Supervisor</SelectItem>
-                                            <SelectItem value="hierarchy_same">Same level &amp; above</SelectItem>
-                                            <SelectItem value="hierarchy_above">Above level only</SelectItem>
-                                            <SelectItem value="all">Everyone</SelectItem>
+                                            <SelectItem value="private">{VISIBILITY_LABELS.private}</SelectItem>
+                                            <SelectItem value="supervisor">{VISIBILITY_LABELS.supervisor}</SelectItem>
+                                            <SelectItem value="hierarchy_same">{VISIBILITY_LABELS.hierarchy_same}</SelectItem>
+                                            <SelectItem value="hierarchy_above">{VISIBILITY_LABELS.hierarchy_above}</SelectItem>
+                                            <SelectItem value="all">{VISIBILITY_LABELS.all}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     <p className="text-xs text-muted-foreground">

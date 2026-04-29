@@ -14,7 +14,7 @@ export const createTaskSchema = z.object({
   priority: z.enum(['low', 'medium', 'high'], {
     message: 'Please select a priority',
   }).default('medium'),
-  status: z.enum(['pending', 'in_progress', 'on_hold', 'archived']).default('pending'),
+  status: z.enum(['pending', 'in_progress', 'on_hold', 'completed', 'archived']).default('pending'),
   assigned_to: z
     .array(z.string())
     .min(1, 'Please select at least one user to assign this task to'),

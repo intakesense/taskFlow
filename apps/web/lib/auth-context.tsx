@@ -110,9 +110,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         initAuth()
 
-        // Listen for auth state changes (login, logout, token refresh)
-        // CRITICAL: Do NOT use async/await in this callback - it causes deadlocks!
-        // See: https://github.com/supabase/supabase/issues/35754
+        // ─────────────────────────────────────────────────────────────────────
+        // ASYNC FORBIDDEN INSIDE onAuthStateChange
+        //
+        // Supabase JS v2 holds an internal session lock while firing this callback.
+        // Any async operation that also tries to read/write the session (getUser,
+        // getSession, setSession, or even fetchProfile which calls supabase.from())
+        // will deadlock: the lock is never released because the callback never
+        // returns synchronously, and the inner call waits for the lock forever.
+        //
+        // Rule: this callback body must be synchronous. Side-effects that need
+        // awaiting must be deferred with .then() or setTimeout (which runs after
+        // the lock is released). Do NOT refactor this to async/await.
+        //
+        // Reference: https://github.com/supabase/supabase/issues/35754
+        // ─────────────────────────────────────────────────────────────────────
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             (event, session) => {
                 if (!mounted) return

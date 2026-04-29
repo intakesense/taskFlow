@@ -15,7 +15,7 @@ import {
   AboutSettings,
   type BotConfig,
 } from '@taskflow/features'
-import { uploadAvatar, deleteAvatar } from '@/lib/services/avatar'
+import { createClient } from '@/lib/supabase/client'
 import { registerForPushNotifications, unregisterFromPushNotifications } from '@/lib/firebase/notifications'
 import { toast } from 'sonner'
 import { User as UserType } from '@/lib/types'
@@ -53,13 +53,24 @@ function SettingsContent({ profile, maskedAsUser }: { profile: UserType | null; 
     const avatarHandlers = maskedAsUser ? undefined : {
         onUpload: async (file: File) => {
             if (!profile?.id) return
-            await uploadAvatar(file, profile.id)
+            const supabase = createClient()
+            const ext = file.name.split('.').pop()
+            const path = `${profile.id}/avatar.${ext}`
+            const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+            if (error) throw error
+            const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+            await supabase.from('users').update({ avatar_url: publicUrl }).eq('id', profile.id)
             await refreshProfile()
             toast.success('Avatar updated successfully')
         },
         onDelete: async () => {
             if (!profile?.id) return
-            await deleteAvatar(profile.id)
+            const supabase = createClient()
+            const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+            await Promise.allSettled(
+                extensions.map(ext => supabase.storage.from('avatars').remove([`${profile.id}/avatar.${ext}`]))
+            )
+            await supabase.from('users').update({ avatar_url: null }).eq('id', profile.id)
             await refreshProfile()
             toast.success('Avatar removed')
         },

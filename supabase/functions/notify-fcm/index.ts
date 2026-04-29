@@ -176,11 +176,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ message: 'No user IDs provided' }), { status: 400 })
     }
 
-    // Fetch device tokens for target users
+    // Fetch device tokens for target users — exclude desktop (uses Realtime, not FCM)
     const { data: tokens, error: tokensError } = await supabase
       .from('device_tokens')
       .select('token, platform, user_id')
       .in('user_id', payload.userIds)
+      .neq('platform', 'desktop')
 
     if (tokensError) {
       console.error('Error fetching tokens:', tokensError)
@@ -301,11 +302,12 @@ async function handleMessageNotification(
 
   const recipientIds = members.map((m) => m.user_id)
 
-  // Fetch device tokens
+  // Fetch device tokens — exclude desktop (uses Realtime, not FCM)
   const { data: tokens } = await supabase
     .from('device_tokens')
     .select('token, platform, user_id')
     .in('user_id', recipientIds)
+    .neq('platform', 'desktop')
 
   if (!tokens || tokens.length === 0) {
     return new Response(JSON.stringify({ message: 'No registered devices' }), { status: 200 })

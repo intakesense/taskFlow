@@ -3,6 +3,7 @@
 import { Sidebar } from './sidebar';
 import { BottomNav } from './bottom-nav';
 import { useBottomNavVisibility } from './bottom-nav-context';
+import { ErrorBoundary } from '../error-boundary';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -22,7 +23,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* Main content */}
       <main className={`lg:pl-64 h-full overflow-auto ${bottomNavVisible ? 'pb-16 lg:pb-0' : ''}`}>
-        {children}
+        <ErrorBoundary label="the main view">
+          {children}
+        </ErrorBoundary>
       </main>
 
       {/* Mobile Bottom Navigation */}

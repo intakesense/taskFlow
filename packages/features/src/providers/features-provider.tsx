@@ -8,6 +8,7 @@ import { ServicesProvider } from './services-context';
 import { AuthProvider, type AuthContextValue } from './auth-context';
 import { ImageProvider, type ImageProps } from './image-context';
 import { ConfigProvider, type FeaturesConfig } from './config-context';
+import { TasksRealtimeProvider } from './tasks-realtime-provider';
 
 export interface FeaturesProviderProps {
   children: ReactNode;
@@ -91,11 +92,13 @@ export function FeaturesProvider({
         Link={navigation.Link}
       >
         <ServicesProvider supabase={supabase}>
-          <AuthProvider value={auth}>
-            <ImageProvider Image={Image}>
-              {children}
-            </ImageProvider>
-          </AuthProvider>
+          <TasksRealtimeProvider>
+            <AuthProvider value={auth}>
+              <ImageProvider Image={Image}>
+                {children}
+              </ImageProvider>
+            </AuthProvider>
+          </TasksRealtimeProvider>
         </ServicesProvider>
       </NavigationProvider>
     </ConfigProvider>

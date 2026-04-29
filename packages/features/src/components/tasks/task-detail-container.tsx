@@ -15,7 +15,7 @@ import {
   useTaskAuditLog,
   useSendTaskMessage,
   useAddTaskNote,
-  useUpdateTask,
+  useChangeTaskStatus,
   useDeleteTask,
   useUpdateTaskAssignees,
   useDialog,
@@ -48,7 +48,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   // Mutations
   const sendMessage = useSendTaskMessage();
   const addNote = useAddTaskNote();
-  const updateTask = useUpdateTask();
+  const changeTaskStatus = useChangeTaskStatus();
   const deleteTask = useDeleteTask();
   const updateAssignees = useUpdateTaskAssignees();
 
@@ -107,9 +107,9 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
       return;
     }
 
-    await updateTask.mutateAsync({
-      id: taskId,
-      input: { status: status as 'pending' | 'in_progress' | 'on_hold' | 'completed' | 'archived' },
+    await changeTaskStatus.mutateAsync({
+      taskId,
+      status: status as 'pending' | 'in_progress' | 'on_hold' | 'completed' | 'archived',
     });
 
     if (status === 'completed') {
@@ -120,12 +120,10 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   };
 
   const handleOnHoldConfirm = async () => {
-    await updateTask.mutateAsync({
-      id: taskId,
-      input: {
-        status: 'on_hold',
-        on_hold_reason: onHoldReason || undefined,
-      },
+    await changeTaskStatus.mutateAsync({
+      taskId,
+      status: 'on_hold',
+      onHoldReason: onHoldReason || undefined,
     });
 
     toast.success('Task put on hold');
@@ -140,9 +138,9 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   };
 
   const handleArchive = async () => {
-    await updateTask.mutateAsync({
-      id: taskId,
-      input: { status: 'archived' },
+    await changeTaskStatus.mutateAsync({
+      taskId,
+      status: 'archived',
     });
     toast.success('Task completed');
   };
@@ -158,9 +156,9 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
     });
 
     // Revert to in_progress
-    await updateTask.mutateAsync({
-      id: taskId,
-      input: { status: 'in_progress' },
+    await changeTaskStatus.mutateAsync({
+      taskId,
+      status: 'in_progress',
     });
 
     toast.success('Changes requested — task reopened');
@@ -246,7 +244,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
         requestChangesDialog={requestChangesDialog}
         sendingMessage={sendMessage.isPending}
         addingNote={addNote.isPending}
-        updatingStatus={updateTask.isPending}
+        updatingStatus={changeTaskStatus.isPending}
         deleting={deleteTask.isPending}
         onSendMessage={handleSendMessage}
         onAddNote={handleAddNote}

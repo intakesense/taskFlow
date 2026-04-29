@@ -14,7 +14,7 @@ export const createTaskSchema = z.object({
   priority: z.enum(['low', 'medium', 'high'], {
     message: 'Please select a priority',
   }).default('medium'),
-  status: z.enum(['pending', 'in_progress', 'on_hold', 'archived']).default('pending'),
+  status: z.enum(['pending', 'in_progress', 'on_hold', 'completed', 'archived']).default('pending'),
   assigned_to: z
     .array(z.string())
     .min(1, 'Please select at least one user to assign this task to'),
@@ -45,7 +45,7 @@ export const updateTaskSchema = z.object({
     .max(2000, 'Description must be less than 2000 characters')
     .optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),
-  status: z.enum(['pending', 'in_progress', 'on_hold', 'archived']).optional(),
+  status: z.enum(['pending', 'in_progress', 'on_hold', 'completed', 'archived']).optional(),
   assigned_to: z.array(z.string()).optional(),
   deadline: z.string().optional(),
   visibility: z.enum(['private', 'supervisor', 'hierarchy_same', 'hierarchy_above', 'all']).optional(),

@@ -22,7 +22,7 @@ export interface ServicesContextValue {
   supabase: SupabaseClient<Database>;
 }
 
-const ServicesContext = createContext<ServicesContextValue | null>(null);
+export const ServicesContext = createContext<ServicesContextValue | null>(null);
 
 export interface ServicesProviderProps {
   children: ReactNode;

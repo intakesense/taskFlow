@@ -18,7 +18,8 @@ function tryAcquireCallbackLock(): boolean {
   try {
     const lock = localStorage.getItem(CALLBACK_LOCK_KEY);
     const now = Date.now();
-    if (lock && now - parseInt(lock) < 5000) {
+    // 2-minute TTL: if the app crashes mid-OAuth the lock auto-expires on next attempt
+    if (lock && now - parseInt(lock) < 120_000) {
       return false;
     }
     localStorage.setItem(CALLBACK_LOCK_KEY, now.toString());
@@ -69,7 +70,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const updateState = (newState: Partial<AuthState>) => set(newState);
 
     try {
-      // Set up auth state listener
+      // ASYNC FORBIDDEN inside onAuthStateChange — Supabase holds a session lock
+      // while firing this callback. Any awaited supabase call inside will deadlock.
+      // Defer async work with setTimeout (runs after the lock is released).
+      // Reference: https://github.com/supabase/supabase/issues/35754
       supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
           updateState({ user: null, session: null, profile: null, loading: false });
@@ -106,10 +110,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
       });
 
-      // Set up deep link listener for OAuth implicit flow callback.
-      // signInWithOAuth with skipBrowserRedirect:true uses implicit flow — Supabase
-      // returns access_token and refresh_token directly in the URL hash fragment.
-      // The browser callback page forwards these via taskflow://auth/callback#...
+      // Set up deep link listener for OAuth PKCE callback.
+      // signInWithOAuth with skipBrowserRedirect:true returns the OAuth URL so we
+      // can open it in the system browser via the Tauri opener plugin. Supabase uses
+      // PKCE: the authorization code arrives as ?code= in the redirect, never in
+      // the URL hash. The web callback page forwards it via taskflow://auth/callback?code=...
       if (isTauri() && !deepLinkInitialized) {
         deepLinkInitialized = true;
         try {
@@ -122,31 +127,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             if (!tryAcquireCallbackLock()) return;
 
             try {
-              const hash = new URL(url).hash.slice(1); // strip leading '#'
-              if (!hash) {
+              const parsed = new URL(url);
+              const code = parsed.searchParams.get('code');
+
+              if (!code) {
                 releaseCallbackLock();
                 return;
               }
 
-              const params = new URLSearchParams(hash);
-              const accessToken = params.get('access_token');
-              const refreshToken = params.get('refresh_token');
-
-              if (!accessToken || !refreshToken) {
-                releaseCallbackLock();
-                return;
-              }
-
-              const { error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
+              const { error } = await supabase.auth.exchangeCodeForSession(code);
 
               if (error) {
-                console.error('[auth] setSession failed:', error.message);
+                console.error('[auth] PKCE exchange failed:', error.message);
               }
-              // onAuthStateChange fires SIGNED_IN and updates store state —
-              // no manual reload needed.
+              // onAuthStateChange fires SIGNED_IN — no manual state update needed.
             } catch (e) {
               console.error('[auth] OAuth callback error:', e);
             } finally {
@@ -208,13 +202,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   signInWithGoogle: async () => {
     try {
-      // Clear any stale lock
+      // Clear any stale lock before starting a new OAuth flow
       releaseCallbackLock();
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: REDIRECT_URL,
+          // skipBrowserRedirect: true returns the URL so we can open it in the
+          // system browser via Tauri. Supabase uses PKCE by default — the auth
+          // code arrives as ?code= in the redirect, never in the URL hash.
           skipBrowserRedirect: true,
           scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file',
           queryParams: {

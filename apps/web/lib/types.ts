@@ -18,7 +18,7 @@ export type AppSettings = Database['public']['Tables']['app_settings']['Row'];
 
 // Type aliases for convenience
 export type UserLevel = number; // 1 = highest authority (L1, L2, L3...)
-export type TaskStatus = 'pending' | 'in_progress' | 'on_hold' | 'archived';
+export type TaskStatus = 'pending' | 'in_progress' | 'on_hold' | 'completed' | 'archived';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type Visibility = 'private' | 'supervisor' | 'hierarchy_same' | 'hierarchy_above' | 'all';
 export type TaskMessageType = 'message' | 'progress';

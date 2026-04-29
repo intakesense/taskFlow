@@ -21,8 +21,13 @@ import { FilePreview } from '@taskflow/ui';
 import { useAuthStore } from '@/stores/auth';
 import { useCallback, useState, useMemo } from 'react';
 
-// Web app URL for API routes (Daily.co room/token endpoints)
-const WEB_API_URL = 'https://tms.intakesense.com';
+// Supabase edge function URLs for Daily.co room/token (no dependency on web app being up)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
+const DAILY_ROOM_ENDPOINT = `${SUPABASE_URL}/functions/v1/daily-room`;
+const DAILY_TOKEN_ENDPOINT = `${SUPABASE_URL}/functions/v1/daily-token`;
+
+// Web app base URL for API routes that have no Edge Function equivalent (AI bot, HRMS)
+const WEB_API_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 interface DashboardPageProps {
   currentPath: string;
@@ -74,7 +79,7 @@ export function DashboardPage({ currentPath }: DashboardPageProps) {
 
   // VoiceChannelProvider wraps entire dashboard so voice persists across tab changes
   return (
-    <VoiceChannelProvider apiBaseUrl={WEB_API_URL}>
+    <VoiceChannelProvider roomEndpoint={DAILY_ROOM_ENDPOINT} tokenEndpoint={DAILY_TOKEN_ENDPOINT}>
       <DashboardLayout>
         {renderContent()}
       </DashboardLayout>
@@ -259,7 +264,7 @@ function DesktopSettingsView() {
       <HrmsSettings
         onFetchStatus={handleFetchHrmsStatus}
         onUnlink={handleUnlinkHrms}
-        apiBaseUrl={WEB_API_URL}
+        apiBaseUrl={import.meta.env.VITE_API_BASE_URL ?? ''}
       />
 
       <GoogleConnectionCard />

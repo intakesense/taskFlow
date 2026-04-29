@@ -24,6 +24,7 @@ import {
 } from '../../hooks/use-chat-messages';
 import { useMobile, useBackNavigation } from '../../hooks';
 import { MessagesView } from './messages-view';
+import { ErrorBoundary } from '../error-boundary';
 import type { ConversationWithMembers } from '@taskflow/core';
 
 interface MessagesContainerProps {
@@ -248,6 +249,7 @@ export function MessagesContainer({
   const isAuthLoading = !user || !profile;
 
   return (
+    <ErrorBoundary label="messages">
     <MessagesView
       conversations={conversations}
       selectedConversation={selectedConversation}
@@ -275,5 +277,6 @@ export function MessagesContainer({
       renderFilePreview={renderFilePreview}
       renderConversationListHeaderActions={renderConversationListHeaderActions}
     />
+    </ErrorBoundary>
   );
 }

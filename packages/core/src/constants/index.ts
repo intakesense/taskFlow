@@ -78,10 +78,10 @@ export const PRIORITY_CONFIG = {
 
 // Visibility labels
 export const VISIBILITY_LABELS = {
-  [VisibilityValues.PRIVATE]: 'Private (Assignee only)',
-  [VisibilityValues.SUPERVISOR]: 'Supervisor',
-  [VisibilityValues.HIERARCHY_SAME]: 'Same level & above',
-  [VisibilityValues.HIERARCHY_ABOVE]: 'Above level only',
+  [VisibilityValues.PRIVATE]: 'Participants only',
+  [VisibilityValues.SUPERVISOR]: 'My supervisors & above',
+  [VisibilityValues.HIERARCHY_SAME]: 'My level & above',
+  [VisibilityValues.HIERARCHY_ABOVE]: 'Supervisors only',
   [VisibilityValues.ALL]: 'Everyone',
 } as const;
 

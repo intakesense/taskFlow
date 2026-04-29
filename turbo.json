@@ -40,6 +40,11 @@
       "inputs": ["$TURBO_DEFAULT$", "tsconfig.json"],
       "cache": true
     },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "vitest.config.*", "tsconfig.json"],
+      "outputs": ["coverage/**"]
+    },
     "clean": {
       "cache": false
     },

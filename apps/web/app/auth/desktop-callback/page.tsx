@@ -12,31 +12,24 @@ export default function DesktopCallbackPage() {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
 
-    // Supabase implicit flow delivers tokens in the URL hash fragment.
-    // Next.js SSR strips the hash before rendering, so we must read it
-    // client-side here — it is always present in window.location.hash.
-    const hash = window.location.hash;
+    // Supabase PKCE flow delivers the authorization code as a query parameter.
+    // The desktop app called signInWithOAuth with skipBrowserRedirect:true, which
+    // means it opened this URL in the system browser. We extract the code and
+    // forward it to the desktop app via deep link so it can call
+    // supabase.auth.exchangeCodeForSession(code).
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get('code');
 
-    if (!hash || hash.length <= 1) {
-      setErrorMessage('No authentication data received from the provider.');
+    if (!code) {
+      setErrorMessage('No authentication code received from the provider.');
       setStatus('error');
       return;
     }
 
-    const params = new URLSearchParams(hash.slice(1));
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
-
-    if (!accessToken || !refreshToken) {
-      setErrorMessage('Incomplete authentication data received.');
-      setStatus('error');
-      return;
-    }
-
-    // Forward the full hash to the desktop app via deep link.
+    // Forward the code to the desktop app via deep link.
     // Hidden anchor click keeps this tab open — assigning window.location.href
-    // to a custom scheme navigates the tab away to a blank/error page.
-    const deepLink = `taskflow://auth/callback${hash}`;
+    // to a custom scheme navigates the tab away to a blank/error page on some OSes.
+    const deepLink = `taskflow://auth/callback?code=${encodeURIComponent(code)}`;
     const anchor = document.createElement('a');
     anchor.href = deepLink;
     anchor.style.display = 'none';

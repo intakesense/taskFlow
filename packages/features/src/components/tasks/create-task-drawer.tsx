@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Send, CalendarDays } from 'lucide-react';
+import { Send, CalendarDays, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Button,
@@ -16,6 +16,8 @@ import {
   SheetTitle,
   cn,
 } from '@taskflow/ui';
+import type { Visibility } from '@taskflow/core';
+import { VISIBILITY_LABELS } from '@taskflow/core';
 import { useCreateTask } from '../../hooks';
 import { useAuth } from '../../providers/auth-context';
 import { useNavigation } from '../../providers/navigation-context';
@@ -45,6 +47,7 @@ export function CreateTaskDrawer({
   const { effectiveUser } = useAuth();
   const createTask = useCreateTask();
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [visibility, setVisibility] = useState<Visibility>('private');
 
   useEffect(() => {
     if (open && initialSelectedUserIds?.length) {
@@ -92,7 +95,7 @@ export function CreateTaskDrawer({
           description: data.description,
           priority: data.priority,
           status: 'pending',
-          visibility: 'private', // Only assignees and assigner can see
+          visibility,
           deadline: data.deadline,
           assigned_to: selectedUserIds,
         },
@@ -100,6 +103,7 @@ export function CreateTaskDrawer({
       toast.success('Task created!');
       reset();
       setSelectedUserIds([]);
+      setVisibility('private');
       onOpenChange(false);
       navigate('/tasks');
     } catch (error) {
@@ -212,6 +216,30 @@ export function CreateTaskDrawer({
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1">
+                Visibility
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.entries(VISIBILITY_LABELS) as [Visibility, string][]).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setVisibility(value)}
+                    className={cn(
+                      'h-9 px-3 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5',
+                      visibility === value
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    <Eye className={cn('h-3 w-3', visibility !== value && 'opacity-60')} />
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
