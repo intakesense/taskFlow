@@ -176,14 +176,14 @@ export function TaskDetailContainerSocial({ taskId }: TaskDetailContainerSocialP
     toast.success('Assignees updated');
   };
 
-  const handleAddNote = async (content: string, visibility: string) => {
+  const handleAddNote = async (content: string, visibleTo: string[]) => {
     if (!effectiveUser) return;
 
     await addNote.mutateAsync({
       taskId,
       addedBy: effectiveUser.id,
       content,
-      visibility,
+      visibleTo,
     });
   };
 

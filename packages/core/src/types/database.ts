@@ -783,7 +783,7 @@ export type Database = {
           created_at: string
           id: string
           task_id: string
-          visibility: string
+          visible_to: string[]
         }
         Insert: {
           added_by: string
@@ -791,7 +791,7 @@ export type Database = {
           created_at?: string
           id?: string
           task_id: string
-          visibility?: string
+          visible_to?: string[]
         }
         Update: {
           added_by?: string
@@ -799,7 +799,7 @@ export type Database = {
           created_at?: string
           id?: string
           task_id?: string
-          visibility?: string
+          visible_to?: string[]
         }
         Relationships: [
           {

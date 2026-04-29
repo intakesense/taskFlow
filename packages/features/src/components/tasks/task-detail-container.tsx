@@ -3,7 +3,6 @@
 // Task Detail Container - Handles data fetching and state management
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { Visibility } from '@taskflow/core';
 import { Loader2 } from 'lucide-react';
 import { useNavigation } from '../../providers/navigation-context';
 import { useAuth } from '../../providers/auth-context';
@@ -55,7 +54,7 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
   // Local state
   const [newMessage, setNewMessage] = useState('');
   const [newNote, setNewNote] = useState('');
-  const [noteVisibility, setNoteVisibility] = useState<Visibility>('private');
+  const [noteVisibleTo, setNoteVisibleTo] = useState<string[]>([]);
   const [onHoldReason, setOnHoldReason] = useState('');
   const [requestChangesReason, setRequestChangesReason] = useState('');
 
@@ -94,11 +93,11 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
       taskId,
       addedBy: effectiveUser.id,
       content: newNote.trim(),
-      visibility: noteVisibility,
+      visibleTo: noteVisibleTo,
     });
 
     setNewNote('');
-    setNoteVisibility('private');
+    setNoteVisibleTo([]);
   };
 
   const handleStatusChange = async (status: string) => {
@@ -233,8 +232,8 @@ export function TaskDetailContainer({ taskId }: TaskDetailContainerProps) {
         setNewMessage={setNewMessage}
         newNote={newNote}
         setNewNote={setNewNote}
-        noteVisibility={noteVisibility}
-        setNoteVisibility={setNoteVisibility}
+        noteVisibleTo={noteVisibleTo}
+        setNoteVisibleTo={setNoteVisibleTo}
         onHoldReason={onHoldReason}
         setOnHoldReason={setOnHoldReason}
         requestChangesReason={requestChangesReason}

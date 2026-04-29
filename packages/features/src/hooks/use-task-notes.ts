@@ -30,7 +30,7 @@ export function useAddTaskNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { taskId: string; addedBy: string; content: string; visibility: string }) =>
+    mutationFn: (input: { taskId: string; addedBy: string; content: string; visibleTo?: string[] }) =>
       taskNotes.addTaskNote(input),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: taskNoteKeys.task(variables.taskId) });

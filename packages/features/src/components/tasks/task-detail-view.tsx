@@ -32,11 +32,6 @@ import {
   TabsTrigger,
   ScrollArea,
   Separator,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -61,7 +56,6 @@ import {
   Paperclip,
   ExternalLink,
   Eye,
-  Lock,
   Pencil,
   ClockArrowUp,
   RotateCcw,
@@ -86,8 +80,8 @@ interface TaskDetailViewProps {
   setNewMessage: (value: string) => void;
   newNote: string;
   setNewNote: (value: string) => void;
-  noteVisibility: Visibility;
-  setNoteVisibility: (value: Visibility) => void;
+  noteVisibleTo: string[];
+  setNoteVisibleTo: (value: string[]) => void;
   onHoldReason: string;
   setOnHoldReason: (value: string) => void;
   deleteDialog: UseDialogReturn;
@@ -125,8 +119,8 @@ export function TaskDetailView({
   setNewMessage,
   newNote,
   setNewNote,
-  noteVisibility,
-  setNoteVisibility,
+  noteVisibleTo,
+  setNoteVisibleTo,
   onHoldReason,
   setOnHoldReason,
   deleteDialog,
@@ -535,12 +529,17 @@ export function TaskDetailView({
                     <div className="flex items-center gap-2 mb-2">
                       <span className="font-medium text-sm">{note.author?.name}</span>
                       <Badge variant="outline" className="text-xs">
-                        {note.visibility === 'private' ? (
-                          <Lock className="h-3 w-3 mr-1" />
+                        {note.visible_to?.length > 0 ? (
+                          <>
+                            <Users className="h-3 w-3 mr-1" />
+                            {note.visible_to.length} specific {note.visible_to.length === 1 ? 'person' : 'people'}
+                          </>
                         ) : (
-                          <Eye className="h-3 w-3 mr-1" />
+                          <>
+                            <Eye className="h-3 w-3 mr-1" />
+                            All participants
+                          </>
                         )}
-                        {VISIBILITY_LABELS[note.visibility as Visibility]}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {formatRelative(note.created_at)}
@@ -557,26 +556,16 @@ export function TaskDetailView({
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                 />
-                <div className="flex items-center justify-between">
-                  <Select
-                    value={noteVisibility}
-                    onValueChange={(v) => setNoteVisibility(v as Visibility)}
-                  >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="private">{VISIBILITY_LABELS.private}</SelectItem>
-                      <SelectItem value="supervisor">{VISIBILITY_LABELS.supervisor}</SelectItem>
-                      <SelectItem value="hierarchy_same">
-                        {VISIBILITY_LABELS.hierarchy_same}
-                      </SelectItem>
-                      <SelectItem value="hierarchy_above">
-                        {VISIBILITY_LABELS.hierarchy_above}
-                      </SelectItem>
-                      <SelectItem value="all">{VISIBILITY_LABELS.all}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Visible to — leave empty for all task participants
+                  </p>
+                  <MultiUserSelector
+                    selectedUserIds={noteVisibleTo}
+                    onSelectUsers={setNoteVisibleTo}
+                  />
+                </div>
+                <div className="flex justify-end">
                   <Button onClick={onAddNote} disabled={addingNote || !newNote.trim()}>
                     Add Note
                   </Button>

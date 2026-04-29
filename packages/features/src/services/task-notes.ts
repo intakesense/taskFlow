@@ -6,7 +6,7 @@ export interface AddNoteInput {
   taskId: string;
   addedBy: string;
   content: string;
-  visibility: string;
+  visibleTo?: string[];
 }
 
 export function createTaskNotesService(getSupabase: () => SupabaseClient) {
@@ -41,7 +41,7 @@ export function createTaskNotesService(getSupabase: () => SupabaseClient) {
           task_id: input.taskId,
           added_by: input.addedBy,
           content: input.content,
-          visibility: input.visibility,
+          visible_to: input.visibleTo ?? [],
         })
         .select()
         .single();

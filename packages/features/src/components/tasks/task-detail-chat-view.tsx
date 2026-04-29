@@ -18,7 +18,6 @@ import {
   ChevronDown,
   Pencil,
   StickyNote,
-  Lock,
   Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -43,11 +42,6 @@ import {
   DialogHeader,
   DialogTitle,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   cn,
   listContainerVariants,
 } from '@taskflow/ui';
@@ -56,10 +50,8 @@ import type {
   TaskMessageWithSender,
   TaskNoteWithAuthor,
   UserBasic,
-  Visibility,
   ProgressUpdatesByDate,
 } from '@taskflow/core';
-import { VISIBILITY_LABELS } from '@taskflow/core';
 
 import { useNavigation } from '../../providers/navigation-context';
 import { useUsers, groupTaskReactions, getUserTaskReaction } from '../../hooks';
@@ -91,7 +83,7 @@ interface TaskDetailChatViewProps {
   onStatusChange: (status: string, reason?: string) => Promise<void>;
   onDelete: () => Promise<void>;
   onReact?: (messageId: string, emoji: string, currentEmoji?: string) => Promise<void>;
-  onAddNote?: (content: string, visibility: string) => Promise<void>;
+  onAddNote?: (content: string, visibleTo: string[]) => Promise<void>;
   onUpdateAssignees?: (userIds: string[]) => Promise<void>;
   onCreateProgress?: (content: string) => Promise<void>;
   onAddProgressComment?: (progressId: string, content: string) => Promise<void>;
@@ -151,7 +143,7 @@ export function TaskDetailChatView({
   const [activeTab, setActiveTab] = useState<'progress' | 'chat'>('progress');
   const [showNotesPanel, setShowNotesPanel] = useState(false);
   const [newNoteContent, setNewNoteContent] = useState('');
-  const [newNoteVisibility, setNewNoteVisibility] = useState<Visibility>('private');
+  const [newNoteVisibleTo, setNewNoteVisibleTo] = useState<string[]>([]);
   const [showAddNoteForm, setShowAddNoteForm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { data: allUsers = [] } = useUsers();
@@ -233,9 +225,9 @@ export function TaskDetailChatView({
     if (!newNoteContent.trim() || !onAddNote) return;
 
     try {
-      await onAddNote(newNoteContent.trim(), newNoteVisibility);
+      await onAddNote(newNoteContent.trim(), newNoteVisibleTo);
       setNewNoteContent('');
-      setNewNoteVisibility('private');
+      setNewNoteVisibleTo([]);
       setShowAddNoteForm(false);
     } catch (error) {
       const message = handleError('handleAddNote', error, 'Failed to add note');
@@ -741,28 +733,16 @@ export function TaskDetailChatView({
                         onChange={(e) => setNewNoteContent(e.target.value)}
                         className="min-h-[80px] text-sm"
                       />
-                      <div className="flex items-center justify-between gap-2">
-                        <Select
-                          value={newNoteVisibility}
-                          onValueChange={(v) => setNewNoteVisibility(v as Visibility)}
-                        >
-                          <SelectTrigger className="w-[160px] h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="private">{VISIBILITY_LABELS.private}</SelectItem>
-                            <SelectItem value="supervisor">
-                              {VISIBILITY_LABELS.supervisor}
-                            </SelectItem>
-                            <SelectItem value="hierarchy_same">
-                              {VISIBILITY_LABELS.hierarchy_same}
-                            </SelectItem>
-                            <SelectItem value="hierarchy_above">
-                              {VISIBILITY_LABELS.hierarchy_above}
-                            </SelectItem>
-                            <SelectItem value="all">{VISIBILITY_LABELS.all}</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] text-muted-foreground">
+                          Visible to — leave empty for all participants
+                        </p>
+                        <MultiUserSelector
+                          selectedUserIds={newNoteVisibleTo}
+                          onSelectUsers={setNewNoteVisibleTo}
+                        />
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
                         <div className="flex gap-2">
                           <Button
                             size="sm"
@@ -808,12 +788,17 @@ export function TaskDetailChatView({
                               {note.author?.name || 'Unknown'}
                             </span>
                             <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-muted">
-                              {note.visibility === 'private' ? (
-                                <Lock className="h-2.5 w-2.5" />
+                              {note.visible_to?.length > 0 ? (
+                                <>
+                                  <Users className="h-2.5 w-2.5" />
+                                  {note.visible_to.length} {note.visible_to.length === 1 ? 'person' : 'people'}
+                                </>
                               ) : (
-                                <Eye className="h-2.5 w-2.5" />
+                                <>
+                                  <Eye className="h-2.5 w-2.5" />
+                                  All participants
+                                </>
                               )}
-                              {VISIBILITY_LABELS[note.visibility as Visibility]}
                             </span>
                             <span className="text-[10px] text-muted-foreground ml-auto">
                               {formatRelative(note.created_at)}

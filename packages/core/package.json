@@ -2,34 +2,34 @@
   "name": "@taskflow/core",
   "version": "0.1.0",
   "private": true,
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
     },
     "./types": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/types/index.js",
-      "require": "./dist/types/index.cjs"
+      "import": "./dist/types/index.mjs",
+      "require": "./dist/types/index.js"
     },
     "./types/database": {
       "types": "./dist/types/database.d.ts",
-      "import": "./dist/types/database.js",
-      "require": "./dist/types/database.cjs"
+      "import": "./dist/types/database.mjs",
+      "require": "./dist/types/database.js"
     },
     "./schemas": {
       "types": "./dist/schemas/index.d.ts",
-      "import": "./dist/schemas/index.js",
-      "require": "./dist/schemas/index.cjs"
+      "import": "./dist/schemas/index.mjs",
+      "require": "./dist/schemas/index.js"
     },
     "./utils": {
       "types": "./dist/utils/index.d.ts",
-      "import": "./dist/utils/index.js",
-      "require": "./dist/utils/index.cjs"
+      "import": "./dist/utils/index.mjs",
+      "require": "./dist/utils/index.js"
     }
   },
   "scripts": {

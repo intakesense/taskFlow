@@ -67,7 +67,7 @@ async function sendEmail(params: {
 
 // ─── Email Templates ───────────────────────────────────────────────────────────
 
-function baseTemplate(content: string, previewText: string = ''): string {
+function baseTemplate(content: string, previewText: string = '', appUrl: string = ''): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,7 +85,7 @@ function baseTemplate(content: string, previewText: string = ''): string {
           <!-- Logo row -->
           <tr>
             <td style="padding:0 0 20px;">
-              <img src="${Deno.env.get('APP_URL') || 'https://taskflow.app'}/logo.png" alt="TaskFlow" width="36" height="36" style="display:block;border-radius:8px;" />
+              <img src="${appUrl}/logo.png" alt="TaskFlow" width="36" height="36" style="display:block;border-radius:8px;" />
             </td>
           </tr>
 
@@ -127,6 +127,7 @@ function taskAssignedTemplate(params: {
   priority: string
   deadline: string | null
   taskUrl: string
+  appUrl: string
 }): string {
   const priorityColors: Record<string, string> = {
     high: '#ef4444',
@@ -172,7 +173,7 @@ function taskAssignedTemplate(params: {
         </td>
       </tr>
     </table>
-  `, `${escapeHtml(params.assignerName)} assigned you "${escapeHtml(params.taskTitle)}"`)
+  `, `${escapeHtml(params.assignerName)} assigned you "${escapeHtml(params.taskTitle)}"`, params.appUrl)
 }
 
 function taskStatusChangedTemplate(params: {
@@ -182,6 +183,7 @@ function taskStatusChangedTemplate(params: {
   newStatus: string
   onHoldReason: string | null
   taskUrl: string
+  appUrl: string
 }): string {
   const statusLabels: Record<string, string> = {
     pending: 'Pending',
@@ -243,7 +245,7 @@ function taskStatusChangedTemplate(params: {
         </td>
       </tr>
     </table>
-  `, `"${escapeHtml(params.taskTitle)}" is now ${newLabel}`)
+  `, `"${escapeHtml(params.taskTitle)}" is now ${newLabel}`, params.appUrl)
 }
 
 function taskOverdueTemplate(params: {
@@ -251,6 +253,7 @@ function taskOverdueTemplate(params: {
   taskTitle: string
   deadline: string
   taskUrl: string
+  appUrl: string
 }): string {
   const deadlineDate = new Date(params.deadline)
   const now = new Date()
@@ -275,7 +278,7 @@ function taskOverdueTemplate(params: {
         </td>
       </tr>
     </table>
-  `, `"${escapeHtml(params.taskTitle)}" — ${overdueText}`)
+  `, `"${escapeHtml(params.taskTitle)}" — ${overdueText}`, params.appUrl)
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -360,6 +363,7 @@ Deno.serve(async (req) => {
           priority: taskData.priority || 'medium',
           deadline: taskData.deadline || null,
           taskUrl: `${appUrl}/tasks/${taskData.id}`,
+          appUrl,
         }),
       })
 
@@ -423,6 +427,7 @@ Deno.serve(async (req) => {
             newStatus: record.status,
             onHoldReason: record.on_hold_reason || null,
             taskUrl: `${appUrl}/tasks/${record.id}`,
+            appUrl,
           }),
         }).then((ok) => ({ email: recipient.email, ok }))
       )
@@ -461,6 +466,7 @@ Deno.serve(async (req) => {
               taskTitle: task.title,
               deadline: task.deadline,
               taskUrl: `${appUrl}/tasks/${task.id}`,
+              appUrl,
             }),
           }).then((ok) => ({ email: assignee.email, ok }))
         )
