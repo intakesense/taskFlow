@@ -2,39 +2,19 @@
   "name": "@taskflow/core",
   "version": "0.1.0",
   "private": true,
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
-    },
-    "./types": {
-      "types": "./dist/types/index.d.ts",
-      "import": "./dist/types/index.mjs",
-      "require": "./dist/types/index.js"
-    },
-    "./types/database": {
-      "types": "./dist/types/database.d.ts",
-      "import": "./dist/types/database.mjs",
-      "require": "./dist/types/database.js"
-    },
-    "./schemas": {
-      "types": "./dist/schemas/index.d.ts",
-      "import": "./dist/schemas/index.mjs",
-      "require": "./dist/schemas/index.js"
-    },
-    "./utils": {
-      "types": "./dist/utils/index.d.ts",
-      "import": "./dist/utils/index.mjs",
-      "require": "./dist/utils/index.js"
-    }
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts",
+    "./types/database": "./src/types/database.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./utils": "./src/utils/index.ts"
   },
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch"
+    "build": "echo 'source-only package, no build needed'",
+    "dev": "echo 'source-only package, no build needed'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
@@ -42,7 +22,6 @@
     "zod": "4.0.8"
   },
   "devDependencies": {
-    "tsup": "^8.5.1",
     "typescript": "^5"
   }
 }

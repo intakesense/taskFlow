@@ -19,6 +19,7 @@ import {
 } from '@taskflow/features';
 import { FilePreview } from '@taskflow/ui';
 import { useAuthStore } from '@/stores/auth';
+import { toast } from 'sonner';
 import { useCallback, useState, useMemo } from 'react';
 
 // Supabase edge function URLs for Daily.co room/token (no dependency on web app being up)
@@ -189,11 +190,9 @@ function DesktopSettingsView() {
       const { relaunch } = await import('@tauri-apps/plugin-process');
       const update = await check();
       if (!update?.available) {
-        const { toast } = await import('sonner');
         toast.success('You\'re up to date!', { description: `v${update?.currentVersion ?? '0.1.0'} is the latest version.` });
         return;
       }
-      const { toast } = await import('sonner');
       const id = toast.loading(`Downloading v${update.version}…`);
       try {
         await update.download();
@@ -214,7 +213,6 @@ function DesktopSettingsView() {
         toast.error('Download failed. Check your connection.');
       }
     } catch {
-      const { toast } = await import('sonner');
       toast.error('Could not check for updates. Check your connection.');
     }
   }, []);
