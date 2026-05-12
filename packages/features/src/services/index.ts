@@ -48,3 +48,16 @@ export {
   createVoiceChannelsService,
   type VoiceChannelsService,
 } from './voice-channels';
+
+export {
+  createWorkFolderService,
+  type WorkFolderService,
+  type WorkFolderServiceInstance,
+  type WorkFolderFileRow,
+  type WorkFolderConfig,
+  type WorkFolderFileStatus,
+  type UpsertFileInput,
+} from './work-folder';
+
+export type { StorageProvider, StorageObject } from './storage-providers/storage-provider.interface';
+export { createSupabaseStorageProvider } from './storage-providers/supabase-storage-provider';

@@ -28,6 +28,10 @@ serde_json = "1"
 dirs = "6"
 open = "5"
 argon2 = "0.5"
+notify = "6"
+chrono = { version = "0.4", features = ["serde"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 
 # Windows: Rich notifications with circular avatars and image previews
 [target.'cfg(windows)'.dependencies]

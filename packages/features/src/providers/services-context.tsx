@@ -10,6 +10,7 @@ import { createProgressService, type ProgressService } from '../services/progres
 import { createTaskMessagesService, type TaskMessagesService } from '../services/task-messages';
 import { createTaskNotesService, type TaskNotesService } from '../services/task-notes';
 import { createFileUploadService, type FileUploadService } from '../services/file-upload';
+import { createWorkFolderService, type WorkFolderServiceInstance } from '../services/work-folder';
 
 export interface ServicesContextValue {
   tasks: TasksService;
@@ -19,6 +20,7 @@ export interface ServicesContextValue {
   taskMessages: TaskMessagesService;
   taskNotes: TaskNotesService;
   fileUpload: FileUploadService;
+  workFolder: WorkFolderServiceInstance;
   supabase: SupabaseClient<Database>;
 }
 
@@ -55,6 +57,7 @@ export function ServicesProvider({ children, supabase }: ServicesProviderProps) 
       taskMessages: createTaskMessagesService(() => supabase),
       taskNotes: createTaskNotesService(() => supabase),
       fileUpload: createFileUploadService(() => supabase),
+      workFolder: createWorkFolderService(supabase),
       supabase,
     }),
     [supabase]

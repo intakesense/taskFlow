@@ -1147,6 +1147,103 @@ export type Database = {
           },
         ]
       }
+      work_folder_configs: {
+        Row: {
+          configured_at: string
+          folder_path: string
+          id: string
+          last_watcher_start: string | null
+          storage_prefix: string
+          user_id: string
+          watcher_active: boolean
+        }
+        Insert: {
+          configured_at?: string
+          folder_path: string
+          id?: string
+          last_watcher_start?: string | null
+          storage_prefix: string
+          user_id: string
+          watcher_active?: boolean
+        }
+        Update: {
+          configured_at?: string
+          folder_path?: string
+          id?: string
+          last_watcher_start?: string | null
+          storage_prefix?: string
+          user_id?: string
+          watcher_active?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_folder_configs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_folder_files: {
+        Row: {
+          archived_at: string | null
+          checksum: string | null
+          created_at: string
+          error_message: string | null
+          file_name: string
+          file_size_bytes: number | null
+          id: string
+          last_modified_at: string | null
+          last_synced_at: string | null
+          relative_path: string
+          retry_count: number
+          status: string
+          storage_key: string
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          checksum?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_name: string
+          file_size_bytes?: number | null
+          id?: string
+          last_modified_at?: string | null
+          last_synced_at?: string | null
+          relative_path: string
+          retry_count?: number
+          status?: string
+          storage_key: string
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          checksum?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_name?: string
+          file_size_bytes?: number | null
+          id?: string
+          last_modified_at?: string | null
+          last_synced_at?: string | null
+          relative_path?: string
+          retry_count?: number
+          status?: string
+          storage_key?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_folder_files_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -11,14 +11,22 @@ import {
   GoogleConnectionCard,
   NotificationsSettings,
   AboutSettings,
+  WorkFolderSettings,
   type BotConfig,
   type NotificationPreferences,
   MessagesContainer,
   ChitChatContainer,
   VoiceChannelProvider,
+  type WorkFolderServiceInstance,
 } from '@taskflow/features';
 import { FilePreview } from '@taskflow/ui';
 import { useAuthStore } from '@/stores/auth';
+import { useWorkFolderStore } from '@/stores/work-folder';
+import { retryFailed } from '@/lib/work-folder-sync';
+import { invoke } from '@tauri-apps/api/core';
+import { load as loadStore } from '@tauri-apps/plugin-store';
+import { startSync, stopSync } from '@/lib/work-folder-sync';
+import { reconcileWorkFolder } from '@/lib/work-folder-reconcile';
 import { toast } from 'sonner';
 import { useCallback, useState, useMemo } from 'react';
 
@@ -32,13 +40,14 @@ const WEB_API_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 interface DashboardPageProps {
   currentPath: string;
+  workFolderService?: WorkFolderServiceInstance;
 }
 
-export function DashboardPage({ currentPath }: DashboardPageProps) {
+export function DashboardPage({ currentPath, workFolderService }: DashboardPageProps) {
   const renderContent = () => {
     // Settings
     if (currentPath.startsWith('/settings')) {
-      return <DesktopSettingsView />;
+      return <DesktopSettingsView workFolderService={workFolderService} />;
     }
 
     // Messages
@@ -88,10 +97,108 @@ export function DashboardPage({ currentPath }: DashboardPageProps) {
   );
 }
 
-function DesktopSettingsView() {
+function DesktopSettingsView({ workFolderService }: { workFolderService?: WorkFolderServiceInstance }) {
   const { signOut, profile, session } = useAuthStore();
   const isAdmin = profile?.is_admin ?? false;
   const [isSigningOut, setIsSigningOut] = useState(false);
+
+  // ── Work Folder ───────────────────────────────────────────────────────
+  const {
+    trayState,
+    watcherRunning,
+    isConfigured,
+    folderPath,
+    failedCount,
+    fileStatuses,
+    setFolderPath,
+    setConfigured,
+    setWatcherRunning,
+    setFolderMissing,
+  } = useWorkFolderStore();
+
+  // Build a relative_path → live status map so WorkFolderSettings can show
+  // progress bars for in-flight uploads without needing Zustand directly.
+  // fileStatuses is keyed by absolutePath; derive relative_path by stripping folderPath.
+  const localStatuses = useMemo(() => {
+    if (!folderPath) return undefined;
+    const map = new Map<string, { status: 'syncing' | 'pending'; progress?: number }>();
+    const base = folderPath.replace(/\\/g, '/').replace(/\/$/, '');
+    for (const [absPath, entry] of fileStatuses.entries()) {
+      if (entry.status !== 'syncing' && entry.status !== 'pending') continue;
+      const abs = absPath.replace(/\\/g, '/');
+      let rel: string;
+      if (abs.toLowerCase().startsWith(base.toLowerCase() + '/')) {
+        rel = abs.slice(base.length + 1);
+      } else {
+        rel = abs.split('/').pop() ?? abs;
+      }
+      map.set(rel, { status: entry.status, progress: entry.progress });
+    }
+    return map.size > 0 ? map : undefined;
+  }, [fileStatuses, folderPath]);
+
+  const handleRetryAll = useCallback(async () => {
+    if (!profile?.id || !folderPath || !workFolderService) return;
+    await retryFailed(profile.id, folderPath, workFolderService);
+  }, [profile?.id, folderPath, workFolderService]);
+
+  const handleOpenFolder = useCallback(async () => {
+    if (!folderPath) return;
+    try {
+      await invoke('open_folder_in_explorer', { path: folderPath });
+    } catch {
+      toast.error('Could not open folder.');
+    }
+  }, [folderPath]);
+
+  const handleChangeLocation = useCallback(async () => {
+    try {
+      // Use Rust pick_folder command (wraps native OS picker via tauri-plugin-dialog)
+      const selected: string | null = await invoke('pick_folder');
+      if (!selected) return;
+      if (!profile?.id || !workFolderService) return;
+
+      // Stop existing watcher
+      await stopSync(profile.id, workFolderService);
+
+      // Verify path exists
+      await invoke('check_folder_exists', { path: selected });
+
+      // Persist new path
+      const store = await loadStore('taskflow-work-folder.json');
+      await store.set('work-folder-path', selected);
+      await store.save();
+
+      await workFolderService.upsertConfig(profile.id, selected);
+
+      setFolderPath(selected);
+      setFolderMissing(false);
+
+      // Reconcile + restart
+      await reconcileWorkFolder({ userId: profile.id, folderPath: selected });
+      await startSync({
+        userId: profile.id,
+        folderPath: selected,
+        workFolderService,
+        onNavigateToSettings: () => {},
+      });
+
+      toast.success('Work folder location updated.');
+    } catch {
+      toast.error('Could not update work folder location.');
+    }
+  }, [profile?.id, workFolderService, setFolderPath, setFolderMissing]);
+
+  const handleRemoveSync = useCallback(async () => {
+    if (!profile?.id || !workFolderService) return;
+    await stopSync(profile.id, workFolderService);
+    const store = await loadStore('taskflow-work-folder.json');
+    await store.delete('work-folder-configured');
+    await store.delete('work-folder-path');
+    await store.save();
+    setConfigured(false);
+    setWatcherRunning(false);
+  }, [profile?.id, workFolderService, setConfigured, setWatcherRunning]);
 
   const handleSignOut = useCallback(async () => {
     setIsSigningOut(true);
@@ -273,6 +380,19 @@ function DesktopSettingsView() {
         onPreferenceChange={handleNotificationPreference}
         onTest={handleTestNotification}
         autostart={{ enabled: autostart, onToggle: handleAutostartToggle }}
+      />
+
+      <WorkFolderSettings
+        syncStatus={trayState}
+        watcherRunning={watcherRunning}
+        isConfigured={isConfigured}
+        folderPath={folderPath}
+        failedCount={failedCount}
+        localStatuses={localStatuses}
+        onRetryAll={handleRetryAll}
+        onOpenFolder={handleOpenFolder}
+        onChangeLocation={handleChangeLocation}
+        onRemoveSync={handleRemoveSync}
       />
 
       <AboutSettings

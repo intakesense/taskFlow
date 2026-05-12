@@ -1,6 +1,8 @@
 // Prevents additional console window on Windows, DO NOT REMOVE!!
 #![windows_subsystem = "windows"]
 
+mod work_folder;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -8,7 +10,7 @@ use tauri::{
 };
 use std::path::PathBuf;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 // ============================================================================
 // Image Cache for Notifications
@@ -156,6 +158,9 @@ fn open_oauth_url(url: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .manage(Arc::new(Mutex::new(work_folder::WatcherState::new())))
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
@@ -224,11 +229,15 @@ pub fn run() {
 
             // Build system tray menu
             let show_item = MenuItem::with_id(app, "show", "Open TaskFlow", true, None::<&str>)?;
+            let wf_status_item = MenuItem::with_id(app, "wf_status", "Work Folder: All synced ✓", false, None::<&str>)?;
+            let wf_open_item = MenuItem::with_id(app, "wf_open", "Open Work Folder", true, None::<&str>)?;
+            let wf_view_item = MenuItem::with_id(app, "wf_view", "View Sync Status", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&show_item, &wf_status_item, &wf_open_item, &wf_view_item, &quit_item])?;
 
-            // Create tray icon
-            let _tray = TrayIconBuilder::new()
+            // Create tray icon — id "taskflow-tray" allows update_tray_work_folder_label
+            // to look it up by ID when the frontend pushes status label changes.
+            let _tray = TrayIconBuilder::with_id("taskflow-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -238,6 +247,18 @@ pub fn run() {
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
+                    }
+                    "wf_open" => {
+                        // Open the work folder in OS explorer; frontend emits the path
+                        let _ = app.emit("work-folder-open-request", ());
+                    }
+                    "wf_view" => {
+                        // Navigate to Settings → Work Folder tab
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                        let _ = app.emit("work-folder-view-request", ());
                     }
                     "quit" => {
                         app.exit(0);
@@ -269,7 +290,24 @@ pub fn run() {
                 api.prevent_close();
             }
         })
-        .invoke_handler(tauri::generate_handler![show_notification, open_oauth_url]);
+        .invoke_handler(tauri::generate_handler![
+            show_notification,
+            open_oauth_url,
+            work_folder::setup_work_folder,
+            work_folder::write_marker_file,
+            work_folder::find_work_folder_by_marker,
+            work_folder::check_folder_exists,
+            work_folder::open_folder_in_explorer,
+            work_folder::check_path_is_sync_folder,
+            work_folder::get_default_folder_path,
+            work_folder::pick_folder,
+            work_folder::start_watcher,
+            work_folder::stop_watcher,
+            work_folder::read_file_bytes,
+            work_folder::get_file_metadata,
+            work_folder::walk_directory,
+            work_folder::update_tray_work_folder_label,
+        ]);
 
     match builder.run(tauri::generate_context!()) {
         Ok(()) => {}

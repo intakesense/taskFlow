@@ -10,3 +10,5 @@ export { NotificationsSettings } from './notifications-settings';
 export type { NotificationPreferences, NotificationsSettingsProps } from './notifications-settings';
 export { AboutSettings } from './about-settings';
 export type { AboutSettingsProps } from './about-settings';
+export { WorkFolderSettings } from './work-folder-settings';
+export type { WorkFolderSettingsProps, LocalFileStatuses } from './work-folder-settings';

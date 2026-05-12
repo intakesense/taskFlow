@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query-client';
 import { useAuthStore } from '@/stores/auth';
@@ -7,12 +7,17 @@ import { createDesktopLink } from '@/lib/desktop-link';
 import { supabase } from '@/lib/supabase';
 import { LoginPage } from '@/pages/Login';
 import { DashboardPage } from '@/pages/Dashboard';
-import { FeaturesProvider, BottomNavProvider, ThemeProvider } from '@taskflow/features';
+import { FeaturesProvider, BottomNavProvider, ThemeProvider, createWorkFolderService } from '@taskflow/features';
 import { MotionProvider } from '@/providers/motion-provider';
 import { Toaster } from '@taskflow/ui';
 import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
 import { useAppUpdater } from '@/hooks/use-app-updater';
 import { OfflineBanner } from '@/components/offline-banner';
+import { WorkFolderSetup } from '@/components/WorkFolderSetup';
+import { useWorkFolderStore } from '@/stores/work-folder';
+import { startSync, stopSync } from '@/lib/work-folder-sync';
+import { reconcileWorkFolder } from '@/lib/work-folder-reconcile';
+import { load as loadStore } from '@tauri-apps/plugin-store';
 import './index.css';
 
 // Maximum history entries to prevent memory leaks
@@ -49,6 +54,14 @@ function AppWithFeatures() {
   const [currentPath, setCurrentPath] = useState(getInitialPath);
   const [history, setHistory] = useState<string[]>(getInitialHistory);
 
+  // ── Work folder state ──────────────────────────────────────────────────────
+  const [showSetup, setShowSetup] = useState(false);
+  const workFolderStore = useWorkFolderStore();
+  const syncInitialized = useRef(false);
+
+  // Stable service instance (only recreated if supabase changes — it doesn't)
+  const workFolderService = useMemo(() => createWorkFolderService(supabase), []);
+
   // Navigation handlers (defined before useDesktopNotifications)
   const navigate = useCallback((path: string) => {
     setHistory((prev) => {
@@ -69,7 +82,6 @@ function AppWithFeatures() {
   }, []);
 
   // Initialize desktop notifications for native OS notifications
-  // Pass navigate callback for click-to-navigate functionality
   useDesktopNotifications({
     supabase,
     userId: auth.user?.id,
@@ -86,7 +98,105 @@ function AppWithFeatures() {
     }
   }, [currentPath, history]);
 
-  // Create stable Link component — reuse navigate so logic stays in one place
+  // ── Work folder initialization ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!auth.user || syncInitialized.current || !window.__TAURI_INTERNALS__) return;
+    syncInitialized.current = true;
+
+    void (async () => {
+      try {
+        const store = await loadStore('taskflow-work-folder.json');
+        const configured = await store.get<boolean>('work-folder-configured');
+        const savedPath = await store.get<string>('work-folder-path');
+
+        if (!configured || !savedPath) {
+          // First run — show setup modal
+          setShowSetup(true);
+          return;
+        }
+
+        // Verify folder still exists
+        const { invoke } = await import('@tauri-apps/api/core');
+        const folderExists: boolean = await invoke('check_folder_exists', { path: savedPath });
+
+        let activePath = savedPath;
+
+        if (!folderExists) {
+          // Folder moved or renamed — scan Desktop for .taskflow-id marker
+          const userId = auth.user!.id;
+          const recovered: string | null = await invoke('find_work_folder_by_marker', { userId });
+
+          if (recovered) {
+            // Auto-relocate: update Tauri Store + DB silently
+            console.info('[WorkFolder] Auto-relocated to:', recovered);
+            const store = await loadStore('taskflow-work-folder.json');
+            await store.set('work-folder-path', recovered);
+            await store.save();
+            await workFolderService.upsertConfig(userId, recovered);
+            activePath = recovered;
+          } else {
+            // Truly gone (deleted or moved off Desktop) — show warning banner
+            workFolderStore.setFolderMissing(true);
+            workFolderStore.setFolderPath(savedPath);
+            workFolderStore.setConfigured(true);
+            return;
+          }
+        }
+
+        workFolderStore.setFolderPath(activePath);
+        workFolderStore.setConfigured(true);
+
+        // Reconciliation pass
+        const userId = auth.user!.id;
+        await reconcileWorkFolder({
+          userId,
+          folderPath: activePath,
+        });
+
+        // Start file watcher (queue drains automatically inside startSync)
+        await startSync({
+          userId,
+          folderPath: activePath,
+          workFolderService,
+          onNavigateToSettings: () => navigate('/settings'),
+        });
+      } catch (err) {
+        console.error('[WorkFolder] Init error:', err);
+      }
+    })();
+
+    return () => {
+      const currentUserId = auth.user?.id;
+      if (currentUserId) {
+        void stopSync(currentUserId, workFolderService);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.user?.id]);
+
+  // ── After setup completes ──────────────────────────────────────────────────
+  const handleSetupComplete = useCallback(
+    async (folderPath: string) => {
+      setShowSetup(false);
+      workFolderStore.setFolderPath(folderPath);
+      workFolderStore.setConfigured(true);
+
+      // Reconcile (empty folder — instant)
+      await reconcileWorkFolder({ userId: auth.user!.id, folderPath });
+
+      // Start watcher
+      await startSync({
+        userId: auth.user!.id,
+        folderPath,
+        workFolderService,
+        onNavigateToSettings: () => navigate('/settings'),
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [auth.user?.id, workFolderService, navigate],
+  );
+
+  // Create stable Link component
   const DesktopLink = useMemo(() => createDesktopLink(navigate), [navigate]);
 
   return (
@@ -107,12 +217,26 @@ function AppWithFeatures() {
     >
       <BottomNavProvider>
         <OfflineBanner />
-        <DashboardPage currentPath={currentPath} />
+        <DashboardPage
+          currentPath={currentPath}
+          workFolderService={workFolderService}
+        />
         <Toaster theme="dark" />
+
+        {/* First-run setup modal — rendered on top of everything */}
+        {showSetup && auth.user && (
+          <WorkFolderSetup
+            userId={auth.user.id}
+            userFullName={auth.user.user_metadata?.full_name ?? auth.user.email ?? 'User'}
+            workFolderService={workFolderService}
+            onComplete={handleSetupComplete}
+          />
+        )}
       </BottomNavProvider>
     </FeaturesProvider>
   );
 }
+
 
 function App() {
   const { user, loading, initialized, initialize } = useAuthStore();

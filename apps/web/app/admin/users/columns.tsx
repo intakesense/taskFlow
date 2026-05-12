@@ -4,6 +4,7 @@ import { ColumnDef } from '@tanstack/react-table'
 import { User } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { MoreVertical, Pencil, Trash2, Eye, Shield, ArrowUpDown } from 'lucide-react'
+import { MoreVertical, Pencil, Trash2, Eye, Shield, ArrowUpDown, HardDrive } from 'lucide-react'
 import { getLevelLabel } from '@taskflow/features'
 
 interface ColumnActions {
@@ -110,6 +111,12 @@ export const createColumns = (actions: ColumnActions): ColumnDef<User>[] => [
             <DropdownMenuItem onClick={() => actions.onEdit(user)}>
               <Pencil className="h-4 w-4 mr-2" />
               Edit User
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/admin/users/${user.id}/work-folder`}>
+                <HardDrive className="h-4 w-4 mr-2" />
+                Work Folder
+              </Link>
             </DropdownMenuItem>
             {!isCurrentUser && (
               <>

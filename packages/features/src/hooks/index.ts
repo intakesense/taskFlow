@@ -117,3 +117,16 @@ export {
   useInvalidateDriveAttachments,
   driveAttachmentKeys,
 } from './use-drive-attachments';
+
+export {
+  useWorkFolderFiles,
+  useWorkFolderConfig,
+  useWorkFolderUsage,
+  useAdminWorkFolderFiles,
+  useAdminWorkFolderConfig,
+  useWorkFolderSignedUrl,
+  useInvalidateWorkFolderFiles,
+  formatBytes,
+  getStatusIcon,
+  workFolderKeys,
+} from './use-work-folder';
