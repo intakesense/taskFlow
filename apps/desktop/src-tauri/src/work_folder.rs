@@ -283,7 +283,10 @@ pub fn get_file_metadata(path: String) -> Result<FileMetadata, String> {
         .modified()
         .ok()
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .and_then(|d| chrono::DateTime::from_timestamp_opt(d.as_secs() as i64, 0))
+        .and_then(|d| {
+            use chrono::TimeZone;
+            chrono::Utc.timestamp_opt(d.as_secs() as i64, 0).single()
+        })
         .map(|dt| dt.to_rfc3339())
         .unwrap_or_default();
 
