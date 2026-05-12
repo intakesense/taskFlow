@@ -3,8 +3,16 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "turbo": {
+    "tasks": {
+      "build": {
+        "dependsOn": ["^build", "rust:check"]
+      }
+    }
+  },
   "scripts": {
     "dev": "vite",
+    "rust:check": "cargo check --manifest-path src-tauri/Cargo.toml",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",

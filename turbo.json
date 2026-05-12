@@ -57,6 +57,11 @@
       "cache": false,
       "persistent": true
     },
+    "rust:check": {
+      "inputs": ["src-tauri/src/**", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock", "src-tauri/capabilities/**", "src-tauri/tauri.conf.json"],
+      "outputs": [],
+      "cache": true
+    },
     "tauri:build": {
       "dependsOn": ["^build"],
       "outputs": ["src-tauri/target/**"]
