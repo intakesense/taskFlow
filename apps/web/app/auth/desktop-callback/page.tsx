@@ -12,32 +12,46 @@ export default function DesktopCallbackPage() {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
 
-    // Supabase PKCE flow delivers the authorization code as a query parameter.
-    // The desktop app called signInWithOAuth with skipBrowserRedirect:true, which
-    // means it opened this URL in the system browser. We extract the code and
-    // forward it to the desktop app via deep link so it can call
-    // supabase.auth.exchangeCodeForSession(code).
+    // PKCE flow: Supabase delivers the authorization code as ?code= query param.
+    // Implicit flow fallback: token arrives in the URL hash as #access_token=...
+    // We handle both and forward to the desktop app via deep link.
     const searchParams = new URLSearchParams(window.location.search);
     const code = searchParams.get('code');
 
-    if (!code) {
-      setErrorMessage('No authentication code received from the provider.');
-      setStatus('error');
+    if (code) {
+      // PKCE flow — forward the code so desktop can call exchangeCodeForSession(code)
+      const deepLink = `taskflow://auth/callback?code=${encodeURIComponent(code)}`;
+      fireDeepLink(deepLink);
+      setStatus('success');
       return;
     }
 
-    // Forward the code to the desktop app via deep link.
-    // Hidden anchor click keeps this tab open — assigning window.location.href
-    // to a custom scheme navigates the tab away to a blank/error page on some OSes.
-    const deepLink = `taskflow://auth/callback?code=${encodeURIComponent(code)}`;
-    const anchor = document.createElement('a');
-    anchor.href = deepLink;
-    anchor.style.display = 'none';
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
+    // Implicit flow fallback — token arrives in the URL hash fragment
+    const hash = window.location.hash.slice(1); // strip leading '#'
+    if (hash) {
+      const hashParams = new URLSearchParams(hash);
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const expiresAt = hashParams.get('expires_at');
+      const tokenType = hashParams.get('token_type');
 
-    setStatus('success');
+      if (accessToken) {
+        // Forward all token params so the desktop app can reconstruct the session
+        const params = new URLSearchParams();
+        params.set('access_token', accessToken);
+        if (refreshToken) params.set('refresh_token', refreshToken);
+        if (expiresAt) params.set('expires_at', expiresAt);
+        if (tokenType) params.set('token_type', tokenType);
+
+        const deepLink = `taskflow://auth/callback?${params.toString()}`;
+        fireDeepLink(deepLink);
+        setStatus('success');
+        return;
+      }
+    }
+
+    setErrorMessage('No authentication code or token received from the provider.');
+    setStatus('error');
   }, []);
 
   // Auto-close once deep link has been dispatched
@@ -132,4 +146,15 @@ export default function DesktopCallbackPage() {
       </p>
     </div>
   );
+}
+
+function fireDeepLink(url: string) {
+  // Hidden anchor click keeps this tab open.
+  // Assigning window.location.href to a custom scheme navigates away on some OSes.
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
 }

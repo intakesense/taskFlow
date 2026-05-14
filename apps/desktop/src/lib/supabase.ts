@@ -40,5 +40,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // Force PKCE flow so OAuth redirects return ?code= (not #access_token= implicit flow).
+    // Without this, Supabase JS may fall back to implicit when detectSessionInUrl is false.
+    flowType: 'pkce',
   },
 });

@@ -39,6 +39,7 @@ export function LoginPage() {
       onEmailSignIn={handleEmailSignIn}
       onGoogleSignIn={handleGoogleSignIn}
       isGoogleLoading={isGoogleLoading}
+      logoSrc="/logo.png"
     />
   );
 }

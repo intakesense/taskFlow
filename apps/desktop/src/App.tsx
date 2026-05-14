@@ -263,7 +263,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <MotionProvider>
-          {user ? <AppWithFeatures /> : <LoginPage />}
+          {user ? <AppWithFeatures /> : (
+            <>
+              <LoginPage />
+              <Toaster theme="dark" />
+            </>
+          )}
         </MotionProvider>
       </ThemeProvider>
     </QueryClientProvider>

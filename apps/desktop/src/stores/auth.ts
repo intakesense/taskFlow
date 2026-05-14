@@ -129,16 +129,29 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             try {
               const parsed = new URL(url);
               const code = parsed.searchParams.get('code');
+              const accessToken = parsed.searchParams.get('access_token');
+              const refreshToken = parsed.searchParams.get('refresh_token');
 
-              if (!code) {
+              if (code) {
+                // PKCE flow
+                const { error } = await supabase.auth.exchangeCodeForSession(code);
+                if (error) {
+                  console.error('[auth] PKCE exchange failed:', error.message);
+                }
+              } else if (accessToken) {
+                // Implicit flow fallback — set session directly from tokens
+                const expiresAt = parsed.searchParams.get('expires_at');
+                const { error } = await supabase.auth.setSession({
+                  access_token: accessToken,
+                  refresh_token: refreshToken ?? '',
+                });
+                if (error) {
+                  console.error('[auth] Implicit session set failed:', error.message);
+                }
+                void expiresAt; // used by Supabase internally via the token payload
+              } else {
                 releaseCallbackLock();
                 return;
-              }
-
-              const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-              if (error) {
-                console.error('[auth] PKCE exchange failed:', error.message);
               }
               // onAuthStateChange fires SIGNED_IN — no manual state update needed.
             } catch (e) {
